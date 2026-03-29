@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Georgia", serif;
+  --text-tiny: 13px;
+  --text-label: 13px;
+  --text-body: 14px;
+}
+
+@utility bg-parchment {
+  background-color: #fdfbf7;
+  background-image: url("https://www.transparenttextures.com/patterns/old-map.png");
+  background-size: 125px;
+  background-blend-mode: multiply;
+}

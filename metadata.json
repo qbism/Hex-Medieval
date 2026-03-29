@@ -1,0 +1,5 @@
+{
+  "name": "Hex-Medieval: Strategic Conquest",
+  "description": "A low-fi, hex-based turn-based strategy game set in a medieval world. Support for up to 6 players with a mix of human and Automaton opponents.",
+  "requestFramePermissions": []
+}
