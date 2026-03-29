@@ -31,7 +31,8 @@ export function getUnitAction(
   hvt: Unit | null,
   isSavingForMine: boolean,
   isSavingForVillage: boolean,
-  isLagging: boolean
+  isLagging: boolean,
+  isBarbarian: boolean = false
 ) {
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id && !u.hasActed);
   const unitToAct = myUnits[0];
@@ -62,7 +63,7 @@ export function getUnitAction(
         
         // Economic Trade: Target Value - My Risk
         const myThreatLevel = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`) || Infinity;
-        const risk = myThreatLevel <= 2 ? myValue : 0;
+        const risk = (myThreatLevel <= 2 && !isBarbarian) ? myValue : 0;
         
         priority = targetValue - risk;
 
@@ -92,8 +93,8 @@ export function getUnitAction(
       }
     }
 
-    // Only attack if it's not a suicidal bad trade (unless defending)
-    if (maxPriority > -myValue * 0.5 || eminentThreatBases.length > 0) {
+    // Only attack if it's not a suicidal bad trade (unless defending or barbarian)
+    if (maxPriority > -myValue * 0.5 || eminentThreatBases.length > 0 || isBarbarian) {
       return { type: 'attack' as const, payload: { unitId: unitToAct.id, target: bestAttack } };
     }
   }
@@ -137,7 +138,64 @@ export function getUnitAction(
           // Moving closer to a target
           // ROI = Value / turnsToReach
           const turnsToReach = Math.ceil((dist - (target.isSettlement ? 0 : stats.range)) / stats.moves) + 1;
-          score += target.value / (turnsToReach + 1);
+          let targetScore = target.value / (turnsToReach + 1);
+
+          // Knight Harassment Bonus: Knights love picking off distant, undefended settlements
+          if (unitToAct.type === UnitType.KNIGHT && target.isSettlement && target.ownerId === null && dist <= 4) {
+             targetScore += BASE_REWARD * 2.0;
+          }
+
+          score += targetScore;
+        }
+      }
+
+      // Knight Safety Logic: If in danger, prioritize moving to safety
+      const currentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`) || Infinity;
+      if (unitToAct.type === UnitType.KNIGHT && currentThreat <= 2 && !isBarbarian) {
+        const moveThreat = threatMatrix.get(`${m.q},${m.r}`) || Infinity;
+        if (moveThreat > 3) {
+          score += BASE_REWARD * 3.0; // High bonus for escaping to safety
+        }
+        
+        // Bonus for moving towards friendly settlements when in danger
+        const friendlySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE));
+        let minDistToSettlement = Infinity;
+        for (const s of friendlySettlements) {
+          const d = getDistance(m, s.coord);
+          if (d < minDistToSettlement) minDistToSettlement = d;
+        }
+        if (minDistToSettlement <= 2) {
+          score += BASE_REWARD * 1.5;
+        }
+      }
+
+      // Catapult Specific Movement Logic
+      if (unitToAct.type === UnitType.CATAPULT) {
+        const moveThreat = threatMatrix.get(`${m.q},${m.r}`) || Infinity;
+        
+        // Catapults MUST stay safe. They are too slow to escape once engaged.
+        if (moveThreat <= 2 && !isBarbarian) {
+          score -= BASE_REWARD * 5.0; // Extremely high penalty for moving into danger
+        } else if (moveThreat === 3 && !isBarbarian) {
+          score -= BASE_REWARD * 2.0;
+        }
+
+        // Siege positioning: Prefer being exactly at range 3 from an enemy settlement
+        for (const target of moveTargets) {
+          if (target.isSettlement && target.ownerId !== null) {
+            const d = getDistance(m, target.coord);
+            if (d === 3) {
+              score += BASE_REWARD * 2.0; // Ideal siege distance
+            } else if (d === 2) {
+              score += BASE_REWARD * 1.0; // Acceptable but riskier
+            }
+          }
+        }
+
+        // Defensive positioning: If near a threatened base, stay put if we have a good shot
+        const isNearThreatenedBase = eminentThreatBases.some(b => getDistance(m, b.coord) <= 3);
+        if (isNearThreatenedBase && m.q === unitToAct.coord.q && m.r === unitToAct.coord.r) {
+          score += BASE_REWARD * 1.0;
         }
       }
 
@@ -152,8 +210,10 @@ export function getUnitAction(
       
       // If influence is very negative, it's a dangerous enemy zone
       // If influence is slightly negative or zero, it's a good place to expand
-      if (influence < -50) {
-        score -= 20; // Too dangerous
+      if (influence < -100 && !isBarbarian) {
+        score -= myValue * 1.5; // High danger penalty
+      } else if (influence < -50 && !isBarbarian) {
+        score -= myValue * 0.5; // Moderate danger penalty
       } else if (influence < 0) {
         score += Math.abs(influence) * 0.5; // High contestation value
       } else {
@@ -162,11 +222,17 @@ export function getUnitAction(
 
       // Threat Penalty
       const threatLevel = threatMatrix.get(`${m.q},${m.r}`) || Infinity;
-      if (threatLevel <= 2) {
-        // Significantly increased penalty to avoid sacrificial moves
-        score -= myValue * 2.0; 
-      } else if (threatLevel <= 3) {
-        score -= myValue * 0.8;
+      if (!isBarbarian) {
+        if (threatLevel === 1) {
+          // Immediate attack range - extremely dangerous
+          score -= myValue * 4.0;
+        } else if (threatLevel === 2) {
+          // Move and attack range - dangerous
+          score -= myValue * 2.0; 
+        } else if (threatLevel === 3) {
+          // Possible threat soon
+          score -= myValue * 0.5;
+        }
       }
 
       // Upgrade Path Scoring: Prioritize moving to or staying on tiles we want to upgrade

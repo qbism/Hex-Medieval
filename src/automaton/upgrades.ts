@@ -17,8 +17,13 @@ export function getUpgradeAction(
   isUnderThreat: boolean, 
   isEarlyGame: boolean, 
   numSettlements: number,
-  isLaggingIncome: boolean
+  isLaggingIncome: boolean,
+  isBarbarian: boolean = false
 ) {
+  // Barbarians only build villages if they have a significant gold surplus
+  // This ensures they spend roughly 1/3 on expansion and 2/3 on infantry
+  if (isBarbarian && currentPlayer.gold < 300) return null;
+
   const upgradeableTiles = state.board.filter(t => {
     if (t.ownerId === currentPlayer.id) return true;
     const unitOnTile = state.units.find(u => u.ownerId === currentPlayer.id && u.coord.q === t.coord.q && u.coord.r === t.coord.r);
@@ -35,17 +40,20 @@ export function getUpgradeAction(
     let baseScore = 0;
 
     if (tile.terrain === TerrainType.MOUNTAIN && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
+      if (isBarbarian) continue;
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
       baseScore = BASE_REWARD * 2.5; // Priority 1: Maximize income (increased significantly)
       if (isLaggingIncome) baseScore += BASE_REWARD * 2.0; // Extra priority if lagging income
     } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
-      baseScore = BASE_REWARD * 1.5; // Priority 1: Maximize expansion
-      if (isLaggingIncome) baseScore += BASE_REWARD * 1.0; // Extra priority if lagging income
+      baseScore = isBarbarian ? BASE_REWARD * 0.5 : BASE_REWARD * 1.5; // Lower priority for barbarians
+      if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * 1.0; // Extra priority if lagging income
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
+      if (isBarbarian) continue;
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
       baseScore = BASE_REWARD * 0.1; // Priority 1: Defendable settlements
     } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
+      if (isBarbarian) continue;
       cost = UPGRADE_COSTS[TerrainType.CASTLE];
       baseScore = BASE_REWARD * 0.15; // Priority 1: Defendable settlements
     }
@@ -118,7 +126,7 @@ export function getUpgradeAction(
            for (const n of neighbors) {
              const nTile = state.board.find(t => t.coord.q === n.q && t.coord.r === n.r);
              if (nTile) {
-               if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += BASE_REWARD * 0.5; // High value for future gold mines
+               if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += isBarbarian ? 0 : BASE_REWARD * 0.5; // High value for future gold mines
                if (nTile.terrain === TerrainType.FOREST) resourceBonus += BASE_REWARD * 0.15; // Good defensive terrain nearby
                if (nTile.terrain === TerrainType.WATER) resourceBonus -= BASE_REWARD * 0.05; // Less land to build on
              } else {

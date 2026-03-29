@@ -90,6 +90,10 @@ export function useAutomatonTurn({
           setAutomatonStatus("Upgrading settlement...");
           actions.upgradeSettlement(action.payload.coord);
           break;
+        case 'goRogue':
+          setAutomatonStatus("Empire collapsing! Going rogue...");
+          actions.exitPlayer();
+          break;
       }
       isProcessingRef.current = false;
     }, 500); // Delay for visual pacing

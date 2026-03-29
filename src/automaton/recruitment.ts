@@ -27,7 +27,8 @@ export function getRecruitmentAction(
   isSavingForMine: boolean,
   isSavingForVillage: boolean,
   isLaggingStrength: boolean,
-  isLaggingIncome: boolean
+  isLaggingIncome: boolean,
+  isBarbarian: boolean = false
 ) {
   const recruitmentTiles = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
@@ -55,8 +56,20 @@ export function getRecruitmentAction(
     ...state.board.filter(t => 
       (t.ownerId === null || t.ownerId !== currentPlayer.id) && 
       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
-    ).map(t => ({ coord: t.coord, value: SETTLEMENT_INCOME[t.terrain] * HORIZON, isSettlement: true, ownerId: t.ownerId })),
-    ...state.units.filter(u => u.ownerId !== currentPlayer.id).map(u => ({ coord: u.coord, value: UNIT_STATS[u.type].cost, isSettlement: false, ownerId: u.ownerId }))
+    ).map(t => ({ 
+      coord: t.coord, 
+      value: SETTLEMENT_INCOME[t.terrain] * HORIZON, 
+      isSettlement: true, 
+      ownerId: t.ownerId,
+      unitType: undefined 
+    })),
+    ...state.units.filter(u => u.ownerId !== currentPlayer.id).map(u => ({ 
+      coord: u.coord, 
+      value: UNIT_STATS[u.type].cost, 
+      isSettlement: false, 
+      ownerId: u.ownerId,
+      unitType: u.type 
+    }))
   ];
 
   let bestAction: { type: UnitType, coord: HexCoord, score: number } | null = null;
@@ -66,7 +79,9 @@ export function getRecruitmentAction(
   for (const t of recruitmentTiles) {
     if (recruitSafety.tick()) break;
 
-    for (const unitType of Object.keys(UNIT_STATS) as UnitType[]) {
+    const allowedUnitTypes = isBarbarian ? [UnitType.INFANTRY] : (Object.keys(UNIT_STATS) as UnitType[]);
+
+    for (const unitType of allowedUnitTypes) {
       const stats = UNIT_STATS[unitType];
       if (currentGold < stats.cost) continue;
       
@@ -97,13 +112,60 @@ export function getRecruitmentAction(
         // ROI = (Target Value - Unit Cost) / turnsToAct
         let actionValue = target.value;
         
+        // Bonus for defending own territory
+        const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord) <= 3);
+
+        // Knight Specific Logic
+        if (unitType === UnitType.KNIGHT) {
+          // Knights are great at sniping squishy targets
+          if (!target.isSettlement && (target.unitType === UnitType.ARCHER || target.unitType === UnitType.CATAPULT)) {
+            actionValue += BASE_REWARD * 1.5;
+          }
+          // Knights are great at rapid expansion/harassment
+          // Bonus only if the settlement is unclaimed, within one move (turnsToAct <= 2), and unthreatened
+          const targetThreat = threatMatrix.get(`${target.coord.q},${target.coord.r}`) || Infinity;
+          if (target.isSettlement && target.ownerId === null && turnsToAct <= 2 && targetThreat > 2) {
+            actionValue += BASE_REWARD * 2.0;
+          }
+          // Knights are expensive; ensure we have decent income to sustain them
+          if (income < 40 && !isUnderThreat) {
+            actionValue -= BASE_REWARD * 2.0;
+          }
+        }
+
+        // Catapult Specific Logic
+        if (unitType === UnitType.CATAPULT) {
+          // Catapults are siege engines
+          if (target.isSettlement && target.ownerId !== null) {
+            // High bonus for attacking enemy settlements
+            actionValue += BASE_REWARD * 2.0;
+            if (target.value > 400) { // High value settlements (Castles)
+              actionValue += BASE_REWARD * 1.0;
+            }
+          }
+          
+          // Catapults are great for defense if placed correctly
+          if (isNearMyBase && turnsToAct <= 2) {
+            actionValue += BASE_REWARD * 1.5;
+          }
+
+          // Catapults are very expensive and slow
+          // Penalty if income is low
+          if (income < 50 && !isUnderThreat) {
+            actionValue -= BASE_REWARD * 3.0;
+          }
+
+          // Mobility penalty: Catapults are useless if the front line is too far
+          if (turnsToAct > 5) {
+            actionValue -= BASE_REWARD * 2.0;
+          }
+        }
+        
         // Bonus for capturing neutral settlements
         if (target.isSettlement && target.ownerId === null) {
           actionValue += BASE_REWARD * 0.5;
         }
         
-        // Bonus for defending own territory
-        const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord) <= 3);
         if (isNearMyBase) {
           actionValue += BASE_REWARD * 3.0; // Increased from 1.0 to 3.0
         }
@@ -121,9 +183,12 @@ export function getRecruitmentAction(
 
       // Penalize spawning in danger unless it's for defense
       const threatLevel = threatMatrix.get(`${t.coord.q},${t.coord.r}`) || Infinity;
-      if (threatLevel <= 2 && !eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r)) {
-        // Significantly increased penalty to avoid sacrificial spawns
-        bestUnitScore -= BASE_REWARD * 2.0; 
+      if (threatLevel <= 2 && !isBarbarian) {
+        // If it's an eminent threat base, we still penalize but less, 
+        // because we might need to block or defend.
+        const isDefensive = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
+        const penalty = isDefensive ? stats.cost * 0.5 : stats.cost * 2.5;
+        bestUnitScore -= penalty;
       }
 
       if (bestUnitScore > (bestAction?.score ?? -Infinity)) {
