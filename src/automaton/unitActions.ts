@@ -15,11 +15,12 @@ import { getValidAttacks, getValidMoves } from '../gameEngine';
 import { findNearestTarget, getChokepointScore } from './utils';
 import { BASE_REWARD } from './constants';
 import { LoopSafety } from '../utils';
+import { ThreatInfo } from './threatAnalysis';
 
 export function getUnitAction(
   state: GameState, 
   currentPlayer: Player, 
-  threatMatrix: Map<string, number>,
+  threatMatrix: Map<string, ThreatInfo>,
   influenceMap: Map<string, number>,
   eminentThreatBases: any[],
   possibleThreatBases: any[],
@@ -62,7 +63,8 @@ export function getUnitAction(
         const targetValue = UNIT_STATS[targetUnit.type].cost;
         
         // Economic Trade: Target Value - My Risk
-        const myThreatLevel = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`) || Infinity;
+        const threat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
+        const myThreatLevel = threat ? threat.minTurns : Infinity;
         const risk = (myThreatLevel <= 2 && !isBarbarian) ? myValue : 0;
         
         priority = targetValue - risk;
@@ -109,14 +111,15 @@ export function getUnitAction(
 
     const moveSafety = new LoopSafety('getAutomatonBestAction-moves-economic', 5000);
     
-    // Potential move targets
+    // Potential move targets - limit to top 8 nearest to avoid additive score bloat
     const moveTargets = [
       ...state.board.filter(t => 
         (t.ownerId === null || t.ownerId !== currentPlayer.id) && 
         (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
       ).map(t => ({ coord: t.coord, value: SETTLEMENT_INCOME[t.terrain] * HORIZON, isSettlement: true, ownerId: t.ownerId })),
       ...state.units.filter(u => u.ownerId !== currentPlayer.id).map(u => ({ coord: u.coord, value: UNIT_STATS[u.type].cost, isSettlement: false, ownerId: u.ownerId }))
-    ];
+    ].sort((a, b) => getDistance(unitToAct.coord, a.coord) - getDistance(unitToAct.coord, b.coord))
+     .slice(0, 8);
 
     for (const m of moves) {
       if (moveSafety.tick()) break;
@@ -126,10 +129,13 @@ export function getUnitAction(
 
       // Immediate Capture Bonus
       if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
-        score += (SETTLEMENT_INCOME[tile.terrain] * HORIZON) + BASE_REWARD * 1.0;
+        score += (SETTLEMENT_INCOME[tile.terrain] * HORIZON) + BASE_REWARD * 1.5; // Increased from 1.0 to 1.5
       }
 
-      // Evaluate proximity to all targets
+      // Evaluate proximity to all targets - use non-additive scoring with decay
+      let maxTargetScore = 0;
+      let otherTargetsScore = 0;
+      
       for (const target of moveTargets) {
         const dist = getDistance(m, target.coord);
         const currentDist = getDistance(unitToAct.coord, target.coord);
@@ -145,16 +151,24 @@ export function getUnitAction(
              targetScore += BASE_REWARD * 2.0;
           }
 
-          score += targetScore;
+          if (targetScore > maxTargetScore) {
+            otherTargetsScore += maxTargetScore * 0.2; // Decay previous max
+            maxTargetScore = targetScore;
+          } else {
+            otherTargetsScore += targetScore * 0.2; // Decay this target
+          }
         }
       }
+      score += maxTargetScore + otherTargetsScore;
 
       // Knight Safety Logic: If in danger, prioritize moving to safety
-      const currentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`) || Infinity;
-      if (unitToAct.type === UnitType.KNIGHT && currentThreat <= 2 && !isBarbarian) {
-        const moveThreat = threatMatrix.get(`${m.q},${m.r}`) || Infinity;
-        if (moveThreat > 3) {
-          score += BASE_REWARD * 3.0; // High bonus for escaping to safety
+      const currentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
+      const currentThreatLevel = currentThreat ? currentThreat.minTurns : Infinity;
+      if (unitToAct.type === UnitType.KNIGHT && currentThreatLevel <= 2 && !isBarbarian) {
+        const moveThreat = threatMatrix.get(`${m.q},${m.r}`);
+        const moveThreatLevel = moveThreat ? moveThreat.minTurns : Infinity;
+        if (moveThreatLevel > 3) {
+          score += BASE_REWARD * 4.0; // Increased from 3.0 to 4.0
         }
         
         // Bonus for moving towards friendly settlements when in danger
@@ -165,19 +179,20 @@ export function getUnitAction(
           if (d < minDistToSettlement) minDistToSettlement = d;
         }
         if (minDistToSettlement <= 2) {
-          score += BASE_REWARD * 1.5;
+          score += BASE_REWARD * 2.0; // Increased from 1.5 to 2.0
         }
       }
 
       // Catapult Specific Movement Logic
       if (unitToAct.type === UnitType.CATAPULT) {
-        const moveThreat = threatMatrix.get(`${m.q},${m.r}`) || Infinity;
+        const moveThreat = threatMatrix.get(`${m.q},${m.r}`);
+        const moveThreatLevel = moveThreat ? moveThreat.minTurns : Infinity;
         
         // Catapults MUST stay safe. They are too slow to escape once engaged.
-        if (moveThreat <= 2 && !isBarbarian) {
-          score -= BASE_REWARD * 5.0; // Extremely high penalty for moving into danger
-        } else if (moveThreat === 3 && !isBarbarian) {
-          score -= BASE_REWARD * 2.0;
+        if (moveThreatLevel <= 2 && !isBarbarian) {
+          score -= BASE_REWARD * 8.0; // Increased from 5.0 to 8.0
+        } else if (moveThreatLevel === 3 && !isBarbarian) {
+          score -= BASE_REWARD * 4.0; // Increased from 2.0 to 4.0
         }
 
         // Siege positioning: Prefer being exactly at range 3 from an enemy settlement
@@ -185,9 +200,9 @@ export function getUnitAction(
           if (target.isSettlement && target.ownerId !== null) {
             const d = getDistance(m, target.coord);
             if (d === 3) {
-              score += BASE_REWARD * 2.0; // Ideal siege distance
+              score += BASE_REWARD * 3.0; // Increased from 2.0 to 3.0
             } else if (d === 2) {
-              score += BASE_REWARD * 1.0; // Acceptable but riskier
+              score += BASE_REWARD * 1.5; // Increased from 1.0 to 1.5
             }
           }
         }
@@ -195,13 +210,13 @@ export function getUnitAction(
         // Defensive positioning: If near a threatened base, stay put if we have a good shot
         const isNearThreatenedBase = eminentThreatBases.some(b => getDistance(m, b.coord) <= 3);
         if (isNearThreatenedBase && m.q === unitToAct.coord.q && m.r === unitToAct.coord.r) {
-          score += BASE_REWARD * 1.0;
+          score += BASE_REWARD * 2.0; // Increased from 1.0 to 2.0
         }
       }
 
       // Defense Scoring
       const isDefendingBase = eminentThreatBases.some(b => getDistance(m, b.coord) <= 2) || possibleThreatBases.some(b => getDistance(m, b.coord) <= 2);
-      if (isDefendingBase) score += BASE_REWARD * 2.5; // Increased from 1.0 to 2.5
+      if (isDefendingBase) score += BASE_REWARD * 3.5; // Increased from 2.5 to 3.5
 
       // Influence Scoring (Potential Fields)
       // We want to move toward areas where we have low influence (expansion)
@@ -211,9 +226,9 @@ export function getUnitAction(
       // If influence is very negative, it's a dangerous enemy zone
       // If influence is slightly negative or zero, it's a good place to expand
       if (influence < -100 && !isBarbarian) {
-        score -= myValue * 1.5; // High danger penalty
+        score -= myValue * 3.0; // Increased from 1.5 to 3.0
       } else if (influence < -50 && !isBarbarian) {
-        score -= myValue * 0.5; // Moderate danger penalty
+        score -= myValue * 1.5; // Increased from 0.5 to 1.5
       } else if (influence < 0) {
         score += Math.abs(influence) * 0.5; // High contestation value
       } else {
@@ -221,17 +236,23 @@ export function getUnitAction(
       }
 
       // Threat Penalty
-      const threatLevel = threatMatrix.get(`${m.q},${m.r}`) || Infinity;
-      if (!isBarbarian) {
+      const threat = threatMatrix.get(`${m.q},${m.r}`);
+      if (!isBarbarian && threat) {
+        const threatLevel = threat.minTurns;
+        const threatValue = threat.totalThreatValue;
+        const attackerCount = threat.attackerCount;
+        
         if (threatLevel === 1) {
           // Immediate attack range - extremely dangerous
-          score -= myValue * 4.0;
+          // Penalty scales with total threat value and attacker count to avoid "meat grinders"
+          score -= (myValue * 10.0) + (threatValue * 4.0) + (attackerCount * 100);
         } else if (threatLevel === 2) {
           // Move and attack range - dangerous
-          score -= myValue * 2.0; 
+          // Increased penalty to avoid moving into "just reachable" positions
+          score -= (myValue * 5.0) + (threatValue * 2.0) + (attackerCount * 50);
         } else if (threatLevel === 3) {
           // Possible threat soon
-          score -= myValue * 0.5;
+          score -= (myValue * 1.5) + (threatValue * 0.75);
         }
       }
 

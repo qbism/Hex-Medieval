@@ -20,9 +20,9 @@ export function getUpgradeAction(
   isLaggingIncome: boolean,
   isBarbarian: boolean = false
 ) {
-  // Barbarians only build villages if they have a significant gold surplus
-  // This ensures they spend roughly 1/3 on expansion and 2/3 on infantry
-  if (isBarbarian && currentPlayer.gold < 300) return null;
+  // Barbarians only build villages if they have enough gold
+  // The 1/3 expansion budget is managed in getRecruitmentAction
+  if (isBarbarian && currentPlayer.gold < UPGRADE_COSTS[TerrainType.VILLAGE]) return null;
 
   const upgradeableTiles = state.board.filter(t => {
     if (t.ownerId === currentPlayer.id) return true;

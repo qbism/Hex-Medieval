@@ -13,29 +13,100 @@ import {
   UPGRADE_COSTS,
   Unit
 } from './types';
-import { createInitialState, getValidMoves, getValidAttacks, processTurnTransition, calculateIncome, triggerBarbarianInvasion } from './gameEngine';
+import { createInitialState, getValidMoves, getValidAttacks, getAttackRange, processTurnTransition, calculateIncome, triggerBarbarianInvasion } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';
-import { Sword, Shield, Coins, User, Play, RotateCcw, ChevronRight, HelpCircle, X, PlusCircle, Volume2, VolumeX } from 'lucide-react';
+import { GameButton } from './components/GameButton';
+import { Sword, Shield, Coins, User, Play, RotateCcw, ChevronRight, HelpCircle, Settings, PlusCircle, Volume2, VolumeX, Save, Upload, AlertTriangle, AlertTriangle as AlertIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, TERRAIN_COLORS } from './types';
 import { soundEngine } from './services/soundEngine';
 import { triggerEffect } from './services/effectEngine';
 import { calculateStrength } from './utils';
 import { HelpModal } from './components/HelpModal';
+import { saveGame, loadGame } from './services/saveLoadService';
 
 const COLORS = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
 
-const ExitDialog = ({ 
+const ConfirmationDialog = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  message 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  title: string;
+  message: string;
+}) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+        >
+          <motion.div 
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-amber-100 border-2 border-black">
+                <AlertTriangle className="text-amber-600" size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tight">{title}</h3>
+                <p className="text-stone-600 font-medium">{message}</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-4">
+              <GameButton 
+                onClick={onClose}
+                variant="ghost"
+                fullWidth
+                className="border-2 border-black"
+              >
+                Cancel
+              </GameButton>
+              <GameButton 
+                onClick={() => {
+                  onConfirm();
+                  onClose();
+                }}
+                variant="danger"
+                fullWidth
+                className="border-2 border-black"
+              >
+                Confirm
+              </GameButton>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+const GameMenu = ({ 
   isOpen, 
   onClose, 
   onExitCurrent, 
-  onExitAll 
+  onExitAll,
+  onSave,
+  onLoad
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   onExitCurrent: () => void; 
   onExitAll: () => void;
+  onSave: () => void;
+  onLoad: () => void;
 }) => {
   return (
     <AnimatePresence>
@@ -53,43 +124,70 @@ const ExitDialog = ({
           >
             <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-6 gap-1">
               <div className="grayscale opacity-40 pointer-events-none select-none">
-                <span className="text-[60px]">🏰</span>
+                <Settings size={60} />
               </div>
               <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-center">
-                Quit Game?
+                Game Menu
               </h2>
             </div>
             
-            <div className="space-y-4">
-              <button 
-                onClick={() => {
-                  onExitCurrent();
-                  onClose();
-                }}
-                className="w-full py-4 px-6 bg-white border-2 border-black font-bold uppercase tracking-wider hover:bg-red-50 transition-colors flex items-center justify-between group"
+            <div className="space-y-3">
+              <GameButton 
+                onClick={onSave}
+                variant="ghost"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<Save size={20} />}
+              >
+                <span>Save Game</span>
+                <ChevronRight size={20} />
+              </GameButton>
+
+              <GameButton 
+                onClick={onLoad}
+                variant="ghost"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<Upload size={20} />}
+              >
+                <span>Load Game</span>
+                <ChevronRight size={20} />
+              </GameButton>
+
+              <div className="h-px bg-black/20 my-2" />
+
+              <GameButton 
+                onClick={onExitCurrent}
+                variant="ghost"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<RotateCcw size={20} />}
               >
                 <span>Exit Current Player</span>
-                <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </button>
+                <ChevronRight size={20} />
+              </GameButton>
               
-              <button 
-                onClick={() => {
-                  onExitAll();
-                  onClose();
-                }}
-                className="w-full py-4 px-6 bg-white border-2 border-black font-bold uppercase tracking-wider hover:bg-red-100 transition-colors flex items-center justify-between group"
+              <GameButton 
+                onClick={onExitAll}
+                variant="danger"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<RotateCcw size={20} />}
               >
                 <span>Exit All (Reset Game)</span>
-                <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </button>
+                <ChevronRight size={20} />
+              </GameButton>
               
-              <button 
+              <GameButton 
                 onClick={onClose}
-                className="w-full py-4 px-6 bg-black text-white font-bold uppercase tracking-wider hover:bg-stone-800 transition-colors flex items-center justify-between group"
+                variant="primary"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<Play size={20} />}
               >
                 <span>Return to Game</span>
-                <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </button>
+                <ChevronRight size={20} />
+              </GameButton>
             </div>
           </motion.div>
         </motion.div>
@@ -103,8 +201,94 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [setupMode, setSetupMode] = useState(true);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSave = () => {
+    if (gameState) {
+      saveGame(gameState);
+      setShowMenu(false);
+    }
+  };
+
+  const handleLoadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const loadedState = await loadGame(file);
+        setGameState(loadedState);
+        setShowMenu(false);
+        setSetupMode(false);
+      } catch (error) {
+        console.error('Failed to load game:', error);
+        setError('Failed to load game. Make sure it is a valid .hexm file.');
+      }
+    }
+    // Reset input
+    e.target.value = '';
+  };
+
+  const confirmAction = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmation({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const handleExitCurrent = () => {
+    confirmAction(
+      "Exit Player?",
+      "Are you sure you want to remove this player from the game?",
+      () => {
+        exitPlayer();
+        setShowMenu(false);
+      }
+    );
+  };
+
+  const handleExitAll = () => {
+    confirmAction(
+      "Reset Game?",
+      "Are you sure you want to end the current game and return to the main menu?",
+      () => {
+        setSetupMode(true);
+        setGameState(null);
+        setShowMenu(false);
+      }
+    );
+  };
+
+  const handleLoadWithConfirmation = () => {
+    if (gameState) {
+      confirmAction(
+        "Load Game?",
+        "Loading a game will end your current session. Are you sure?",
+        handleLoadClick
+      );
+    } else {
+      handleLoadClick();
+    }
+  };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
   const [playerConfigs, setPlayerConfigs] = useState([
     { name: 'Red', isAutomaton: false },
@@ -167,6 +351,20 @@ export default function App() {
     if (!gameState || gameState.winnerId !== null || setupMode) return;
     triggerEffect('click');
     const coord = axialToCube(q, r);
+    
+    // Toggle selection: if clicking the same hex, deselect
+    if (gameState.selectedHex && gameState.selectedHex.q === coord.q && gameState.selectedHex.r === coord.r) {
+      setGameState({
+        ...gameState,
+        selectedUnitId: null,
+        selectedHex: null,
+        possibleMoves: [],
+        possibleAttacks: [],
+        attackRange: [],
+      });
+      return;
+    }
+
     const unitAtHex = gameState.units.find(u => u.coord.q === coord.q && u.coord.r === coord.r);
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
 
@@ -178,6 +376,7 @@ export default function App() {
         selectedHex: coord,
         possibleMoves: [],
         possibleAttacks: [],
+        attackRange: [],
       });
       return;
     }
@@ -190,20 +389,29 @@ export default function App() {
 
     // If unit selected and clicked on a possible attack
     if (gameState.selectedUnitId && gameState.possibleAttacks.some(a => a.q === coord.q && a.r === coord.r)) {
-      attackUnit(gameState.selectedUnitId, coord);
-      return;
+      const selectedUnit = gameState.units.find(u => u.id === gameState.selectedUnitId);
+      // Only allow attack if it's the current player's unit and it hasn't acted
+      if (selectedUnit && selectedUnit.ownerId === currentPlayer.id && !selectedUnit.hasActed) {
+        attackUnit(gameState.selectedUnitId, coord);
+        return;
+      }
     }
 
     // Select unit or tile
-    if (unitAtHex && unitAtHex.ownerId === currentPlayer.id) {
-      const moves = getValidMoves(unitAtHex, gameState.board, gameState.units);
-      const attacks = getValidAttacks(unitAtHex, gameState.board, gameState.units);
+    if (unitAtHex) {
+      const isCurrentPlayer = unitAtHex.ownerId === currentPlayer.id;
+      const moves = isCurrentPlayer ? getValidMoves(unitAtHex, gameState.board, gameState.units) : [];
+      // For UI purposes, we show the range even if the unit has acted or is an enemy
+      const attacks = getValidAttacks(unitAtHex, gameState.board, gameState.units, true);
+      const range = getAttackRange(unitAtHex, gameState.board, gameState.units);
+      
       setGameState({
         ...gameState,
         selectedUnitId: unitAtHex.id,
         selectedHex: coord,
         possibleMoves: moves,
         possibleAttacks: attacks,
+        attackRange: range,
       });
     } else {
       setGameState({
@@ -212,6 +420,7 @@ export default function App() {
         selectedHex: coord,
         possibleMoves: [],
         possibleAttacks: [],
+        attackRange: [],
       });
     }
   }, [gameState, moveUnit, attackUnit, setGameState]);
@@ -231,8 +440,9 @@ export default function App() {
               <span className="text-[100px] sm:text-[140px]">🏰</span>
             </div>
             <h1 className="text-2xl sm:text-6xl font-black uppercase tracking-tighter text-center">
-              Hex Medieval
+              Throne Room
             </h1>
+            <p className="text-sm font-black uppercase tracking-widest opacity-40">Hex Medieval</p>
           </div>
           
           <div className="space-y-4 mb-8">
@@ -240,44 +450,115 @@ export default function App() {
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <User size={20} /> Player Setup
               </h2>
-              <button 
-                onClick={() => setShowInstructions(true)}
-                className="bg-stone-100 hover:bg-stone-200 text-black border border-black/20 px-4 py-2 rounded-full flex items-center gap-2 text-sm font-black uppercase tracking-wider transition-all"
-              >
-                <HelpCircle size={18} className="text-blue-600" /> Game Rules
-              </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {playerConfigs.map((config, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 border border-black/10 rounded-lg bg-stone-50">
                   <div className="w-6 h-6 rounded-full border border-black/20" style={{ backgroundColor: COLORS[i] }} />
                   <span className="flex-1 font-bold">{COLOR_NAMES[COLORS[i]]}</span>
-                  <button 
+                  <GameButton 
                     onClick={() => {
                       const newConfigs = [...playerConfigs];
                       newConfigs[i].isAutomaton = !newConfigs[i].isAutomaton;
                       setPlayerConfigs(newConfigs);
                     }}
-                    className={cn(
-                      "px-3 py-1 rounded-md text-label font-bold uppercase tracking-wider transition-all border border-black",
-                      config.isAutomaton ? "bg-black text-white" : "bg-white text-black"
-                    )}
+                    variant={config.isAutomaton ? "primary" : "ghost"}
+                    size="sm"
+                    className="border border-black"
                   >
                     {config.isAutomaton ? "AUTOMATON" : "HUMAN"}
-                  </button>
+                  </GameButton>
                 </div>
               ))}
             </div>
           </div>
 
-          <button 
-            onClick={() => startGame(playerConfigs)}
-            className="w-full bg-black text-white py-4 text-2xl font-bold uppercase tracking-widest hover:bg-stone-800 transition-colors flex items-center justify-center gap-3"
-          >
-            <Play fill="white" /> Start Conquest
-          </button>
+          <div className="flex flex-col gap-4 w-full max-w-sm">
+            <GameButton 
+              onClick={() => startGame(playerConfigs)}
+              variant="primary"
+              size="lg"
+              fullWidth
+              className="text-xl py-5"
+            >
+              Start Conquest
+            </GameButton>
+
+            <GameButton 
+              onClick={handleLoadWithConfirmation}
+              variant="secondary"
+              size="lg"
+              fullWidth
+              className="text-xl py-5"
+              icon={<Upload size={24} />}
+            >
+              Load Game
+            </GameButton>
+            
+            <GameButton 
+              onClick={() => setShowInstructions(true)}
+              variant="ghost"
+              size="md"
+              fullWidth
+              className="border-2 border-black"
+              icon={<HelpCircle size={20} />}
+            >
+              How to Play
+            </GameButton>
+          </div>
         </motion.div>
         <HelpModal isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
+        <ConfirmationDialog
+          isOpen={confirmation.isOpen}
+          onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={confirmation.onConfirm}
+          title={confirmation.title}
+          message={confirmation.message}
+        />
+
+        {/* Error Dialog */}
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="p-3 bg-red-100 border-2 border-black">
+                    <AlertTriangle className="text-red-600" size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-tight">Error</h3>
+                    <p className="text-stone-600 font-medium">{error}</p>
+                  </div>
+                </div>
+                <GameButton 
+                  onClick={() => setError(null)}
+                  variant="primary"
+                  fullWidth
+                  className="border-2 border-black"
+                >
+                  Dismiss
+                </GameButton>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          accept=".hexm" 
+          className="hidden" 
+        />
       </div>
     );
   }
@@ -311,24 +592,28 @@ export default function App() {
                 {gameState.winnerId === -1 ? "It's a Draw!" : `${COLOR_NAMES[gameState.players[gameState.winnerId].color]} Empire Victorious!`}
               </p>
               <div className="space-y-2">
-                <button 
+                <GameButton 
                   onClick={() => {
                     setSetupMode(true);
                     setGameState(null);
                   }}
-                  className="w-full bg-black text-white py-2 font-black uppercase tracking-widest hover:bg-stone-800 transition-all text-sm"
+                  variant="primary"
+                  fullWidth
+                  className="py-2 text-sm"
                 >
                   Throne Room
-                </button>
+                </GameButton>
                 {gameState.winnerId !== -1 && !gameState.isBarbarianInvasion && (
-                  <button 
+                  <GameButton 
                     onClick={() => {
                       setGameState(prev => prev ? triggerBarbarianInvasion(prev) : prev);
                     }}
-                    className="w-full bg-red-700 text-white py-2 font-black uppercase tracking-widest hover:bg-red-800 transition-all text-sm"
+                    variant="danger"
+                    fullWidth
+                    className="py-2 text-sm"
                   >
                     Barbarian Invasion
-                  </button>
+                  </GameButton>
                 )}
               </div>
             </div>
@@ -364,27 +649,33 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <button 
+              <GameButton 
                 onClick={() => setIsMuted(!isMuted)}
-                className="p-2 hover:bg-stone-200 rounded-full transition-all border border-black/10 bg-white shadow-sm active:translate-y-0.5"
+                variant="ghost"
+                size="icon"
+                className="p-2 border border-black/10 bg-white shadow-sm"
                 title={isMuted ? "Unmute" : "Mute"}
               >
                 {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
-              <button 
+              </GameButton>
+              <GameButton 
                 onClick={() => setShowInstructions(true)}
-                className="p-2 text-stone-500 hover:text-black hover:bg-stone-200 rounded-full transition-all border border-black/10 bg-white shadow-sm active:translate-y-0.5"
+                variant="ghost"
+                size="icon"
+                className="p-2 text-stone-500 hover:text-black border border-black/10 bg-white shadow-sm"
                 title="Help"
               >
                 <HelpCircle size={16} />
-              </button>
-              <button 
-                onClick={() => setShowExitDialog(true)}
-                className="p-2 text-red-500 hover:text-red-700 hover:bg-stone-200 rounded-full transition-all border border-black/10 bg-white shadow-sm active:translate-y-0.5"
-                title="Quit Game"
+              </GameButton>
+              <GameButton 
+                onClick={() => setShowMenu(true)}
+                variant="ghost"
+                size="icon"
+                className="p-2 text-stone-700 hover:text-black border border-black/10 bg-white shadow-sm"
+                title="Game Menu"
               >
-                <X size={16} />
-              </button>
+                <Settings size={16} />
+              </GameButton>
             </div>
           </div>
 
@@ -522,16 +813,13 @@ export default function App() {
                               const canAfford = currentPlayer.gold >= stats.cost;
 
                               return (
-                                <button
+                                <GameButton
                                   key={type}
                                   onClick={() => recruitUnit(type, gameState.selectedHex!)}
                                   disabled={!canAfford}
-                                  className={cn(
-                                    "w-full p-3 border-2 border-black flex items-center justify-between transition-all relative group rounded-xl",
-                                    canAfford 
-                                      ? "bg-parchment hover:bg-stone-50 active:translate-y-0.5 active:shadow-none shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]" 
-                                      : "bg-stone-200 opacity-50 cursor-not-allowed"
-                                  )}
+                                  variant="parchment"
+                                  fullWidth
+                                  className="p-3 border-2 border-black flex items-center justify-between transition-all relative group rounded-xl"
                                 >
                                   <div className="flex items-center gap-3">
                                     <span className="text-2xl">{UNIT_ICONS[type]}</span>
@@ -553,7 +841,7 @@ export default function App() {
                                     <Coins size={12} className="text-amber-700" />
                                     <span className="text-xs font-black text-amber-900">{stats.cost}</span>
                                   </div>
-                                </button>
+                                </GameButton>
                               );
                             })}
                           </div>
@@ -589,14 +877,14 @@ export default function App() {
                             const canAfford = currentPlayer.gold >= cost;
 
                             return (
-                              <button
+                              <GameButton
                                 onClick={() => upgradeSettlement(tile.coord)}
                                 disabled={!canAfford}
+                                variant="parchment"
+                                fullWidth
                                 className={cn(
-                                  "w-full p-3 border-2 border-black flex items-center justify-between transition-all rounded-xl",
-                                  canAfford 
-                                    ? "bg-parchment hover:bg-blue-100 active:translate-y-0.5 active:shadow-none shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]" 
-                                    : "bg-stone-200 opacity-50 cursor-not-allowed"
+                                  "p-3 border-2 border-black flex items-center justify-between transition-all rounded-xl",
+                                  canAfford && "hover:bg-blue-100"
                                 )}
                               >
                                 <div className="flex items-center gap-3">
@@ -609,7 +897,7 @@ export default function App() {
                                   <Coins size={12} className="text-amber-700" />
                                   <span className="text-xs font-black text-amber-900">{cost}</span>
                                 </div>
-                              </button>
+                              </GameButton>
                             );
                           })()}
                         </div>
@@ -638,21 +926,28 @@ export default function App() {
         {/* Footer Actions */}
         <div className="p-4 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 space-y-3 w-48 lg:w-full flex-shrink-0">
           {!currentPlayer.isAutomaton && gameState.history && gameState.history.length > 0 && (
-            <button 
+            <GameButton 
               onClick={undoMove}
-              className="w-full bg-parchment text-black border-2 border-black py-3 font-black uppercase tracking-widest hover:bg-stone-100 transition-all flex items-center justify-center gap-2 text-xs shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none"
+              variant="parchment"
+              size="sm"
+              fullWidth
+              className="py-3 text-xs border-2 border-black"
+              icon={<RotateCcw size={14} />}
             >
-              <RotateCcw size={14} /> Undo Move
-            </button>
+              Undo Move
+            </GameButton>
           )}
-          <button 
+          <GameButton 
             onClick={endTurn}
             disabled={currentPlayer.isAutomaton}
-            className="w-full bg-black text-white py-4 font-black uppercase tracking-widest hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:shadow-none active:translate-y-0.5"
+            variant="primary"
+            size="md"
+            fullWidth
+            className="py-4 text-sm"
           >
             {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
-            {!currentPlayer.isAutomaton && <ChevronRight size={18} />}
-          </button>
+            {!currentPlayer.isAutomaton && <ChevronRight size={18} className="ml-2 inline" />}
+          </GameButton>
         </div>
       </div>
 
@@ -669,14 +964,64 @@ export default function App() {
         />
       </div>
         <HelpModal isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
-        <ExitDialog 
-          isOpen={showExitDialog} 
-          onClose={() => setShowExitDialog(false)} 
-          onExitCurrent={exitPlayer}
-          onExitAll={() => {
-            setSetupMode(true);
-            setGameState(null);
-          }}
+        <GameMenu 
+          isOpen={showMenu} 
+          onClose={() => setShowMenu(false)} 
+          onExitCurrent={handleExitCurrent}
+          onExitAll={handleExitAll}
+          onSave={handleSave}
+          onLoad={handleLoadWithConfirmation}
+        />
+        <ConfirmationDialog
+          isOpen={confirmation.isOpen}
+          onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={confirmation.onConfirm}
+          title={confirmation.title}
+          message={confirmation.message}
+        />
+
+        {/* Error Dialog */}
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="p-3 bg-red-100 border-2 border-black">
+                    <AlertTriangle className="text-red-600" size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-tight">Error</h3>
+                    <p className="text-stone-600 font-medium">{error}</p>
+                  </div>
+                </div>
+                <GameButton 
+                  onClick={() => setError(null)}
+                  variant="primary"
+                  fullWidth
+                  className="border-2 border-black"
+                >
+                  Dismiss
+                </GameButton>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          accept=".hexm" 
+          className="hidden" 
         />
       </div>
     );

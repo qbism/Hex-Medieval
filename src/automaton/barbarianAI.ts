@@ -37,11 +37,31 @@ export function getBarbarianAction(state: GameState, currentPlayer: Player) {
   const savingForMine = false;
   const savingForVillage = false;
 
-  // 1. Try to upgrade settlements (Barbarians never upgrade)
-  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, true);
-  if (upgradeAction) return upgradeAction;
+  // --- Surrender Condition (Invasion Mode only) ---
+  if (state.isBarbarianInvasion) {
+    const incomeHistory = currentPlayer.incomeHistory || [];
+    const strengthHistory = currentPlayer.strengthHistory || [];
+    
+    if (incomeHistory.length >= 4 && strengthHistory.length >= 4) {
+      const len = incomeHistory.length;
+      const isIncomeDeclining = 
+        incomeHistory[len - 1] < incomeHistory[len - 2] &&
+        incomeHistory[len - 2] < incomeHistory[len - 3] &&
+        incomeHistory[len - 3] < incomeHistory[len - 4];
+      
+      const slen = strengthHistory.length;
+      const isStrengthDeclining = 
+        strengthHistory[slen - 1] < strengthHistory[slen - 2] &&
+        strengthHistory[slen - 2] < strengthHistory[slen - 3] &&
+        strengthHistory[slen - 3] < strengthHistory[slen - 4];
 
-  // 2. Try to recruit (Barbarians only recruit infantry)
+      if (isIncomeDeclining && isStrengthDeclining) {
+        return { type: 'goRogue' as const }; // Use goRogue to trigger exitPlayer logic
+      }
+    }
+  }
+
+  // 1. Try to recruit (Barbarians only recruit infantry)
   const recruitmentAction = getRecruitmentAction(
     state, 
     currentPlayer, 
@@ -58,6 +78,10 @@ export function getBarbarianAction(state: GameState, currentPlayer: Player) {
     true
   );
   if (recruitmentAction) return recruitmentAction;
+
+  // 2. Try to upgrade settlements (Barbarians never upgrade, only build new villages)
+  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, true);
+  if (upgradeAction) return upgradeAction;
 
   // 3. Move/Attack with units (Barbarians ignore safety)
   const unitAction = getUnitAction(

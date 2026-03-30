@@ -11,7 +11,8 @@ import {
   getEmpireCenter, 
   getHVT,
   isSavingForMine,
-  isSavingForVillage
+  isSavingForVillage,
+  ThreatInfo
 } from './automaton/threatAnalysis';
 import { getUpgradeAction } from './automaton/upgrades';
 import { getRecruitmentAction } from './automaton/recruitment';

@@ -14,11 +14,12 @@ import { findNearestTarget, getChokepointScore, findNearestEnemySettlement } fro
 import { calculateIncome } from '../gameEngine';
 import { BASE_REWARD } from './constants';
 import { LoopSafety } from '../utils';
+import { ThreatInfo } from './threatAnalysis';
 
 export function getRecruitmentAction(
   state: GameState, 
   currentPlayer: Player, 
-  threatMatrix: Map<string, number>,
+  threatMatrix: Map<string, ThreatInfo>,
   influenceMap: Map<string, number>,
   eminentThreatBases: HexTile[],
   possibleThreatBases: HexTile[],
@@ -46,7 +47,14 @@ export function getRecruitmentAction(
 
   // Savings Account Logic: If we are saving for a high-reward item, we might skip recruitment
   const savingsTarget = isSavingForMine ? UPGRADE_COSTS[TerrainType.GOLD_MINE] : (isSavingForVillage ? UPGRADE_COSTS[TerrainType.VILLAGE] : 0);
-  const currentGold = currentPlayer.gold;
+  let currentGold = currentPlayer.gold;
+  
+  // Barbarians spend roughly 1/3 on expansion and 2/3 on infantry
+  // We implement this by making them "save" 1/3 of their gold during recruitment
+  if (isBarbarian) {
+    const expansionBudget = Math.floor(currentPlayer.gold / 3);
+    currentGold = currentPlayer.gold - expansionBudget;
+  }
   
   // If we are under threat, defense is priority 1, skip savings
   const effectiveSavingsTarget = isUnderThreat ? 0 : savingsTarget;
@@ -123,8 +131,9 @@ export function getRecruitmentAction(
           }
           // Knights are great at rapid expansion/harassment
           // Bonus only if the settlement is unclaimed, within one move (turnsToAct <= 2), and unthreatened
-          const targetThreat = threatMatrix.get(`${target.coord.q},${target.coord.r}`) || Infinity;
-          if (target.isSettlement && target.ownerId === null && turnsToAct <= 2 && targetThreat > 2) {
+          const threat = threatMatrix.get(`${target.coord.q},${target.coord.r}`);
+          const targetThreatLevel = threat ? threat.minTurns : Infinity;
+          if (target.isSettlement && target.ownerId === null && turnsToAct <= 2 && targetThreatLevel > 2) {
             actionValue += BASE_REWARD * 2.0;
           }
           // Knights are expensive; ensure we have decent income to sustain them
@@ -182,12 +191,13 @@ export function getRecruitmentAction(
       }
 
       // Penalize spawning in danger unless it's for defense
-      const threatLevel = threatMatrix.get(`${t.coord.q},${t.coord.r}`) || Infinity;
+      const threat = threatMatrix.get(`${t.coord.q},${t.coord.r}`);
+      const threatLevel = threat ? threat.minTurns : Infinity;
       if (threatLevel <= 2 && !isBarbarian) {
         // If it's an eminent threat base, we still penalize but less, 
         // because we might need to block or defend.
         const isDefensive = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
-        const penalty = isDefensive ? stats.cost * 0.5 : stats.cost * 2.5;
+        const penalty = isDefensive ? stats.cost * 1.0 : stats.cost * 5.0; // Increased from 0.5/2.5 to 1.0/5.0
         bestUnitScore -= penalty;
       }
 

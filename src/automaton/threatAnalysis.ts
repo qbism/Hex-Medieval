@@ -58,11 +58,19 @@ export function calculateInfluenceMap(state: GameState, currentPlayerId: number)
   return influenceMap;
 }
 
-export function calculateThreatMatrix(state: GameState, currentPlayerId: number): Map<string, number> {
-  const threatMatrix = new Map<string, number>();
+export interface ThreatInfo {
+  minTurns: number;
+  totalThreatValue: number;
+  attackerCount: number;
+}
+
+export function calculateThreatMatrix(state: GameState, currentPlayerId: number): Map<string, ThreatInfo> {
+  const threatMatrix = new Map<string, ThreatInfo>();
   for (const u of state.units) {
     if (u.ownerId !== currentPlayerId) {
       const stats = UNIT_STATS[u.type];
+      const threatValue = stats.cost;
+      
       for (const t of state.board) {
         const dist = getDistance(u.coord, t.coord);
         let turns = Infinity;
@@ -72,10 +80,13 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
         
         if (turns <= 3) {
           const key = `${t.coord.q},${t.coord.r}`;
-          const currentMin = threatMatrix.get(key) || Infinity;
-          if (turns < currentMin) {
-            threatMatrix.set(key, turns);
-          }
+          const current = threatMatrix.get(key) || { minTurns: Infinity, totalThreatValue: 0, attackerCount: 0 };
+          
+          threatMatrix.set(key, {
+            minTurns: Math.min(current.minTurns, turns),
+            totalThreatValue: current.totalThreatValue + (threatValue / turns),
+            attackerCount: current.attackerCount + 1
+          });
         }
       }
     }
@@ -130,20 +141,20 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
   };
 }
 
-export function identifyThreatenedSettlements(state: GameState, currentPlayerId: number, threatMatrix: Map<string, number>) {
+export function identifyThreatenedSettlements(state: GameState, currentPlayerId: number, threatMatrix: Map<string, ThreatInfo>) {
   const mySettlements = state.board.filter(t => 
     t.ownerId === currentPlayerId && 
     (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
   );
 
   const eminentThreatBases = mySettlements.filter(s => {
-    const turns = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
-    return turns !== undefined && turns <= 2;
+    const threat = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
+    return threat !== undefined && threat.minTurns <= 2;
   });
 
   const possibleThreatBases = mySettlements.filter(s => {
-    const turns = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
-    return turns !== undefined && turns === 3;
+    const threat = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
+    return threat !== undefined && threat.minTurns === 3;
   });
 
   const isUnderThreat = eminentThreatBases.length > 0 || possibleThreatBases.length > 0;

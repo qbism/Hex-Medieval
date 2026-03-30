@@ -91,7 +91,8 @@ export function useAutomatonTurn({
           actions.upgradeSettlement(action.payload.coord);
           break;
         case 'goRogue':
-          setAutomatonStatus("Empire collapsing! Going rogue...");
+          const isBarbarian = gameState.players[gameState.currentPlayerIndex].name === 'Barbarians';
+          setAutomatonStatus(isBarbarian ? "Barbarian forces surrendering!" : "Empire collapsing! Going rogue...");
           actions.exitPlayer();
           break;
       }

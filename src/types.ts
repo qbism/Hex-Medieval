@@ -83,6 +83,7 @@ export interface Player {
   gold: number;
   isEliminated: boolean;
   incomeHistory: number[];
+  strengthHistory: number[];
   isOriginalBarbarian?: boolean;
 }
 
@@ -96,6 +97,7 @@ export interface GameState {
   selectedUnitId: string | null;
   possibleMoves: HexCoord[];
   possibleAttacks: HexCoord[];
+  attackRange: HexCoord[];
   winnerId: number | null;
   isBarbarianInvasion?: boolean;
   history: Omit<GameState, 'history' | 'animations'>[];

@@ -1,4 +1,5 @@
 import React from 'react';
+import { GameButton } from './GameButton';
 import { Play, Coins, HelpCircle, RotateCcw, Sword, Shield, X, PlusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TerrainType, UnitType, UNIT_ICONS, UNIT_STATS, SETTLEMENT_INCOME, UPGRADE_COSTS } from '../types';
@@ -30,9 +31,14 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
               <div className="relative flex justify-between items-center px-4 w-full">
                 <div className="w-10" /> {/* Spacer for centering */}
                 <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-center">Game Rules</h2>
-                <button onClick={onClose} className="p-2 hover:bg-stone-200/50 rounded-full bg-white/20 backdrop-blur-sm border border-black/10 transition-all">
+                <GameButton 
+                  onClick={onClose} 
+                  variant="ghost"
+                  size="icon"
+                  className="p-2 bg-white/20 backdrop-blur-sm border border-black/10"
+                >
                   <X size={24} />
-                </button>
+                </GameButton>
               </div>
             </div>
 
@@ -165,12 +171,15 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                 </div>
               </section>
 
-              <button 
+              <GameButton 
                 onClick={onClose}
-                className="w-full bg-black text-white py-3 font-bold uppercase tracking-widest hover:bg-stone-800 transition-colors"
+                variant="primary"
+                size="lg"
+                fullWidth
+                className="py-4"
               >
                 Got it!
-              </button>
+              </GameButton>
             </div>
           </motion.div>
         </motion.div>

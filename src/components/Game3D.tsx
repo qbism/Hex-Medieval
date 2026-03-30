@@ -79,7 +79,10 @@ const getBorderMaterial = (color: string) => {
 
 const possibleMoveGeo = new THREE.CircleGeometry(0.4, 32);
 const possibleMoveMat = new THREE.MeshBasicMaterial({ color: "white", transparent: true, opacity: 0.5 });
-const possibleAttackMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.6 });
+const possibleAttackGeo = new THREE.RingGeometry(0.75, 0.9, 6);
+const possibleAttackMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+const attackRangeMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+const attackRangeGeo = new THREE.CircleGeometry(0.85, 6);
 
 const territoryRingGeo = new THREE.RingGeometry(0.7, 0.9, 6);
 
@@ -108,7 +111,32 @@ const getPlayerMaterial = (color: string) => {
 };
 
 // 3D Hex Tile
-const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, isPossibleAttack, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
+const PulsatingAttackIndicator = ({ height, geometry, active }: { height: number, geometry: THREE.BufferGeometry, active: boolean }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame(({ clock }) => {
+    if (!meshRef.current) return;
+    const t = clock.getElapsedTime();
+    // Pulsate between 0.25 and 0.75
+    const opacity = 0.25 + 0.5 * (Math.sin(t * 3) * 0.5 + 0.5);
+    (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
+  });
+
+  if (!active) return null;
+
+  return (
+    <mesh 
+      ref={meshRef}
+      position={[0, height + 0.045, 0]} 
+      rotation={[-Math.PI / 2, 0, Math.PI / 6]} 
+      geometry={geometry}
+    >
+      <meshBasicMaterial color="#ef4444" transparent opacity={0.5} side={THREE.DoubleSide} />
+    </mesh>
+  );
+};
+
+const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, isPossibleAttack, isAttackRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
   const depth = 2.0; // About the width of a tile
@@ -172,11 +200,11 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, isP
       )}
 
       {/* Indicators */}
-      {isPossibleMove && (
-        <mesh position={[0, height + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} geometry={possibleMoveGeo} material={possibleMoveMat} />
+      {isAttackRange && (
+        <PulsatingAttackIndicator height={height} geometry={attackRangeGeo} active={true} />
       )}
-      {isPossibleAttack && (
-        <mesh position={[0, height + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} geometry={possibleMoveGeo} material={possibleAttackMat} />
+      {isPossibleMove && (
+        <mesh position={[0, height + 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]} geometry={possibleMoveGeo} material={possibleMoveMat} />
       )}
 
       {/* Ownership indicator for settlements */}
@@ -216,7 +244,7 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, isP
 });
 
 // 3D Unit
-const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, onClick, isOnWater, tileHeight, canMove }: any) => {
+const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, onClick, isOnWater, tileHeight, canMove, isPossibleAttackTarget }: any) => {
   const { x, y: z } = hexToPixel(unit.coord.q, unit.coord.r);
   
   const targetX = anim?.to ? hexToPixel(anim.to.q, anim.to.r).x : x;
@@ -329,6 +357,13 @@ const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, o
       {canMove && !isSelected && (
         <mesh position={[0, 2.0, 0]} geometry={actionDotGeo} material={actionDotMat} />
       )}
+
+      {/* Attack Target Indicator */}
+      {isPossibleAttackTarget && (
+        <mesh position={[0, 0.5, 0]} geometry={new THREE.SphereGeometry(0.8, 16, 16)}>
+          <meshBasicMaterial color="#ef4444" transparent opacity={0.2} wireframe />
+        </mesh>
+      )}
     </group>
   );
 };
@@ -395,6 +430,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
           const isPossibleMove = gameState.possibleMoves.some(m => m.q === tile.coord.q && m.r === tile.coord.r);
           const isPossibleAttack = gameState.possibleAttacks.some(a => a.q === tile.coord.q && a.r === tile.coord.r);
+          const isAttackRange = gameState.attackRange.some(r => r.q === tile.coord.q && r.r === tile.coord.r);
           const unitAtHex = gameState.units.find(u => u.coord.q === tile.coord.q && u.coord.r === tile.coord.r);
           
           let hasAdjacentSettlement = false;
@@ -415,6 +451,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
               isHovered={isHovered}
               isPossibleMove={isPossibleMove}
               isPossibleAttack={isPossibleAttack}
+              isAttackRange={isAttackRange}
               playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
               hasAdjacentSettlement={hasAdjacentSettlement}
               unitAtHex={unitAtHex}
@@ -444,6 +481,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
                 anim={anim}
                 isOnWater={isOnWater}
                 tileHeight={tileHeight}
+                isPossibleAttackTarget={gameState.possibleAttacks.some(a => a.q === unit.coord.q && a.r === unit.coord.r)}
                 onAnimationEnd={() => {
                   if (anim?.type === 'move') finalizeMove(unit.id, anim.to!);
                   if (anim?.type === 'attack') finalizeAttack(unit.id, anim.to!);

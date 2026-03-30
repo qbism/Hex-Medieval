@@ -27,6 +27,7 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     gold: 500,
     isEliminated: false,
     incomeHistory: [],
+    strengthHistory: [],
   }));
 
   // Add Barbarian player
@@ -39,6 +40,7 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     gold: 0,
     isEliminated: true,
     incomeHistory: [],
+    strengthHistory: [],
     isOriginalBarbarian: true,
   });
 
@@ -82,6 +84,7 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     selectedUnitId: null,
     possibleMoves: [],
     possibleAttacks: [],
+    attackRange: [],
     winnerId: null,
     history: [],
     animations: [],
@@ -533,8 +536,8 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
   });
 }
 
-export function getValidAttacks(unit: Unit, board: GameState['board'], units: Unit[]): HexCoord[] {
-  if (unit.hasActed) return [];
+export function getValidAttacks(unit: Unit, board: GameState['board'], units: Unit[], ignoreActed: boolean = false): HexCoord[] {
+  if (unit.hasActed && !ignoreActed) return [];
   
   const range = UNIT_STATS[unit.type].range;
   const attacks: HexCoord[] = [];
@@ -549,9 +552,10 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
     }
   });
 
-  // Attack settlements
+  // Attack settlements (only if owned by an enemy, not unclaimed)
   board.forEach(tile => {
-    if (tile.ownerId !== null && tile.ownerId !== unit.ownerId) {
+    const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+    if (isSettlement && tile.ownerId !== null && tile.ownerId !== unit.ownerId) {
       const dist = getDistance(unit.coord, tile.coord);
       if (dist <= range) {
         // Only add if not already in attacks (though coords are unique)
@@ -563,6 +567,26 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
   });
 
   return attacks;
+}
+
+export function getAttackRange(unit: Unit, board: GameState['board'], units: Unit[]): HexCoord[] {
+  const range = UNIT_STATS[unit.type].range;
+  const inRange: HexCoord[] = [];
+  
+  board.forEach(tile => {
+    const dist = getDistance(unit.coord, tile.coord);
+    if (dist <= range && dist > 0) {
+      // Check if there is an enemy unit or enemy settlement here
+      const hasEnemyUnit = units.some(u => u.coord.q === tile.coord.q && u.coord.r === tile.coord.r && u.ownerId !== unit.ownerId);
+      const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== null && tile.ownerId !== unit.ownerId;
+      
+      if (hasEnemyUnit || isEnemySettlement) {
+        inRange.push(tile.coord);
+      }
+    }
+  });
+  
+  return inRange;
 }
 
 export function calculateIncome(player: Player, board: GameState['board']): number {
@@ -701,12 +725,17 @@ export function processTurnTransition(state: GameState): GameState {
   // 5. Income phase
   // No player should receive gold revenue on turn 1
   const income = nextTurnNumber === 1 ? 0 : calculateIncome(nextPlayer, state.board);
+  const nextPlayerStrength = state.units
+    .filter(u => u.ownerId === nextPlayer.id)
+    .reduce((acc, u) => acc + UNIT_STATS[u.type].cost, 0);
+
   const finalPlayers = updatedPlayers.map(p => {
     if (p.id === nextPlayer.id) {
       return { 
         ...p, 
         gold: p.gold + income,
-        incomeHistory: [...p.incomeHistory, income].slice(-4) // Keep last 4 to check 3 declining/static transitions
+        incomeHistory: [...p.incomeHistory, income].slice(-4), // Keep last 4 to check 3 declining/static transitions
+        strengthHistory: [...p.strengthHistory, nextPlayerStrength].slice(-4)
       };
     }
     return p;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GameButton } from './GameButton';
 import { 
   ChevronRight, 
   Trophy, 
@@ -44,19 +45,18 @@ export const GameHUD = ({
             </div>
           </div>
 
-          <button
+          <GameButton
             onClick={handleEndTurn}
             disabled={currentPlayer.isAutomaton}
-            className={cn(
-              "group relative flex items-center gap-2 px-6 py-3 bg-black text-white font-black rounded-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100",
-              "shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]"
-            )}
+            variant="primary"
+            size="md"
+            className="px-6 py-3"
+            icon={<ChevronRight className="ml-2" />}
           >
             <span className="uppercase tracking-widest text-sm">
               {currentPlayer.isAutomaton ? "Processing..." : "End Turn"}
             </span>
-            <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-          </button>
+          </GameButton>
         </div>
       </div>
 
@@ -84,26 +84,32 @@ export const GameHUD = ({
               </p>
 
               <div className="space-y-3">
-                <button
+                <GameButton
                   onClick={() => {
                     setSetupMode(true);
                     setGameState(null);
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-4 bg-black text-white font-black rounded-xl hover:bg-stone-800 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]"
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  className="py-4"
+                  icon={<RotateCcw size={20} />}
                 >
-                  <RotateCcw size={20} />
-                  <span>PLAY AGAIN</span>
-                </button>
-                <button
+                  PLAY AGAIN
+                </GameButton>
+                <GameButton
                   onClick={() => {
                     setSetupMode(true);
                     setGameState(null);
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-4 bg-stone-100 border-2 border-black font-black rounded-xl hover:bg-stone-200 transition-all"
+                  variant="ghost"
+                  size="lg"
+                  fullWidth
+                  className="py-4 border-2 border-black"
+                  icon={<Settings size={20} />}
                 >
-                  <Settings size={20} />
-                  <span>MAIN MENU</span>
-                </button>
+                  MAIN MENU
+                </GameButton>
               </div>
             </motion.div>
           </motion.div>

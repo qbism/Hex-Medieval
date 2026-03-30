@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { GameButton } from './GameButton';
 import { 
   Volume2, 
   VolumeX, 
@@ -71,32 +72,38 @@ export const Sidebar = ({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button 
+            <GameButton 
               onClick={() => setIsMuted(!isMuted)}
-              className="p-1.5 hover:bg-stone-200 rounded-full transition-all border border-black/10"
+              variant="ghost"
+              size="icon"
+              className="p-1.5 border border-black/10"
               title={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-            </button>
-            <button 
+            </GameButton>
+            <GameButton 
               onClick={() => setShowInstructions(true)}
-              className="p-1.5 text-stone-500 hover:text-black hover:bg-stone-200 rounded-full transition-all border border-black/10"
+              variant="ghost"
+              size="icon"
+              className="p-1.5 text-stone-500 hover:text-black border border-black/10"
               title="Help"
             >
               <HelpCircle size={14} />
-            </button>
-            <button 
+            </GameButton>
+            <GameButton 
               onClick={() => {
                 if (confirm('Are you sure you want to quit the current game? All progress will be lost.')) {
                   setSetupMode(true);
                   setGameState(null);
                 }
               }}
-              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-stone-200 rounded-full transition-all border border-black/10"
+              variant="ghost"
+              size="icon"
+              className="p-1.5 text-red-500 hover:text-red-700 border border-black/10"
               title="Quit Game"
             >
               <X size={14} />
-            </button>
+            </GameButton>
           </div>
         </div>
 
@@ -213,40 +220,48 @@ export const Sidebar = ({
                           <p className="text-label font-bold uppercase tracking-widest opacity-50">Settlement Actions</p>
                           <div className="grid grid-cols-1 gap-2">
                             {tile.terrain === TerrainType.VILLAGE && (
-                              <button 
+                              <GameButton 
                                 onClick={() => handleUpgradeSettlement(tile.coord)}
                                 disabled={currentPlayer.gold < 150}
-                                className="w-full p-2 bg-indigo-600 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                variant="primary"
+                                size="sm"
+                                fullWidth
+                                className="bg-indigo-600 hover:bg-indigo-700"
                               >
                                 Upgrade to Fortress (150G)
-                              </button>
+                              </GameButton>
                             )}
                             {tile.terrain === TerrainType.FORTRESS && (
-                              <button 
+                              <GameButton 
                                 onClick={() => handleUpgradeSettlement(tile.coord)}
                                 disabled={currentPlayer.gold < 300}
-                                className="w-full p-2 bg-indigo-800 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                variant="primary"
+                                size="sm"
+                                fullWidth
+                                className="bg-indigo-800 hover:bg-indigo-900"
                               >
                                 Upgrade to Castle (300G)
-                              </button>
+                              </GameButton>
                             )}
                             {(tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.CASTLE) && !unit && (
                               <div className="space-y-1.5 mt-2">
                                 <p className="text-[10px] font-bold uppercase opacity-50">Recruit Units</p>
                                 <div className="grid grid-cols-2 gap-1.5">
                                   {(Object.keys(UNIT_STATS) as UnitType[]).map(type => (
-                                    <button
+                                    <GameButton
                                       key={type}
                                       onClick={() => recruitUnit(type)}
                                       disabled={currentPlayer.gold < UNIT_STATS[type].cost}
-                                      className="p-2 bg-white border border-black/10 rounded-lg text-left hover:bg-stone-50 disabled:opacity-40 transition-all group"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="p-2 bg-white border border-black/10 text-left hover:bg-stone-50 block"
                                     >
                                       <p className="font-bold text-[10px] leading-none mb-1">{type}</p>
                                       <div className="flex items-center gap-1 text-amber-600">
                                         <Coins size={8} />
                                         <span className="text-[10px] font-bold">{UNIT_STATS[type].cost}</span>
                                       </div>
-                                    </button>
+                                    </GameButton>
                                   ))}
                                 </div>
                               </div>
@@ -260,22 +275,28 @@ export const Sidebar = ({
                         <div className="space-y-2">
                           <p className="text-label font-bold uppercase tracking-widest opacity-50">Expansion</p>
                           {tile.terrain === TerrainType.PLAINS && (
-                            <button 
+                            <GameButton 
                               onClick={() => handleUpgradeSettlement(tile.coord)}
                               disabled={currentPlayer.gold < 100}
-                              className="w-full p-2 bg-green-600 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                              variant="primary"
+                              size="sm"
+                              fullWidth
+                              className="bg-green-600 hover:bg-green-700"
                             >
                               Build Village (100G)
-                            </button>
+                            </GameButton>
                           )}
                           {tile.terrain === TerrainType.MOUNTAIN && (
-                            <button 
+                            <GameButton 
                               onClick={() => handleUpgradeSettlement(tile.coord)}
                               disabled={currentPlayer.gold < 500}
-                              className="w-full p-2 bg-amber-600 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                              variant="primary"
+                              size="sm"
+                              fullWidth
+                              className="bg-amber-600 hover:bg-amber-700"
                             >
                               Build Gold Mine (500G)
-                            </button>
+                            </GameButton>
                           )}
                         </div>
                       )}

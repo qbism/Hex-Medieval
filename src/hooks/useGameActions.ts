@@ -134,9 +134,12 @@ export function useGameActions(
       }).filter(u => !(currentDefender && u.id === currentDefender.id));
 
       const newBoard = prev.board.map(tile => {
-        if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== null && tile.ownerId !== currentAttacker.ownerId) {
-          if (!currentDefender) {
-            if (tile.terrain === TerrainType.CASTLE) {
+        if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== currentAttacker.ownerId) {
+          const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+          if (isSettlement && !currentDefender) {
+            if (tile.ownerId === null) {
+              return { ...tile, ownerId: currentAttacker.ownerId };
+            } else if (tile.terrain === TerrainType.CASTLE) {
               return { ...tile, terrain: TerrainType.FORTRESS };
             } else if (tile.terrain === TerrainType.FORTRESS) {
               return { ...tile, terrain: TerrainType.VILLAGE };
@@ -249,21 +252,22 @@ export function useGameActions(
       if (!prev) return prev;
       const currentPlayer = prev.players[prev.currentPlayerIndex];
       const barbarianId = prev.players.length - 1;
+      const isBarbarian = currentPlayer.id === barbarianId;
 
-      // Convert units to barbarian
-      const newUnits = prev.units.map(u => 
-        u.ownerId === currentPlayer.id ? { ...u, ownerId: barbarianId } : u
-      );
+      // Convert units to barbarian, or remove if barbarian is surrendering
+      const newUnits = isBarbarian 
+        ? prev.units.filter(u => u.ownerId !== currentPlayer.id)
+        : prev.units.map(u => u.ownerId === currentPlayer.id ? { ...u, ownerId: barbarianId } : u);
 
-      // Convert settlements to barbarian
-      const newBoard = prev.board.map(tile => 
-        tile.ownerId === currentPlayer.id ? { ...tile, ownerId: barbarianId } : tile
-      );
+      // Convert settlements to barbarian, or clear if barbarian is surrendering
+      const newBoard = isBarbarian
+        ? prev.board.map(tile => tile.ownerId === currentPlayer.id ? { ...tile, ownerId: null } : tile)
+        : prev.board.map(tile => tile.ownerId === currentPlayer.id ? { ...tile, ownerId: barbarianId } : tile);
 
       // Mark player as eliminated and reactivate barbarian if needed
       const newPlayers = prev.players.map(p => {
         if (p.id === currentPlayer.id) return { ...p, isEliminated: true };
-        if (p.id === barbarianId) return { ...p, isEliminated: false };
+        if (p.id === barbarianId && !isBarbarian) return { ...p, isEliminated: false };
         return p;
       });
 
