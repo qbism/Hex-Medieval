@@ -11,7 +11,7 @@ async function startServer() {
   const PORT = 3000;
 
   // Game State (In-memory for now, could use SQLite)
-  let gameState = {
+  const gameState = {
     players: [],
     board: null,
     currentTurn: 0,

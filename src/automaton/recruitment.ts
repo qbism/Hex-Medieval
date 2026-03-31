@@ -106,7 +106,7 @@ export function getRecruitmentAction(
         const dist = getDistance(t.coord, target.coord);
         
         // Calculate turns to act
-        let turnsToAct = 0;
+        let turnsToAct: number;
         if (dist <= stats.range) {
           turnsToAct = 1; // Can act next turn (recruited units can't act same turn)
         } else {

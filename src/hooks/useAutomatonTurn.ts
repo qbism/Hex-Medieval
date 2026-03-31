@@ -90,11 +90,12 @@ export function useAutomatonTurn({
           setAutomatonStatus("Upgrading settlement...");
           actions.upgradeSettlement(action.payload.coord);
           break;
-        case 'goRogue':
+        case 'goRogue': {
           const isBarbarian = gameState.players[gameState.currentPlayerIndex].name === 'Barbarians';
           setAutomatonStatus(isBarbarian ? "Barbarian forces surrendering!" : "Empire collapsing! Going rogue...");
           actions.exitPlayer();
           break;
+        }
       }
       isProcessingRef.current = false;
     }, 500); // Delay for visual pacing

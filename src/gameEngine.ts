@@ -221,7 +221,7 @@ function generateBoard(radius: number, spawnPoints: HexCoord[]) {
   const lakeSeeds = poissonDiskSampling(coords, 6, radius - 1, 15).slice(0, 3);
   lakeSeeds.forEach(seed => {
     const lakeSize = 3 + Math.floor(Math.random() * 4);
-    let current = [seed];
+    const current = [seed];
     setWater(seed);
     for (let j = 0; j < lakeSize; j++) {
       const target = current[Math.floor(Math.random() * current.length)];

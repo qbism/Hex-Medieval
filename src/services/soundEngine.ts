@@ -133,12 +133,12 @@ class SoundEngine {
         this.playNoise(0.2, 0.8, 600, 100);
         this.playTone(80, 'sawtooth', 0.15, 0.6, 40);
         break;
-      case UnitType.KNIGHT:
+      case UnitType.KNIGHT: {
         // Whinny of a horse: High-pitched sliding vibrato
-        const now = this.ctx?.currentTime || 0;
         this.playTone(400, 'sine', 0.4, 0.3, 600);
         setTimeout(() => this.playTone(550, 'sine', 0.3, 0.2, 450), 100);
         break;
+      }
       case UnitType.INFANTRY:
       default:
         // Clang of swords: High-pitched metallic square wave

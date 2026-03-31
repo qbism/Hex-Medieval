@@ -163,10 +163,10 @@ export function pixelToHex(x: number, y: number): { q: number; r: number } {
 }
 
 function hexRound(q: number, r: number): { q: number; r: number } {
-  let s = -q - r;
+  const s = -q - r;
   let rq = Math.round(q);
   let rr = Math.round(r);
-  let rs = Math.round(s);
+  const rs = Math.round(s);
 
   const qDiff = Math.abs(rq - q);
   const rDiff = Math.abs(rr - r);
@@ -176,8 +176,6 @@ function hexRound(q: number, r: number): { q: number; r: number } {
     rq = -rr - rs;
   } else if (rDiff > sDiff) {
     rr = -rq - rs;
-  } else {
-    rs = -rq - rr;
   }
 
   return { q: rq, r: rr };
