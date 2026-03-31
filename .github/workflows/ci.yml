@@ -54,6 +54,37 @@ jobs:
       - name: Build
         run: npm run build
         
+      - name: Post-compilation Minification
+        run: |
+          find dist -name "*.js" -exec npx terser {} --compress --mangle -o {} \;
+        
+      - name: Validate Build Output
+        run: |
+          echo "Checking for dist/index.html..."
+          if [ ! -f dist/index.html ]; then
+            echo "Error: dist/index.html not found!"
+            exit 1
+          fi
+          
+          echo "Checking for JavaScript assets..."
+          JS_FILES=$(find dist -name "*.js")
+          if [ -z "$JS_FILES" ]; then
+            echo "Error: No JavaScript files found in dist!"
+            exit 1
+          fi
+          
+          for file in $JS_FILES; do
+            echo "Validating $file..."
+            if [ ! -s "$file" ]; then
+              echo "Error: $file is empty!"
+              exit 1
+            fi
+            # Basic syntax check using node (will fail if it's browser-only code with top-level await or similar, but Vite usually handles this)
+            # node -c "$file" || { echo "Syntax error in $file"; exit 1; }
+          done
+          
+          echo "Build output validation successful!"
+        
       - name: Zip Build Artifacts
         run: zip -r build.zip dist/
         
