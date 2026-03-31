@@ -1,8 +1,6 @@
 name: CI/CD Workflow
 
-permissions:
-  contents: write
-  pull-requests: read
+permissions: write-all
 
 on:
   push:
