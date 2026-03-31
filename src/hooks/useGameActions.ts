@@ -19,7 +19,7 @@ export interface GameActions {
   undoMove: () => void;
   clearAnimation: (animId: string) => void;
   skipUnit: (unitId: string) => void;
-  exitPlayer: () => void;
+  concedeGame: () => void;
 }
 
 export function useGameActions(
@@ -43,7 +43,7 @@ export function useGameActions(
         triggerEffect('move', { unitId, unitType: unit.type, to: target }, setGameState as any);
       }
       
-      const { history = [], animations, ...stateWithoutHistory } = prev;
+      const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
       return {
         ...prev,
         history: [...history, stateWithoutHistory],
@@ -101,7 +101,7 @@ export function useGameActions(
         triggerEffect('attack', { unitId: attackerId, unitType: attacker.type, to: targetCoord }, setGameState as any);
       }
 
-      const { history = [], animations, ...stateWithoutHistory } = prev;
+      const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
       return {
         ...prev,
         history: [...history, stateWithoutHistory],
@@ -140,11 +140,11 @@ export function useGameActions(
             if (tile.ownerId === null) {
               return { ...tile, ownerId: currentAttacker.ownerId };
             } else if (tile.terrain === TerrainType.CASTLE) {
-              return { ...tile, terrain: TerrainType.FORTRESS };
+              return { ...tile, terrain: TerrainType.FORTRESS, ownerId: currentAttacker.ownerId };
             } else if (tile.terrain === TerrainType.FORTRESS) {
-              return { ...tile, terrain: TerrainType.VILLAGE };
+              return { ...tile, terrain: TerrainType.VILLAGE, ownerId: currentAttacker.ownerId };
             } else {
-              return { ...tile, ownerId: null };
+              return { ...tile, ownerId: currentAttacker.ownerId };
             }
           }
         }
@@ -192,7 +192,7 @@ export function useGameActions(
         p.id === player.id ? { ...p, gold: p.gold - stats.cost } : p
       );
 
-      const { history = [], animations, ...stateWithoutHistory } = prev;
+      const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
 
       return {
         ...prev,
@@ -247,7 +247,7 @@ export function useGameActions(
     });
   }, [setGameState]);
 
-  const exitPlayer = useCallback(() => {
+  const concedeGame = useCallback(() => {
     setGameState(prev => {
       if (!prev) return prev;
       const currentPlayer = prev.players[prev.currentPlayerIndex];
@@ -297,6 +297,6 @@ export function useGameActions(
     undoMove,
     clearAnimation,
     skipUnit,
-    exitPlayer
+    concedeGame
   };
 }

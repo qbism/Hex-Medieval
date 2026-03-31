@@ -93,7 +93,7 @@ export function useAutomatonTurn({
         case 'goRogue': {
           const isBarbarian = gameState.players[gameState.currentPlayerIndex].name === 'Barbarians';
           setAutomatonStatus(isBarbarian ? "Barbarian forces surrendering!" : "Empire collapsing! Going rogue...");
-          actions.exitPlayer();
+          actions.concedeGame();
           break;
         }
       }

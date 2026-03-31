@@ -1,7 +1,7 @@
 import { 
   GameState, 
   TerrainType, 
-  UnitType, 
+  UnitType as _UnitType, 
   getDistance, 
   getNeighbors, 
   HexCoord, 

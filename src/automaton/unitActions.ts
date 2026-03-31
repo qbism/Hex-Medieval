@@ -6,13 +6,13 @@ import {
   TerrainType, 
   UNIT_STATS, 
   getDistance, 
-  getNeighbors, 
+  getNeighbors as _getNeighbors, 
   HexCoord, 
-  UPGRADE_COSTS,
+  UPGRADE_COSTS as _UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../types';
 import { getValidAttacks, getValidMoves } from '../gameEngine';
-import { findNearestTarget, getChokepointScore } from './utils';
+import { findNearestTarget as _findNearestTarget, getChokepointScore as _getChokepointScore } from './utils';
 import { BASE_REWARD } from './constants';
 import { LoopSafety } from '../utils';
 import { ThreatInfo } from './threatAnalysis';

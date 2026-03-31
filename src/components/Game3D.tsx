@@ -79,9 +79,9 @@ const getBorderMaterial = (color: string) => {
 
 const possibleMoveGeo = new THREE.CircleGeometry(0.4, 32);
 const possibleMoveMat = new THREE.MeshBasicMaterial({ color: "white", transparent: true, opacity: 0.5 });
-const possibleAttackGeo = new THREE.RingGeometry(0.75, 0.9, 6);
-const possibleAttackMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-const attackRangeMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+const _possibleAttackGeo = new THREE.RingGeometry(0.75, 0.9, 6);
+const _possibleAttackMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+const _attackRangeMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.15, side: THREE.DoubleSide });
 const attackRangeGeo = new THREE.CircleGeometry(0.85, 6);
 
 const territoryRingGeo = new THREE.RingGeometry(0.7, 0.9, 6);
@@ -136,7 +136,7 @@ const PulsatingAttackIndicator = ({ height, geometry, active }: { height: number
   );
 };
 
-const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, isPossibleAttack, isAttackRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
+const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
   const depth = 2.0; // About the width of a tile

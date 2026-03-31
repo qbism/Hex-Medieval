@@ -11,13 +11,13 @@ import {
   UNIT_STATS,
   SETTLEMENT_INCOME,
   UPGRADE_COSTS,
-  Unit
+  Unit as _Unit
 } from './types';
-import { createInitialState, getValidMoves, getValidAttacks, getAttackRange, processTurnTransition, calculateIncome, triggerBarbarianInvasion } from './gameEngine';
+import { createInitialState as _createInitialState, getValidMoves, getValidAttacks, getAttackRange, processTurnTransition as _processTurnTransition, calculateIncome, triggerBarbarianInvasion } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';
 import { GameButton } from './components/GameButton';
-import { Sword, Shield, Coins, User, Play, RotateCcw, ChevronRight, HelpCircle, Settings, PlusCircle, Volume2, VolumeX, Save, Upload, AlertTriangle, AlertTriangle as AlertIcon } from 'lucide-react';
+import { Sword, Shield as _Shield, Coins, User, Play, RotateCcw, ChevronRight, HelpCircle, Settings, PlusCircle, Volume2, VolumeX, Save, Upload, AlertTriangle, AlertTriangle as _AlertIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, TERRAIN_COLORS } from './types';
 import { soundEngine } from './services/soundEngine';
@@ -257,10 +257,10 @@ export default function App() {
 
   const handleExitCurrent = () => {
     confirmAction(
-      "Exit Player?",
-      "Are you sure you want to remove this player from the game?",
+      "Concede Game?",
+      "Are you sure you want to concede? Your empire will fall and its remnants will turn into barbarians.",
       () => {
-        exitPlayer();
+        concedeGame();
         setShowMenu(false);
       }
     );
@@ -299,7 +299,7 @@ export default function App() {
     { name: 'Cyan', isAutomaton: true },
   ]);
   const stageContainerRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<any>(null);
+  const _stageRef = useRef<any>(null);
 
   const actions = useGameActions(gameState, setGameState, setSetupMode);
   const {
@@ -313,7 +313,7 @@ export default function App() {
     endTurn,
     undoMove,
     clearAnimation,
-    exitPlayer
+    concedeGame
   } = actions;
 
   useEffect(() => {
@@ -935,6 +935,18 @@ export default function App() {
               icon={<RotateCcw size={14} />}
             >
               Undo Move
+            </GameButton>
+          )}
+          {!currentPlayer.isAutomaton && (
+            <GameButton 
+              onClick={handleExitCurrent}
+              variant="ghost"
+              size="sm"
+              fullWidth
+              className="py-3 text-xs border-2 border-black text-red-600 hover:text-red-700 hover:bg-red-50"
+              icon={<AlertTriangle size={14} />}
+            >
+              Concede Game
             </GameButton>
           )}
           <GameButton 

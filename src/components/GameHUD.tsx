@@ -10,7 +10,7 @@ import {
 import { 
   GameState, 
   COLOR_NAMES, 
-  cn 
+  cn as _cn 
 } from '../types';
 
 interface GameHUDProps {

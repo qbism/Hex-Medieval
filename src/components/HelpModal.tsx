@@ -48,7 +48,7 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                   <Play size={18} fill="black" /> Victory Conditions
                 </h3>
                 <p className="text-stone-600 leading-relaxed">
-                  Eliminate all opposing factions by capturing their settlements and eliminating their units. A player is eliminated when they lose all their units and settlements.
+                  Eliminate all opposing factions by turning their settlements neutral and eliminating their units. A player is eliminated when they lose all their units and settlements, or when they leave the game and their remaining units turn barbarian.
                 </p>
               </section>
 

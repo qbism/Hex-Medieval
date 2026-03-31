@@ -1,6 +1,6 @@
 import { 
   GameState, 
-  TerrainType
+  TerrainType as _TerrainType
 } from './types';
 import { getBarbarianAction } from './automaton/barbarianAI';
 import { 
@@ -12,7 +12,7 @@ import {
   getHVT,
   isSavingForMine,
   isSavingForVillage,
-  ThreatInfo
+  ThreatInfo as _ThreatInfo
 } from './automaton/threatAnalysis';
 import { getUpgradeAction } from './automaton/upgrades';
 import { getRecruitmentAction } from './automaton/recruitment';

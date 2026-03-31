@@ -10,7 +10,7 @@ import {
   UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../types';
-import { findNearestTarget, getChokepointScore, findNearestEnemySettlement } from './utils';
+import { findNearestTarget, getChokepointScore as _getChokepointScore, findNearestEnemySettlement as _findNearestEnemySettlement } from './utils';
 import { calculateIncome } from '../gameEngine';
 import { BASE_REWARD } from './constants';
 import { LoopSafety } from '../utils';

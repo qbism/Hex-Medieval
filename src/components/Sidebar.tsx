@@ -18,7 +18,7 @@ import {
   SETTLEMENT_INCOME, 
   UNIT_STATS, 
   cn,
-  Unit,
+  Unit as _Unit,
   TERRAIN_COLORS
 } from '../types';
 import { calculateIncome } from '../gameEngine';

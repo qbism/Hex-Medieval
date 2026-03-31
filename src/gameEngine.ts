@@ -640,7 +640,7 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
       return u;
     });
 
-    const { history = [], animations, ...stateWithoutHistory } = state;
+    const { history = [], animations: _animations, ...stateWithoutHistory } = state;
 
     return {
       ...state,
