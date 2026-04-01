@@ -16,9 +16,9 @@ vi.mock('./services/soundEngine', () => ({
 }));
 
 describe('App Component', () => {
-  it('renders the Throne Room title', () => {
+  it('renders the Hex Medieval title', () => {
     render(<App />);
-    expect(screen.getByText(/Throne Room/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hex Medieval/i)).toBeInTheDocument();
   });
 
   it('renders the Start Conquest button', () => {

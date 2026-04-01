@@ -121,6 +121,10 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                     <span className="font-bold">4.</span>
                     <span><span className="font-bold text-blue-700">Maritime Travel:</span> Units can only enter Water hexes from an adjacent friendly settlement. Once at sea, they move freely between Water tiles.</span>
                   </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold">5.</span>
+                    <span><span className="font-bold text-emerald-700">Forest Cover:</span> Entering a forest costs 2 movement points (prorated: can enter with 1 point left). Units in forests are <span className="font-bold text-red-700">immune to Catapult attacks</span>. Catapults cannot enter forests.</span>
+                  </li>
                 </ul>
               </section>
 

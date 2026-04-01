@@ -1,6 +1,7 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Text } from '@react-three/drei';
 
 const sparkGeo = new THREE.SphereGeometry(0.12, 4, 4);
 const sparkMat = new THREE.MeshBasicMaterial({ color: "#fbbf24", transparent: true, opacity: 0.9 });
@@ -13,6 +14,44 @@ const boulderMat = new THREE.MeshStandardMaterial({ color: "#444444" });
 const arrowGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.9, 8);
 arrowGeo.rotateX(Math.PI / 2); // Align with Z axis for lookAt
 const arrowMat = new THREE.MeshStandardMaterial({ color: "#8b4513" });
+
+export const MissEffect3D = ({ x, z, onComplete }: any) => {
+  const textRef = useRef<THREE.Group>(null);
+  const animTimeRef = useRef(0);
+  const animDoneRef = useRef(false);
+
+  useFrame((_state, delta) => {
+    if (!textRef.current) return;
+
+    animTimeRef.current += delta;
+    const duration = 1.2;
+    const progress = Math.min(animTimeRef.current / duration, 1);
+
+    // Float up and fade out
+    textRef.current.position.y = 1.5 + progress * 1.5;
+    textRef.current.scale.setScalar(1 + progress * 0.5);
+    
+    if (progress >= 1 && !animDoneRef.current) {
+      animDoneRef.current = true;
+      onComplete?.();
+    }
+  });
+
+  return (
+    <group ref={textRef} position={[x, 1.5, z]}>
+      <Text
+        fontSize={0.6}
+        color="#ffffff"
+        outlineWidth={0.05}
+        outlineColor="#3b82f6"
+        anchorX="center"
+        anchorY="middle"
+      >
+        MISS
+      </Text>
+    </group>
+  );
+};
 
 export const SmokeEffect3D = ({ x, z, onComplete }: any) => {
   const groupRef = useRef<THREE.Group>(null);

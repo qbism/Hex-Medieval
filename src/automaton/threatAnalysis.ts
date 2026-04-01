@@ -72,6 +72,11 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
       const threatValue = stats.cost;
       
       for (const t of state.board) {
+        // Catapults cannot target units in forests
+        if (u.type === UnitType.CATAPULT && t.terrain === TerrainType.FOREST) {
+          continue;
+        }
+
         const dist = getDistance(u.coord, t.coord);
         let turns = Infinity;
         if (dist <= stats.range) turns = 1;
@@ -112,8 +117,8 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
   const maxCompetitorStrength = competitors.length > 0 ? Math.max(...competitors.map(c => c.strength)) : 0;
   const maxCompetitorIncome = competitors.length > 0 ? Math.max(...competitors.map(c => c.income)) : 0;
 
-  const isLaggingStrength = myStats.strength < maxCompetitorStrength;
-  const isLaggingIncome = myStats.income < maxCompetitorIncome;
+  const isLaggingStrength = myStats.strength < maxCompetitorStrength * 0.85;
+  const isLaggingIncome = myStats.income < maxCompetitorIncome * 0.85;
   const isLagging = isLaggingStrength || isLaggingIncome;
 
   const activeStrengths = playerStats.filter(ps => ps.strength > 0).sort((a, b) => b.strength - a.strength);
@@ -191,10 +196,11 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
   return hvt;
 }
 
-export function isSavingForMine(state: GameState, currentPlayer: Player): boolean {
+export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean): boolean {
   if (currentPlayer.gold >= UPGRADE_COSTS[TerrainType.GOLD_MINE]) return false;
   
-  return state.units.some(u => {
+  // If lagging income, we are almost always saving for a mine if we have any mountain potential
+  const hasMountainPotential = state.units.some(u => {
     if (u.ownerId !== currentPlayer.id) return false;
     const tile = state.board.find(t => t.coord.q === u.coord.q && t.coord.r === u.coord.r);
     if (tile?.terrain === TerrainType.MOUNTAIN) return true;
@@ -205,6 +211,10 @@ export function isSavingForMine(state: GameState, currentPlayer: Player): boolea
     });
   }) ||
   state.board.some(t => t.ownerId === currentPlayer.id && t.terrain === TerrainType.MOUNTAIN);
+
+  if (isLaggingIncome && hasMountainPotential) return true;
+  
+  return hasMountainPotential;
 }
 
 export function isSavingForVillage(state: GameState, currentPlayer: Player): boolean {

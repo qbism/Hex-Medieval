@@ -1,7 +1,7 @@
 import { soundEngine } from './soundEngine';
 import { HexCoord, GameState, UnitType } from '../types';
 
-export type EffectType = 'move' | 'attack' | 'damage' | 'recruit' | 'upgrade' | 'victory' | 'click' | 'turnStart';
+export type EffectType = 'move' | 'attack' | 'damage' | 'miss' | 'recruit' | 'upgrade' | 'victory' | 'click' | 'turnStart';
 
 export interface EffectPayload {
   unitId?: string;
@@ -43,6 +43,8 @@ export function triggerEffect(
         newAnim = { id: `attack-${Date.now()}-${Math.random()}`, unitId: payload.unitId, type: 'attack', to: payload.to };
       } else if (type === 'damage' && payload.unitId && payload.to && payload.value !== undefined) {
         newAnim = { id: `dmg-${Date.now()}-${Math.random()}`, unitId: payload.unitId, type: 'damage', to: payload.to, value: payload.value };
+      } else if (type === 'miss' && payload.unitId && payload.to) {
+        newAnim = { id: `miss-${Date.now()}-${Math.random()}`, unitId: payload.unitId, type: 'miss', to: payload.to, value: 0 };
       }
 
       if (newAnim) {

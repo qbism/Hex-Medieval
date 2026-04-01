@@ -165,7 +165,9 @@ export function getRecruitmentAction(
           }
 
           // Mobility penalty: Catapults are useless if the front line is too far
-          if (turnsToAct > 5) {
+          if (turnsToAct > 4 && !isNearMyBase) {
+            actionValue -= BASE_REWARD * 10.0; // Significant penalty for long-range offensive catapults
+          } else if (turnsToAct > 5) {
             actionValue -= BASE_REWARD * 2.0;
           }
         }
@@ -186,7 +188,21 @@ export function getRecruitmentAction(
         const influenceBonus = influence < 0 ? Math.abs(influence) * 0.2 : 0;
         
         if (score + influenceBonus > bestUnitScore) {
-          bestUnitScore = score + influenceBonus;
+          let finalScore = score + influenceBonus;
+          
+          // Composition Penalty: Avoid over-spamming one unit type
+          const sameTypeCount = state.units.filter(u => u.ownerId === currentPlayer.id && u.type === unitType).length;
+          const totalCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
+          if (totalCount > 3) {
+            const ratio = sameTypeCount / totalCount;
+            if (ratio > 0.5) {
+              finalScore -= BASE_REWARD * 1.0 * (ratio - 0.5);
+            }
+          }
+
+          if (finalScore > bestUnitScore) {
+            bestUnitScore = finalScore;
+          }
         }
       }
 

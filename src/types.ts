@@ -104,7 +104,7 @@ export interface GameState {
   animations: {
     id: string;
     unitId: string;
-    type: 'move' | 'attack' | 'damage';
+    type: 'move' | 'attack' | 'damage' | 'miss';
     from?: HexCoord;
     to?: HexCoord;
     value?: number;

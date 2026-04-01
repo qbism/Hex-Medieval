@@ -138,13 +138,17 @@ export function useGameActions(
           const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
           if (isSettlement && !currentDefender) {
             if (tile.ownerId === null) {
+              // Unclaimed settlements are still captured by the attacker
               return { ...tile, ownerId: currentAttacker.ownerId };
-            } else if (tile.terrain === TerrainType.CASTLE) {
-              return { ...tile, terrain: TerrainType.FORTRESS, ownerId: currentAttacker.ownerId };
-            } else if (tile.terrain === TerrainType.FORTRESS) {
-              return { ...tile, terrain: TerrainType.VILLAGE, ownerId: currentAttacker.ownerId };
             } else {
-              return { ...tile, ownerId: currentAttacker.ownerId };
+              // Enemy settlements become neutral when defeated
+              if (tile.terrain === TerrainType.CASTLE) {
+                return { ...tile, terrain: TerrainType.FORTRESS };
+              } else if (tile.terrain === TerrainType.FORTRESS) {
+                return { ...tile, terrain: TerrainType.VILLAGE };
+              } else {
+                return { ...tile, ownerId: null };
+              }
             }
           }
         }
@@ -200,6 +204,9 @@ export function useGameActions(
         units: [...prev.units, newUnit],
         players: newPlayers,
         selectedHex: null,
+        possibleMoves: [],
+        possibleAttacks: [],
+        attackRange: []
       };
     });
   }, [setGameState]);
@@ -243,7 +250,14 @@ export function useGameActions(
       const newUnits = prev.units.map(u => 
         u.id === unitId ? { ...u, hasActed: true, movesLeft: 0, hasAttacked: true } : u
       );
-      return { ...prev, units: newUnits };
+      return { 
+        ...prev, 
+        units: newUnits,
+        selectedUnitId: null,
+        possibleMoves: [],
+        possibleAttacks: [],
+        attackRange: []
+      };
     });
   }, [setGameState]);
 

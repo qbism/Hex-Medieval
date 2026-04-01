@@ -460,73 +460,94 @@ function poissonDiskSampling(coords: HexCoord[], minDist: number, radius: number
 export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit[]): HexCoord[] {
   if (unit.hasActed) return [];
   const moves: HexCoord[] = [];
-  const visited = new Set<string>();
-  const queue: { coord: HexCoord; dist: number }[] = [{ coord: unit.coord, dist: 0 }];
+  const minCosts = new Map<string, number>();
+  const queue: { coord: HexCoord; cost: number }[] = [{ coord: unit.coord, cost: 0 }];
   const safety = new LoopSafety('getValidMoves', 5000);
+
+  // Starting terrain check: reduced range when starting on a forest tile
+  const startTile = board.find(t => t.coord.q === unit.coord.q && t.coord.r === unit.coord.r);
+  let maxMoves = unit.movesLeft;
+  if (startTile?.terrain === TerrainType.FOREST) {
+    if (unit.type === UnitType.INFANTRY || unit.type === UnitType.ARCHER) {
+      maxMoves = Math.min(maxMoves, 1);
+    } else if (unit.type === UnitType.KNIGHT) {
+      maxMoves = Math.min(maxMoves, 2);
+    }
+  }
 
   while (queue.length > 0) {
     if (safety.tick()) break;
-    const { coord, dist } = queue.shift()!;
-    const key = `${coord.q},${coord.r}`;
+    const { coord, cost } = queue.shift()!;
     
-    if (visited.has(key)) continue;
-    visited.add(key);
+    const neighbors = getNeighbors(coord);
+    for (const neighbor of neighbors) {
+      const tile = board.find(t => t.coord.q === neighbor.q && t.coord.r === neighbor.r);
+      if (!tile) continue;
 
-    if (dist > 0 && dist <= unit.movesLeft) {
-      const unitOnTile = units.find(u => u.coord.q === coord.q && u.coord.r === coord.r);
-      if (!unitOnTile) {
-        moves.push(coord);
+      const unitOnTile = units.find(u => u.coord.q === neighbor.q && u.coord.r === neighbor.r);
+      
+      let isPassable = (!unitOnTile || unitOnTile.ownerId === unit.ownerId);
+
+      // Catapults cannot enter forests
+      if (tile.terrain === TerrainType.FOREST && unit.type === UnitType.CATAPULT) {
+        isPassable = false;
       }
-    }
 
-    if (dist < unit.movesLeft) {
-      const neighbors = getNeighbors(coord);
-      for (const neighbor of neighbors) {
-        const tile = board.find(t => t.coord.q === neighbor.q && t.coord.r === neighbor.r);
-        const unitOnTile = units.find(u => u.coord.q === neighbor.q && u.coord.r === neighbor.r);
+      // Water rule: impassable unless adjacent to a village/settlement OR moving from another water tile
+      if (tile.terrain === TerrainType.WATER) {
+        const currentTile = board.find(t => t.coord.q === coord.q && t.coord.r === coord.r);
+        const isMovingFromWater = currentTile?.terrain === TerrainType.WATER;
         
-        // Movement rules: can't move through enemy units or enemy settlements
-        if (tile) {
-          const isEnemySettlement = tile.ownerId !== null && tile.ownerId !== unit.ownerId && 
-            (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || 
-             tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE);
-          
-          let isPassable = !isEnemySettlement && (!unitOnTile || unitOnTile.ownerId === unit.ownerId);
-
-          // Water rule: impassable unless adjacent to a village/settlement OR moving from another water tile
-          if (tile.terrain === TerrainType.WATER) {
-            const currentTile = board.find(t => t.coord.q === coord.q && t.coord.r === coord.r);
-            const isMovingFromWater = currentTile?.terrain === TerrainType.WATER;
-            
-            if (!isMovingFromWater) {
-              const tileNeighbors = getNeighbors(tile.coord);
-              const hasAdjacentSettlement = board.some(t => 
-                (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || 
-                 t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-                tileNeighbors.some(n => n.q === t.coord.q && n.r === t.coord.r)
-              );
-              if (!hasAdjacentSettlement) {
-                isPassable = false;
-              }
-            }
+        if (!isMovingFromWater) {
+          const tileNeighbors = getNeighbors(tile.coord);
+          const hasAdjacentSettlement = board.some(t => 
+            (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || 
+             t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
+            tileNeighbors.some(n => n.q === t.coord.q && n.r === t.coord.r)
+          );
+          if (!hasAdjacentSettlement) {
+            isPassable = false;
           }
-          
-          if (isPassable) {
-            queue.push({ coord: neighbor, dist: dist + 1 });
+        }
+      }
+      
+      if (isPassable) {
+        // Forest tiles cost 2, others cost 1
+        const moveCost = (tile.terrain === TerrainType.FOREST) ? 2 : 1;
+        const nextCost = cost + moveCost;
+
+        // Prorated entry: can enter a tile if we have at least 1 movement point left
+        if (cost < maxMoves) {
+          const key = `${neighbor.q},${neighbor.r}`;
+          if (!minCosts.has(key) || minCosts.get(key)! > nextCost) {
+            minCosts.set(key, nextCost);
+            
+            // Add to moves if no unit is there
+            if (!unitOnTile) {
+              moves.push(neighbor);
+            }
+            
+            // Can only move further if we have enough moves left AFTER this step
+            if (nextCost < maxMoves) {
+              queue.push({ coord: neighbor, cost: nextCost });
+            }
           }
         }
       }
     }
   }
 
-  // Filter out moves that end on a friendly unit
-  const validMoves = moves.filter(m => !units.some(u => u.id !== unit.id && u.coord.q === m.q && u.coord.r === m.r));
+  // Filter out duplicates (though minCosts handles it, moves array might have duplicates if we aren't careful)
+  const uniqueMoves = Array.from(new Set(moves.map(m => `${m.q},${m.r}`))).map(key => {
+    const [q, r] = key.split(',').map(Number);
+    return { q, r, s: -q - r };
+  });
 
   // Enforce supply range: unit cannot move further from a friendly settlement than its movement range
   const friendlySettlements = board.filter(t => t.ownerId === unit.ownerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE));
   const maxRange = UNIT_STATS[unit.type].moves;
 
-  return validMoves.filter(m => {
+  return uniqueMoves.filter(m => {
     let minSettlementDist = Infinity;
     for (const s of friendlySettlements) {
       const d = getDistance(m, s.coord);
@@ -547,6 +568,11 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
     if (other.ownerId !== unit.ownerId) {
       const dist = getDistance(unit.coord, other.coord);
       if (dist <= range) {
+        // Catapults cannot target units in forests
+        const targetTile = board.find(t => t.coord.q === other.coord.q && t.coord.r === other.coord.r);
+        if (unit.type === UnitType.CATAPULT && targetTile?.terrain === TerrainType.FOREST) {
+          return;
+        }
         attacks.push(other.coord);
       }
     }
@@ -634,7 +660,7 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
     );
 
     const newUnits = state.units.map(u => {
-      if (u.id === unitOnTile?.id && (nextTerrain === TerrainType.VILLAGE || nextTerrain === TerrainType.GOLD_MINE)) {
+      if (unitOnTile && u.id === unitOnTile.id && (nextTerrain === TerrainType.VILLAGE || nextTerrain === TerrainType.GOLD_MINE)) {
         return { ...u, movesLeft: 0, hasAttacked: true, hasActed: true };
       }
       return u;
@@ -647,7 +673,12 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
       history: [...history, stateWithoutHistory],
       board: newBoard,
       players: newPlayers,
-      units: newUnits
+      units: newUnits,
+      selectedUnitId: null,
+      selectedHex: coord,
+      possibleMoves: [],
+      possibleAttacks: [],
+      attackRange: []
     };
   }
   

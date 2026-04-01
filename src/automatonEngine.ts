@@ -75,7 +75,7 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
   const empireCenter = getEmpireCenter(mySettlements);
   const hvt = getHVT(state, currentPlayer.id, empireCenter);
 
-  const savingForMine = isSavingForMine(state, currentPlayer);
+  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome);
   const savingForVillage = isSavingForVillage(state, currentPlayer);
 
   // 1. Try to upgrade settlements

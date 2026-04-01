@@ -257,8 +257,8 @@ export default function App() {
 
   const handleExitCurrent = () => {
     confirmAction(
-      "Concede Game?",
-      "Are you sure you want to concede? Your empire will fall and its remnants will turn into barbarians.",
+      "Leave Game?",
+      "Are you sure you want to leave? Your empire will fall and its remnants will turn into barbarians.",
       () => {
         concedeGame();
         setShowMenu(false);
@@ -433,20 +433,19 @@ export default function App() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-2xl w-full bg-parchment border-2 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+          className="max-w-2xl w-full bg-parchment border-2 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center"
         >
           <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-10 gap-2">
             <div className="grayscale opacity-60 pointer-events-none select-none">
               <span className="text-[100px] sm:text-[140px]">🏰</span>
             </div>
             <h1 className="text-2xl sm:text-6xl font-black uppercase tracking-tighter text-center">
-              Throne Room
+              Hex Medieval
             </h1>
-            <p className="text-sm font-black uppercase tracking-widest opacity-40">Hex Medieval</p>
           </div>
           
-          <div className="space-y-4 mb-8">
-            <div className="flex justify-between items-center">
+          <div className="space-y-4 mb-8 w-full">
+            <div className="flex justify-center items-center">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <User size={20} /> Player Setup
               </h2>
@@ -473,13 +472,13 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 w-full max-w-sm">
+          <div className="flex flex-col gap-4 w-full max-w-sm items-center">
             <GameButton 
               onClick={() => startGame(playerConfigs)}
               variant="primary"
               size="lg"
               fullWidth
-              className="text-xl py-5"
+              className="text-lg py-4"
             >
               Start Conquest
             </GameButton>
@@ -489,8 +488,8 @@ export default function App() {
               variant="secondary"
               size="lg"
               fullWidth
-              className="text-xl py-5"
-              icon={<Upload size={24} />}
+              className="text-lg py-4"
+              icon={<Upload size={20} />}
             >
               Load Game
             </GameButton>
@@ -498,9 +497,9 @@ export default function App() {
             <GameButton 
               onClick={() => setShowInstructions(true)}
               variant="ghost"
-              size="md"
+              size="lg"
               fullWidth
-              className="border-2 border-black"
+              className="border-2 border-black text-lg py-4"
               icon={<HelpCircle size={20} />}
             >
               How to Play
@@ -601,7 +600,7 @@ export default function App() {
                   fullWidth
                   className="py-2 text-sm"
                 >
-                  Throne Room
+                  Main Menu
                 </GameButton>
                 {gameState.winnerId !== -1 && !gameState.isBarbarianInvasion && (
                   <GameButton 
@@ -939,27 +938,28 @@ export default function App() {
           )}
           {!currentPlayer.isAutomaton && (
             <GameButton 
-              onClick={handleExitCurrent}
-              variant="ghost"
-              size="sm"
+              onClick={endTurn}
+              disabled={currentPlayer.isAutomaton}
+              variant="primary"
+              size="md"
               fullWidth
-              className="py-3 text-xs border-2 border-black text-red-600 hover:text-red-700 hover:bg-red-50"
-              icon={<AlertTriangle size={14} />}
+              className="py-4 text-sm"
             >
-              Concede Game
+              {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
+              {!currentPlayer.isAutomaton && <ChevronRight size={18} className="ml-2 inline" />}
             </GameButton>
           )}
-          <GameButton 
-            onClick={endTurn}
-            disabled={currentPlayer.isAutomaton}
-            variant="primary"
-            size="md"
-            fullWidth
-            className="py-4 text-sm"
-          >
-            {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
-            {!currentPlayer.isAutomaton && <ChevronRight size={18} className="ml-2 inline" />}
-          </GameButton>
+          {currentPlayer.isAutomaton && (
+            <GameButton 
+              disabled
+              variant="primary"
+              size="md"
+              fullWidth
+              className="py-4 text-sm"
+            >
+              {automatonStatus}
+            </GameButton>
+          )}
         </div>
       </div>
 

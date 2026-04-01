@@ -14,6 +14,9 @@ Gold is the lifeblood of your empire. You earn gold at the start of your turn ba
 *   **Village:** Can be upgraded to a **Fortress** (Cost: 150g, Income: +20g).
 *   **Fortress:** Can be upgraded to a **Castle** (Cost: 300g, Income: +40g).
 *   **Mountain:** Can be upgraded to a **Gold Mine** (Cost: 500g, Income: +80g).
+*   **Forest:** Provides cover and slows movement.
+    *   **Movement:** Entering a forest costs 2 movement points (prorated: can enter with only 1 point left). Units starting in a forest have reduced range (Infantry/Archers: 1, Knights: 2). Catapults cannot enter forests.
+    *   **Defense:** Units in forests cannot be targeted by **Catapults**.
 *   **Water:** Impassable to units unless they are moving from another water tile or are adjacent to a settlement (representing ports/docks).
 
 *Note: You can only recruit new units on Villages and Castles.*
