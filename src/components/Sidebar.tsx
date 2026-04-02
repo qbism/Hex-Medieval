@@ -117,7 +117,7 @@ export const Sidebar = ({
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <PlusCircle size={10} className="text-green-600" />
+                <PlusCircle size={12} className="text-green-600" />
                 <span className="text-label font-bold text-green-700">
                   +{calculateIncome(currentPlayer, gameState.board)} / turn
                 </span>
@@ -164,7 +164,7 @@ export const Sidebar = ({
                             <p className="font-bold text-sm leading-none">{tile.terrain}</p>
                             {SETTLEMENT_INCOME[tile.terrain] > 0 && (
                               <div className="mt-1 flex items-center gap-1 text-amber-700">
-                                <Coins size={10} />
+                                <Coins size={12} />
                                 <span className="text-label font-bold">+{SETTLEMENT_INCOME[tile.terrain]} Gold / turn</span>
                               </div>
                             )}
@@ -173,13 +173,13 @@ export const Sidebar = ({
                                 <p className="text-label font-bold mb-1" style={{ color: gameState.players[tile.ownerId].color }}>
                                   {COLOR_NAMES[gameState.players[tile.ownerId].color]} Empire
                                 </p>
-                                <div className="flex items-center gap-3 text-xs">
+                                <div className="flex items-center gap-3 text-sm">
                                   <div className="flex items-center gap-1 text-green-700" title="Empire Gold Production">
-                                    <PlusCircle size={10} />
+                                    <PlusCircle size={12} />
                                     <span className="font-bold">+{calculateIncome(gameState.players[tile.ownerId], gameState.board)}/turn</span>
                                   </div>
                                   <div className="flex items-center gap-1 text-red-700" title="Empire Military Strength">
-                                    <Sword size={10} />
+                                    <Sword size={12} />
                                     <span className="font-bold">{calculateStrength(tile.ownerId, gameState.units)}</span>
                                   </div>
                                 </div>
@@ -196,18 +196,18 @@ export const Sidebar = ({
                           <div className="p-3 bg-white border border-black/10 rounded-xl shadow-sm space-y-2">
                             <div className="flex items-center justify-between">
                               <p className="font-bold text-sm">{unit.type}</p>
-                              <p className="text-xs font-bold" style={{ color: gameState.players[unit.ownerId].color }}>
+                              <p className="text-sm font-bold" style={{ color: gameState.players[unit.ownerId].color }}>
                                 {COLOR_NAMES[gameState.players[unit.ownerId].color]}
                               </p>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="p-1.5 bg-stone-50 rounded-lg border border-black/5">
-                                <p className="text-[10px] uppercase opacity-50 leading-none mb-1">Moves</p>
-                                <p className="font-bold text-xs">{unit.movesLeft} / {UNIT_STATS[unit.type].moves}</p>
+                                <p className="text-sm uppercase opacity-50 leading-none mb-1">Moves</p>
+                                <p className="font-bold text-sm">{unit.movesLeft} / {UNIT_STATS[unit.type].moves}</p>
                               </div>
                               <div className="p-1.5 bg-stone-50 rounded-lg border border-black/5">
-                                <p className="text-[10px] uppercase opacity-50 leading-none mb-1">Range</p>
-                                <p className="font-bold text-xs">{UNIT_STATS[unit.type].range} hex</p>
+                                <p className="text-sm uppercase opacity-50 leading-none mb-1">Range</p>
+                                <p className="font-bold text-sm">{UNIT_STATS[unit.type].range} hex</p>
                               </div>
                             </div>
                           </div>
@@ -245,7 +245,7 @@ export const Sidebar = ({
                             )}
                             {(tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.CASTLE) && !unit && (
                               <div className="space-y-1.5 mt-2">
-                                <p className="text-[10px] font-bold uppercase opacity-50">Recruit Units</p>
+                                <p className="text-sm font-bold uppercase opacity-50">Recruit Units</p>
                                 <div className="grid grid-cols-2 gap-1.5">
                                   {(Object.keys(UNIT_STATS) as UnitType[]).map(type => (
                                     <GameButton
@@ -256,10 +256,10 @@ export const Sidebar = ({
                                       size="sm"
                                       className="p-2 bg-white border border-black/10 text-left hover:bg-stone-50 block"
                                     >
-                                      <p className="font-bold text-[10px] leading-none mb-1">{type}</p>
+                                      <p className="font-bold text-sm leading-none mb-1">{type}</p>
                                       <div className="flex items-center gap-1 text-amber-600">
-                                        <Coins size={8} />
-                                        <span className="text-[10px] font-bold">{UNIT_STATS[type].cost}</span>
+                                        <Coins size={12} />
+                                        <span className="text-sm font-bold">{UNIT_STATS[type].cost}</span>
                                       </div>
                                     </GameButton>
                                   ))}
@@ -308,7 +308,7 @@ export const Sidebar = ({
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-4 opacity-30">
             <HelpCircle size={32} className="mb-2" />
-            <p className="text-xs font-bold uppercase tracking-widest">Select a tile or unit for intel</p>
+            <p className="text-sm font-bold uppercase tracking-widest">Select a tile or unit for intel</p>
           </div>
         )}
       </div>

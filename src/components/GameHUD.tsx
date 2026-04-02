@@ -40,7 +40,7 @@ export const GameHUD = ({
               </span>
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest opacity-50 leading-none mb-1">Current Turn</p>
+              <p className="text-sm font-bold uppercase tracking-widest opacity-50 leading-none mb-1">Current Turn</p>
               <p className="text-lg font-black leading-none">{COLOR_NAMES[currentPlayer.color]} Empire</p>
             </div>
           </div>

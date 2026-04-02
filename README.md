@@ -27,9 +27,9 @@ Each unit has unique strengths, movement ranges, and attack ranges.
 | Unit | Cost | Movement | Range | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **Infantry** | 50g | 2 | 1 | Cheap, reliable frontline fighters. Great for holding choke points or emergency base defense. |
-| **Archer** | 100g | 2 | 2 | Ranged attackers. Excellent for chipping away at approaching enemies from behind a frontline wall. |
-| **Knight** | 200g | 4 | 1 | Fast, highly mobile cavalry. Perfect for flanking, escaping congested areas, and capturing undefended backline settlements. |
-| **Catapult** | 300g | 1 | 3 | Slow but devastating artillery. Essential for breaking stalemates and sieging heavily fortified positions. |
+| **Archer** | 100g | 2 | 2* | Ranged attackers. Excellent for chipping away at approaching enemies. (*Range: +1 on Mountains, -1 in Forests*) |
+| **Knight** | 200g | 4 | 1 | Fast, highly mobile cavalry. Perfect for flanking and capturing undefended settlements. |
+| **Catapult** | 300g | 1 | 3* | Slow but devastating artillery. (*Range: +1 on Mountains. Cannot target units in Forests*) |
 
 ---
 

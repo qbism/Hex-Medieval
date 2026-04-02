@@ -486,7 +486,11 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
 
       const unitOnTile = units.find(u => u.coord.q === neighbor.q && u.coord.r === neighbor.r);
       
-      let isPassable = (!unitOnTile || unitOnTile.ownerId === unit.ownerId);
+      const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || 
+                                 tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && 
+                                 tile.ownerId !== null && tile.ownerId !== unit.ownerId;
+      
+      let isPassable = (!unitOnTile || unitOnTile.ownerId === unit.ownerId) && !isEnemySettlement;
 
       // Catapults cannot enter forests
       if (tile.terrain === TerrainType.FOREST && unit.type === UnitType.CATAPULT) {
@@ -557,10 +561,33 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
   });
 }
 
+export function getUnitRange(unit: Unit, board: GameState['board']): number {
+  const baseRange = UNIT_STATS[unit.type].range;
+  const currentTile = board.find(t => t.coord.q === unit.coord.q && t.coord.r === unit.coord.r);
+  
+  if (!currentTile) return baseRange;
+  
+  let modifiedRange = baseRange;
+  
+  if (unit.type === UnitType.ARCHER) {
+    if (currentTile.terrain === TerrainType.MOUNTAIN) {
+      modifiedRange += 1;
+    } else if (currentTile.terrain === TerrainType.FOREST) {
+      modifiedRange = Math.max(1, modifiedRange - 1);
+    }
+  } else if (unit.type === UnitType.CATAPULT) {
+    if (currentTile.terrain === TerrainType.MOUNTAIN) {
+      modifiedRange += 1;
+    }
+  }
+  
+  return modifiedRange;
+}
+
 export function getValidAttacks(unit: Unit, board: GameState['board'], units: Unit[], ignoreActed: boolean = false): HexCoord[] {
   if (unit.hasActed && !ignoreActed) return [];
   
-  const range = UNIT_STATS[unit.type].range;
+  const range = getUnitRange(unit, board);
   const attacks: HexCoord[] = [];
 
   // Attack units
@@ -596,7 +623,7 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
 }
 
 export function getAttackRange(unit: Unit, board: GameState['board'], units: Unit[]): HexCoord[] {
-  const range = UNIT_STATS[unit.type].range;
+  const range = getUnitRange(unit, board);
   const inRange: HexCoord[] = [];
   
   board.forEach(tile => {

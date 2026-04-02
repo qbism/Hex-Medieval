@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, MapControls, Text, useCursor, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
-import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, TERRAIN_COLORS } from '../types';
+import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, TERRAIN_COLORS, getDistance, UNIT_STATS } from '../types';
 import { soundEngine } from '../services/soundEngine';
 
 import { Sparks3D, SmokeEffect3D, Projectile3D, MissEffect3D } from './Effects3D';
@@ -139,7 +139,7 @@ const PulsatingAttackIndicator = ({ height, geometry, active }: { height: number
   );
 };
 
-const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
+const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
   const depth = 2.0; // About the width of a tile
@@ -236,6 +236,15 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
         <Billboard position={[0, height + 0.2, 0]}>
           <Text fontSize={0.6}>
             ⛵
+          </Text>
+        </Billboard>
+      )}
+
+      {/* Extended Range Indicator */}
+      {isExtendedRange && (
+        <Billboard position={[0, height + 0.8, 0]}>
+          <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold">
+            +
           </Text>
         </Billboard>
       )}
@@ -450,6 +459,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           const isPossibleMove = gameState.possibleMoves.some(m => m.q === tile.coord.q && m.r === tile.coord.r);
           const isPossibleAttack = gameState.possibleAttacks.some(a => a.q === tile.coord.q && a.r === tile.coord.r);
           const isAttackRange = gameState.attackRange.some(r => r.q === tile.coord.q && r.r === tile.coord.r);
+          const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord) > UNIT_STATS[selectedUnit.type].range;
           const unitAtHex = gameState.units.find(u => u.coord.q === tile.coord.q && u.coord.r === tile.coord.r);
           
           let hasAdjacentSettlement = false;
@@ -471,6 +481,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
               isPossibleMove={isPossibleMove}
               isPossibleAttack={isPossibleAttack}
               isAttackRange={isAttackRange}
+              isExtendedRange={isExtendedRange}
               playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
               hasAdjacentSettlement={hasAdjacentSettlement}
               unitAtHex={unitAtHex}

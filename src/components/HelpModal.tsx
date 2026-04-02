@@ -125,6 +125,10 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                     <span className="font-bold">5.</span>
                     <span><span className="font-bold text-emerald-700">Forest Cover:</span> Entering a forest costs 2 movement points (prorated: can enter with 1 point left). Units in forests are <span className="font-bold text-red-700">immune to Catapult attacks</span>. Catapults cannot enter forests.</span>
                   </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold">6.</span>
+                    <span><span className="font-bold text-amber-700">High Ground:</span> Archers and Catapults gain <span className="font-bold text-amber-900">+1 Range</span> when attacking from Mountain tiles. Archers lose <span className="font-bold text-red-700">-1 Range</span> when attacking from Forest tiles.</span>
+                  </li>
                 </ul>
               </section>
 
@@ -161,7 +165,9 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                     <div key={type} className="p-4 border border-black/10 rounded-xl bg-stone-50">
                       <div className="text-3xl mb-2">{UNIT_ICONS[type]}</div>
                       <p className="font-bold">{type.charAt(0) + type.slice(1).toLowerCase()}</p>
-                      <p className="text-body opacity-60">Range: {UNIT_STATS[type].range}. Moves: {UNIT_STATS[type].moves}.</p>
+                      <p className="text-body opacity-60">
+                        Range: {UNIT_STATS[type].range}{type === UnitType.ARCHER || type === UnitType.CATAPULT ? '*' : ''}. Moves: {UNIT_STATS[type].moves}.
+                      </p>
                     </div>
                   ))}
                 </div>

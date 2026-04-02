@@ -11,7 +11,7 @@ import {
   UPGRADE_COSTS as _UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../types';
-import { getValidAttacks, getValidMoves } from '../gameEngine';
+import { getValidAttacks, getValidMoves, getUnitRange } from '../gameEngine';
 import { findNearestTarget as _findNearestTarget, getChokepointScore as _getChokepointScore } from './utils';
 import { BASE_REWARD } from './constants';
 import { LoopSafety } from '../utils';
@@ -159,10 +159,11 @@ export function getUnitAction(
 
       // 1. Put enemies in peril: If we can move to within attack range of an enemy unit or village in one turn, 
       // AND it won't place our unit into peril, then do it.
+      const potentialRange = getUnitRange({ ...unitToAct, coord: m }, state.board);
       if (!isMoveInPeril) {
         for (const target of moveTargets) {
           const dist = getDistance(m, target.coord);
-          if (dist <= stats.range) {
+          if (dist <= potentialRange) {
             score += BASE_REWARD * 3.0; // High bonus for putting enemy in peril
           }
         }
@@ -207,7 +208,7 @@ export function getUnitAction(
         if (dist < currentDist) {
           // Moving closer to a target
           // ROI = Value / turnsToReach
-          const turnsToReach = Math.ceil((dist - (target.isSettlement ? 0 : stats.range)) / stats.moves) + 1;
+          const turnsToReach = Math.ceil((dist - (target.isSettlement ? 0 : potentialRange)) / stats.moves) + 1;
           let targetScore = target.value / (turnsToReach + 1);
 
           // Pathing Consistency: If we're already moving towards this target, give a bonus
@@ -265,13 +266,13 @@ export function getUnitAction(
           score -= BASE_REWARD * 4.0; 
         }
 
-        // Siege positioning: Prefer being exactly at range 3 from an enemy settlement
+        // Siege positioning: Prefer being exactly at max range from an enemy settlement
         for (const target of moveTargets) {
           if (target.isSettlement && target.ownerId !== null) {
             const d = getDistance(m, target.coord);
-            if (d === 3) {
+            if (d === potentialRange) {
               score += BASE_REWARD * 3.0; 
-            } else if (d === 2) {
+            } else if (d < potentialRange && d >= 2) {
               score += BASE_REWARD * 1.5; 
             }
           }
@@ -296,7 +297,7 @@ export function getUnitAction(
       });
       if (threatenedVillages.length > 0) {
         for (const target of moveTargets) {
-          if (!target.isSettlement && getDistance(m, target.coord) <= stats.range) {
+          if (!target.isSettlement && getDistance(m, target.coord) <= potentialRange) {
             // This move puts an enemy in range. Is that enemy threatening a village?
             const isEnemyThreateningVillage = threatenedVillages.some(v => getDistance(target.coord, v.coord) <= UNIT_STATS[target.unitType!].range);
             if (isEnemyThreateningVillage) {
@@ -309,7 +310,7 @@ export function getUnitAction(
       // Pair Coordination: If an enemy unit is already in peril from another friendly unit, 
       // and this move also puts it in peril, give a bonus.
       for (const target of moveTargets) {
-        if (!target.isSettlement && getDistance(m, target.coord) <= stats.range) {
+        if (!target.isSettlement && getDistance(m, target.coord) <= potentialRange) {
           const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
           const isAlreadyInPeril = otherFriendlyUnits.some(u => getDistance(u.coord, target.coord) <= UNIT_STATS[u.type].range);
           if (isAlreadyInPeril) {
