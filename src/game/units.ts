@@ -124,15 +124,11 @@ export function getUnitRange(unit: Unit, board: GameState['board']): number {
   let modifiedRange = baseRange;
   
   if (unit.type === UnitType.ARCHER) {
-    if (currentTile.terrain === TerrainType.MOUNTAIN) {
-      modifiedRange += 1;
-    } else if (currentTile.terrain === TerrainType.FOREST) {
+    if (currentTile.terrain === TerrainType.FOREST) {
       modifiedRange = Math.max(1, modifiedRange - 1);
     }
   } else if (unit.type === UnitType.CATAPULT) {
-    if (currentTile.terrain === TerrainType.MOUNTAIN) {
-      modifiedRange += 1;
-    }
+    // No terrain bonuses for catapults
   }
   
   return modifiedRange;

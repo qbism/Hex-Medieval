@@ -57,17 +57,29 @@ export function getUnitAction(
       const targetUnit = state.units.find(u => u.coord.q === a.q && u.coord.r === a.r);
       const targetTile = state.board.find(t => t.coord.q === a.q && t.coord.r === a.r);
 
+      const threat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
+      const myThreatLevel = threat ? threat.minTurns : Infinity;
+
       let priority = 0;
 
       if (targetUnit) {
         const targetValue = UNIT_STATS[targetUnit.type].cost;
         
         // Economic Trade: Target Value - My Risk
-        const threat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
-        const myThreatLevel = threat ? threat.minTurns : Infinity;
         const risk = (myThreatLevel <= 2 && !isBarbarian) ? myValue : 0;
         
         priority = targetValue - risk;
+        
+        // Peril Counter-Attack Bonus: If we are in peril, we prefer to attack rather than run
+        if (myThreatLevel === 1 && !isBarbarian) {
+          priority += BASE_REWARD * 5.0; // Significant bonus to prefer attacking over moving
+          
+          // Extra bonus if the target is actually one of the units threatening us
+          const distToTarget = getDistance(unitToAct.coord, targetUnit.coord);
+          if (distToTarget <= UNIT_STATS[targetUnit.type].range) {
+            priority += BASE_REWARD * 3.0;
+          }
+        }
 
         // High Value Target (HVT) Bonus
         if (hvt && targetUnit.id === hvt.id) {
@@ -91,12 +103,17 @@ export function getUnitAction(
         const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
         if (isOccupyingMySettlement) priority += BASE_REWARD * 2.0;
 
-      } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id) {
-        // Attacking an empty settlement
+      } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE)) {
+        // Attacking an empty settlement (must be owned by an enemy)
         const settlementValue = SETTLEMENT_INCOME[targetTile.terrain] * HORIZON;
-        priority = settlementValue * 0.2; // Settlements are high value but units are immediate threats
+        priority = settlementValue * 1.5 + BASE_REWARD * 4.0; // High priority for capturing empty enemy settlements
         
-        if (focusOnLeader && targetTile.ownerId === leaderId) priority += BASE_REWARD * 0.4;
+        // Peril Bonus: If we are in peril, we prefer to capture a settlement rather than run
+        if (myThreatLevel === 1 && !isBarbarian) {
+          priority += BASE_REWARD * 5.0;
+        }
+
+        if (focusOnLeader && targetTile.ownerId === leaderId) priority += BASE_REWARD * 1.0;
       }
 
       if (priority > maxPriority) {
@@ -149,7 +166,7 @@ export function getUnitAction(
 
       // Immediate Capture Bonus
       if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
-        score += (SETTLEMENT_INCOME[tile.terrain] * HORIZON) + BASE_REWARD * 2.0; // Increased from 1.5 to 2.0
+        score += (SETTLEMENT_INCOME[tile.terrain] * HORIZON) + BASE_REWARD * 6.0; 
       }
 
       // Forest Defense Bonus: AI likes to end turn in forests

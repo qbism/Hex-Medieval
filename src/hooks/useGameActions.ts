@@ -137,18 +137,13 @@ export function useGameActions(
         if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== currentAttacker.ownerId) {
           const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
           if (isSettlement && !currentDefender) {
-            if (tile.ownerId === null) {
-              // Unclaimed settlements are still captured by the attacker
-              return { ...tile, ownerId: currentAttacker.ownerId };
+            // Enemy settlements become neutral or downgraded when defeated
+            if (tile.terrain === TerrainType.CASTLE) {
+              return { ...tile, terrain: TerrainType.FORTRESS };
+            } else if (tile.terrain === TerrainType.FORTRESS) {
+              return { ...tile, terrain: TerrainType.VILLAGE };
             } else {
-              // Enemy settlements become neutral when defeated
-              if (tile.terrain === TerrainType.CASTLE) {
-                return { ...tile, terrain: TerrainType.FORTRESS };
-              } else if (tile.terrain === TerrainType.FORTRESS) {
-                return { ...tile, terrain: TerrainType.VILLAGE };
-              } else {
-                return { ...tile, ownerId: null };
-              }
+              return { ...tile, ownerId: null };
             }
           }
         }
