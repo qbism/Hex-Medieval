@@ -1,28 +1,30 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { GameButton } from './GameButton';
 import { 
   Volume2, 
   VolumeX, 
   HelpCircle, 
-  X, 
+  Settings, 
   Coins, 
   PlusCircle, 
-  Sword 
+  Sword, 
+  RotateCcw, 
+  ChevronRight 
 } from 'lucide-react';
 import { 
   GameState, 
   TerrainType, 
   UnitType, 
   COLOR_NAMES, 
-  SETTLEMENT_INCOME, 
+  UNIT_ICONS, 
   UNIT_STATS, 
-  cn,
-  Unit as _Unit,
-  TERRAIN_COLORS
+  SETTLEMENT_INCOME, 
+  cn, 
+  TERRAIN_COLORS 
 } from '../types';
 import { calculateIncome } from '../gameEngine';
-import { calculateStrength } from '../automaton/utils';
+import { calculateStrength } from '../utils';
+import { GameButton } from './GameButton';
 
 interface SidebarProps {
   gameState: GameState;
@@ -30,10 +32,12 @@ interface SidebarProps {
   isMuted: boolean;
   setIsMuted: (muted: boolean) => void;
   setShowInstructions: (show: boolean) => void;
-  setSetupMode: (setup: boolean) => void;
-  setGameState: React.Dispatch<React.SetStateAction<GameState | null>>;
-  recruitUnit: (type: UnitType) => void;
-  handleUpgradeSettlement: (coord: any) => void;
+  setShowMenu: (show: boolean) => void;
+  recruitUnit: (type: UnitType, hex: any) => void;
+  upgradeSettlement: (coord: any) => void;
+  undoMove: () => void;
+  endTurn: () => void;
+  automatonStatus: string;
 }
 
 export const Sidebar = ({
@@ -42,31 +46,36 @@ export const Sidebar = ({
   isMuted,
   setIsMuted,
   setShowInstructions,
-  setSetupMode,
-  setGameState,
+  setShowMenu,
   recruitUnit,
-  handleUpgradeSettlement
+  upgradeSettlement,
+  undoMove,
+  endTurn,
+  automatonStatus
 }: SidebarProps) => {
   return (
     <div 
       className={cn(
-        "absolute z-20 bg-stone-100 border-2 border-black flex shadow-2xl transition-all duration-300 m-2",
+        "z-20 bg-parchment border-black flex shadow-2xl transition-all duration-300 order-1 lg:order-2",
         // Mobile: Top horizontal
-        "inset-x-0 top-0 flex-row overflow-x-auto h-44",
+        "w-full h-44 flex-row overflow-x-auto border-b-2",
         // Desktop: Right vertical
-        "lg:inset-y-0 lg:right-0 lg:left-auto lg:w-64 lg:max-h-none lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden"
+        "lg:h-full lg:w-80 lg:flex-col lg:overflow-hidden lg:border-l-2 lg:border-b-0"
       )}
       style={{
         clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px)'
       }}
     >
       {/* HUD Section */}
-      <div className="p-3 border-r lg:border-r-0 lg:border-b border-black/10 bg-stone-50 space-y-3 w-56 lg:w-full flex-shrink-0">
+      <div className="p-3 border-r lg:border-r-0 lg:border-b-2 border-black/10 bg-parchment/50 space-y-2 w-64 lg:w-full flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full border-2 border-black" style={{ backgroundColor: currentPlayer.color }} />
-            <div>
-              <p className="text-base font-black leading-none">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-black shadow-sm flex-shrink-0" style={{ backgroundColor: currentPlayer.color }} />
+            <div className="relative overflow-hidden border-2 border-black bg-stone-100 px-2 py-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center">
+              <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                <span className="text-[24px]">🏰</span>
+              </div>
+              <p className="relative text-sm font-black leading-none tracking-tight uppercase z-10">
                 {COLOR_NAMES[currentPlayer.color]}
               </p>
             </div>
@@ -76,7 +85,7 @@ export const Sidebar = ({
               onClick={() => setIsMuted(!isMuted)}
               variant="ghost"
               size="icon"
-              className="p-1.5 border border-black/10"
+              className="p-1.5 border border-black/10 bg-white shadow-sm"
               title={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
@@ -85,62 +94,55 @@ export const Sidebar = ({
               onClick={() => setShowInstructions(true)}
               variant="ghost"
               size="icon"
-              className="p-1.5 text-stone-500 hover:text-black border border-black/10"
+              className="p-1.5 text-stone-500 hover:text-black border border-black/10 bg-white shadow-sm"
               title="Help"
             >
               <HelpCircle size={14} />
             </GameButton>
             <GameButton 
-              onClick={() => {
-                if (confirm('Are you sure you want to quit the current game? All progress will be lost.')) {
-                  setSetupMode(true);
-                  setGameState(null);
-                }
-              }}
+              onClick={() => setShowMenu(true)}
               variant="ghost"
               size="icon"
-              className="p-1.5 text-red-500 hover:text-red-700 border border-black/10"
-              title="Quit Game"
+              className="p-1.5 text-stone-700 hover:text-black border border-black/10 bg-white shadow-sm"
+              title="Game Menu"
             >
-              <X size={14} />
+              <Settings size={14} />
             </GameButton>
           </div>
         </div>
 
-        <div className="flex items-center justify-between p-2.5 bg-white border border-black/10 rounded-xl shadow-sm">
-          <div className="flex items-center gap-6">
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <Coins size={18} className="text-amber-600" />
-                <span className="text-xl font-bold">
-                  {currentPlayer.gold}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <PlusCircle size={12} className="text-green-600" />
-                <span className="text-label font-bold text-green-700">
-                  +{calculateIncome(currentPlayer, gameState.board)} / turn
-                </span>
-              </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col p-2 bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center gap-2 mb-0.5">
+              <Coins size={14} className="text-amber-600" />
+              <span className="text-lg font-black">
+                {currentPlayer.gold}
+              </span>
             </div>
+            <div className="flex items-center gap-1">
+              <PlusCircle size={12} className="text-green-600" />
+              <span className="text-sm font-black uppercase text-green-700">
+                +{calculateIncome(currentPlayer, gameState.board)} / turn
+              </span>
+            </div>
+          </div>
 
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <Sword size={18} className="text-red-600" />
-                <span className="text-xl font-bold">
-                  {calculateStrength(currentPlayer.id, gameState.units)}
-                </span>
-              </div>
-              <p className="text-label font-bold opacity-50 uppercase leading-none">Strength</p>
+          <div className="flex flex-col p-2 bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center gap-2 mb-0.5">
+              <Sword size={14} className="text-red-600" />
+              <span className="text-lg font-black">
+                {calculateStrength(currentPlayer.id, gameState.units)}
+              </span>
             </div>
+            <p className="text-sm font-black uppercase opacity-50 leading-none">Power</p>
           </div>
         </div>
       </div>
 
       {/* Intel Section */}
-      <div className="flex-1 p-3 overflow-y-auto bg-stone-50/50 min-w-[260px] lg:min-w-0">
+      <div className="flex-1 overflow-y-auto bg-parchment/30 min-w-[300px] lg:min-w-0 relative border-x lg:border-x-0 border-black/5">
         {gameState.selectedHex ? (
-          <div className="h-full">
+          <div className="p-3">
             <motion.div
               key={`${gameState.selectedHex.q}-${gameState.selectedHex.r}`}
               initial={{ opacity: 0, x: 10 }}
@@ -153,163 +155,273 @@ export const Sidebar = ({
                 
                 if (!tile) return null;
 
-                  return (
-                    <div className="space-y-4">
-                      {/* Tile Info */}
+                const occupantId = unit?.ownerId ?? tile.ownerId;
+                const occupant = occupantId !== null ? gameState.players[occupantId] : null;
+
+                return (
+                  <div className="space-y-3">
+                    {/* Kingdom Intel */}
+                    {occupant && (
                       <div className="space-y-1.5">
-                        <p className="text-label font-bold uppercase tracking-widest opacity-50">Terrain</p>
-                        <div className="flex items-center gap-3 p-2 bg-white border border-black/10 rounded-xl shadow-sm">
-                          <div className="w-5 h-5 rounded-lg border border-black/20" style={{ backgroundColor: TERRAIN_COLORS[tile.terrain] }} />
-                          <div>
-                            <p className="font-bold text-sm leading-none">{tile.terrain}</p>
-                            {SETTLEMENT_INCOME[tile.terrain] > 0 && (
-                              <div className="mt-1 flex items-center gap-1 text-amber-700">
-                                <Coins size={12} />
-                                <span className="text-label font-bold">+{SETTLEMENT_INCOME[tile.terrain]} Gold / turn</span>
+                        <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 mb-1 flex flex-col items-center">
+                          <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                            <span className="text-[20px]">👑</span>
+                          </div>
+                          <p className="relative text-sm font-black uppercase tracking-[0.2em] opacity-60 z-10">Kingdom Intel</p>
+                        </div>
+                        <div className="p-2 bg-white border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,0.05)]">
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <div className="w-6 h-6 rounded-full border-2 border-black" style={{ backgroundColor: occupant.color }} />
+                            <p className="font-black text-sm uppercase tracking-tight" style={{ color: occupant.color }}>
+                              {COLOR_NAMES[occupant.color]} Empire
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-1 text-amber-700 mb-0.5">
+                                <Coins size={11} />
+                                <span className="text-sm font-black">+{calculateIncome(occupant, gameState.board)}</span>
                               </div>
-                            )}
-                            {tile.ownerId !== null && (
-                              <div className="mt-2 pt-2 border-t border-black/10">
-                                <p className="text-label font-bold mb-1" style={{ color: gameState.players[tile.ownerId].color }}>
-                                  {COLOR_NAMES[gameState.players[tile.ownerId].color]} Empire
-                                </p>
-                                <div className="flex items-center gap-3 text-sm">
-                                  <div className="flex items-center gap-1 text-green-700" title="Empire Gold Production">
-                                    <PlusCircle size={12} />
-                                    <span className="font-bold">+{calculateIncome(gameState.players[tile.ownerId], gameState.board)}/turn</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 text-red-700" title="Empire Military Strength">
-                                    <Sword size={12} />
-                                    <span className="font-bold">{calculateStrength(tile.ownerId, gameState.units)}</span>
-                                  </div>
-                                </div>
+                              <p className="text-sm font-black uppercase opacity-40">Total Income</p>
+                            </div>
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-1 text-red-700 mb-0.5">
+                                <Sword size={12} />
+                                <span className="text-sm font-black">{calculateStrength(occupant.id, gameState.units)}</span>
+                              </div>
+                              <p className="text-sm font-black uppercase opacity-40">Power</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tile Info */}
+                    <div className="space-y-1.5">
+                      <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 mb-1 flex flex-col items-center">
+                        <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                          <span className="text-[20px]">🏰</span>
+                        </div>
+                        <p className="relative text-sm font-black uppercase tracking-[0.2em] opacity-60 z-10">Terrain Intelligence</p>
+                      </div>
+                      <div className="p-2 bg-parchment border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,0.05)]">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl border-2 border-black/20 flex-shrink-0" style={{ backgroundColor: TERRAIN_COLORS[tile.terrain] }} />
+                          <div className="flex-1">
+                            <p className="font-black text-base uppercase tracking-tight leading-none mb-1">{tile.terrain}</p>
+                            {SETTLEMENT_INCOME[tile.terrain] > 0 && (
+                              <div className="flex items-center gap-1 text-amber-700">
+                                <Coins size={11} />
+                                <span className="text-sm font-black">+{SETTLEMENT_INCOME[tile.terrain]} Gold / turn</span>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Unit Info */}
-                      {unit && (
-                        <div className="space-y-1.5">
-                          <p className="text-label font-bold uppercase tracking-widest opacity-50">Occupying Unit</p>
-                          <div className="p-3 bg-white border border-black/10 rounded-xl shadow-sm space-y-2">
-                            <div className="flex items-center justify-between">
-                              <p className="font-bold text-sm">{unit.type}</p>
-                              <p className="text-sm font-bold" style={{ color: gameState.players[unit.ownerId].color }}>
-                                {COLOR_NAMES[gameState.players[unit.ownerId].color]}
+                    {/* Unit Info */}
+                    {unit && (
+                      <div className="space-y-1.5">
+                        <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 mb-1 flex flex-col items-center">
+                          <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                            <span className="text-[20px]">🏰</span>
+                          </div>
+                          <p className="relative text-sm font-black uppercase tracking-[0.2em] opacity-60 z-10">Unit Presence</p>
+                        </div>
+                        <div className="p-2 bg-parchment/80 border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,0.05)]">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="text-3xl bg-white w-12 h-12 rounded-xl border-2 border-black flex items-center justify-center shadow-sm">{UNIT_ICONS[unit.type]}</div>
+                            <div>
+                              <p className="font-black text-base uppercase tracking-tight leading-none mb-1">{unit.type}</p>
+                              <p className="text-sm font-black" style={{ color: gameState.players[unit.ownerId].color }}>
+                                {COLOR_NAMES[gameState.players[unit.ownerId].color]} Forces
                               </p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="p-1.5 bg-stone-50 rounded-lg border border-black/5">
-                                <p className="text-sm uppercase opacity-50 leading-none mb-1">Moves</p>
-                                <p className="font-bold text-sm">{unit.movesLeft} / {UNIT_STATS[unit.type].moves}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <div className="p-1.5 bg-white border border-black/10 rounded-xl">
+                              <p className="text-sm uppercase font-black opacity-40 mb-0.5">Movement</p>
+                              <div className="flex items-center gap-1">
+                                <RotateCcw size={12} className="text-blue-600" />
+                                <span className="text-sm font-black">{unit.movesLeft}/{UNIT_STATS[unit.type].moves}</span>
                               </div>
-                              <div className="p-1.5 bg-stone-50 rounded-lg border border-black/5">
-                                <p className="text-sm uppercase opacity-50 leading-none mb-1">Range</p>
-                                <p className="font-bold text-sm">{UNIT_STATS[unit.type].range} hex</p>
+                            </div>
+                            <div className="p-1.5 bg-white border border-black/10 rounded-xl">
+                              <p className="text-sm uppercase font-black opacity-40 mb-0.5">Range</p>
+                              <div className="flex items-center gap-1">
+                                <Sword size={12} className="text-red-600" />
+                                <span className="text-sm font-black">{UNIT_STATS[unit.type].range}</span>
                               </div>
                             </div>
                           </div>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* Actions */}
-                      {tile.ownerId === currentPlayer.id && (
-                        <div className="space-y-2">
-                          <p className="text-label font-bold uppercase tracking-widest opacity-50">Settlement Actions</p>
-                          <div className="grid grid-cols-1 gap-2">
-                            {tile.terrain === TerrainType.VILLAGE && (
-                              <GameButton 
-                                onClick={() => handleUpgradeSettlement(tile.coord)}
-                                disabled={currentPlayer.gold < 150}
-                                variant="primary"
-                                size="sm"
-                                fullWidth
-                                className="bg-indigo-600 hover:bg-indigo-700"
-                              >
-                                Upgrade to Fortress (150G)
-                              </GameButton>
-                            )}
-                            {tile.terrain === TerrainType.FORTRESS && (
-                              <GameButton 
-                                onClick={() => handleUpgradeSettlement(tile.coord)}
-                                disabled={currentPlayer.gold < 300}
-                                variant="primary"
-                                size="sm"
-                                fullWidth
-                                className="bg-indigo-800 hover:bg-indigo-900"
-                              >
-                                Upgrade to Castle (300G)
-                              </GameButton>
-                            )}
-                            {(tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.CASTLE) && !unit && (
-                              <div className="space-y-1.5 mt-2">
-                                <p className="text-sm font-bold uppercase opacity-50">Recruit Units</p>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  {(Object.keys(UNIT_STATS) as UnitType[]).map(type => (
-                                    <GameButton
-                                      key={type}
-                                      onClick={() => recruitUnit(type)}
-                                      disabled={currentPlayer.gold < UNIT_STATS[type].cost}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="p-2 bg-white border border-black/10 text-left hover:bg-stone-50 block"
-                                    >
-                                      <p className="font-bold text-sm leading-none mb-1">{type}</p>
-                                      <div className="flex items-center gap-1 text-amber-600">
-                                        <Coins size={12} />
-                                        <span className="text-sm font-bold">{UNIT_STATS[type].cost}</span>
-                                      </div>
-                                    </GameButton>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                    {/* Recruitment UI */}
+                    {!unit && tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS) && (
+                      <div className="space-y-1.5">
+                        <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 mb-1 flex flex-col items-center">
+                          <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                            <span className="text-[20px]">🏰</span>
                           </div>
+                          <p className="relative text-sm font-black uppercase tracking-[0.2em] opacity-60 z-10">Recruit Forces</p>
                         </div>
-                      )}
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {(Object.keys(UNIT_STATS) as UnitType[]).map(type => {
+                            const stats = UNIT_STATS[type];
+                            const canAfford = currentPlayer.gold >= stats.cost;
 
-                      {/* Expansion Action */}
-                      {tile.ownerId === null && unit && unit.ownerId === currentPlayer.id && !unit.hasActed && (
-                        <div className="space-y-2">
-                          <p className="text-label font-bold uppercase tracking-widest opacity-50">Expansion</p>
-                          {tile.terrain === TerrainType.PLAINS && (
-                            <GameButton 
-                              onClick={() => handleUpgradeSettlement(tile.coord)}
-                              disabled={currentPlayer.gold < 100}
-                              variant="primary"
-                              size="sm"
-                              fullWidth
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              Build Village (100G)
-                            </GameButton>
-                          )}
-                          {tile.terrain === TerrainType.MOUNTAIN && (
-                            <GameButton 
-                              onClick={() => handleUpgradeSettlement(tile.coord)}
-                              disabled={currentPlayer.gold < 500}
-                              variant="primary"
-                              size="sm"
-                              fullWidth
-                              className="bg-amber-600 hover:bg-amber-700"
-                            >
-                              Build Gold Mine (500G)
-                            </GameButton>
-                          )}
+                            return (
+                              <GameButton
+                                key={type}
+                                onClick={() => recruitUnit(type, gameState.selectedHex!)}
+                                disabled={!canAfford}
+                                variant="parchment"
+                                fullWidth
+                                className="p-2 border-2 border-black flex items-center justify-between transition-all relative group rounded-xl"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xl">{UNIT_ICONS[type]}</span>
+                                  <div className="text-left">
+                                    <p className="font-black uppercase text-sm leading-none mb-0.5">{type}</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="flex items-center gap-0.5">
+                                        <RotateCcw size={12} className="text-blue-600" />
+                                        <span className="text-sm font-bold">{stats.moves}</span>
+                                      </div>
+                                      <div className="flex items-center gap-0.5">
+                                        <Sword size={12} className="text-red-600" />
+                                        <span className="text-sm font-bold">{stats.range}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-right gap-1 bg-amber-100 px-1.5 py-0.5 rounded-lg border-2 border-amber-300">
+                                  <Coins size={12} className="text-amber-700" />
+                                  <span className="text-sm font-black text-amber-900">{stats.cost}</span>
+                                </div>
+                              </GameButton>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
-                  );
+                      </div>
+                    )}
+
+                    {/* Upgrade UI */}
+                    {tile.terrain !== TerrainType.CASTLE && tile.terrain !== TerrainType.GOLD_MINE && (
+                      <div className="space-y-1.5">
+                        <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 mb-1 flex flex-col items-center">
+                          <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                            <span className="text-[20px]">🏰</span>
+                          </div>
+                          <p className="relative text-sm font-black uppercase tracking-[0.2em] opacity-60 z-10">Settlement Upgrades</p>
+                        </div>
+                        {(() => {
+                          let cost = 0;
+                          let label = "";
+                          if (tile.terrain === TerrainType.PLAINS && unit && unit.ownerId === currentPlayer.id && tile.ownerId !== currentPlayer.id) {
+                            if (unit.hasActed) return <p className="text-sm italic opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">Unit must have full actions to build.</p>;
+                            cost = 100; label = "Build Village";
+                          } else if (tile.terrain === TerrainType.MOUNTAIN && unit && unit.ownerId === currentPlayer.id && tile.ownerId !== currentPlayer.id) {
+                            if (unit.hasActed) return <p className="text-sm italic opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">Unit must have full actions to build.</p>;
+                            cost = 500; label = "Build Gold Mine";
+                          } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
+                            cost = 150; label = "Upgrade to Fortress";
+                          } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
+                            cost = 300; label = "Upgrade to Castle";
+                          }
+
+                          if (!label) return <p className="text-sm italic opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">No upgrades available here. Must own tile or occupy with unit.</p>;
+
+                          const canAfford = currentPlayer.gold >= cost;
+
+                          return (
+                            <GameButton
+                              onClick={() => upgradeSettlement(tile.coord)}
+                              disabled={!canAfford}
+                              variant="parchment"
+                              fullWidth
+                              className={cn(
+                                "p-2 border-2 border-black flex items-center justify-between transition-all rounded-xl",
+                                canAfford && "hover:bg-blue-100"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 bg-white rounded-lg border-2 border-black flex items-center justify-center">
+                                  <PlusCircle size={16} className="text-blue-600" />
+                                </div>
+                                <p className="font-black uppercase text-sm">{label}</p>
+                              </div>
+                              <div className="flex items-center gap-1 bg-amber-100 px-1.5 py-0.5 rounded-lg border-2 border-amber-300">
+                                <Coins size={11} className="text-amber-700" />
+                                <span className="text-sm font-black text-amber-900">{cost}</span>
+                              </div>
+                            </GameButton>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                );
               })()}
             </motion.div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4 opacity-30">
-            <HelpCircle size={32} className="mb-2" />
-            <p className="text-sm font-bold uppercase tracking-widest">Select a tile or unit for intel</p>
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-6">
+            <div className="text-5xl mb-3 grayscale">🏰</div>
+            <div>
+              <div className="relative overflow-hidden border-2 border-black bg-stone-100 px-3 py-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] mb-2 flex flex-col items-center">
+                <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
+                  <span className="text-[32px]">🏰</span>
+                </div>
+                <p className="relative font-black uppercase text-sm tracking-widest z-10">Imperial Command</p>
+              </div>
+              <p className="text-sm font-bold">SELECT A TILE OR UNIT TO BEGIN</p>
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      <div className="p-3 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 space-y-2 w-48 lg:w-full flex-shrink-0">
+        {!currentPlayer.isAutomaton && gameState.history && gameState.history.length > 0 && (
+          <GameButton 
+            onClick={undoMove}
+            variant="parchment"
+            size="sm"
+            fullWidth
+            className="py-2 text-sm border-2 border-black"
+            icon={<RotateCcw size={12} />}
+          >
+            Undo Move
+          </GameButton>
+        )}
+        {!currentPlayer.isAutomaton && (
+          <GameButton 
+            onClick={endTurn}
+            disabled={currentPlayer.isAutomaton}
+            variant="primary"
+            size="md"
+            fullWidth
+            className="py-3 text-sm"
+          >
+            {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
+            {!currentPlayer.isAutomaton && <ChevronRight size={16} className="ml-2 inline" />}
+          </GameButton>
+        )}
+        {currentPlayer.isAutomaton && (
+          <GameButton 
+            disabled
+            variant="primary"
+            size="md"
+            fullWidth
+            className="py-3 text-sm"
+          >
+            {automatonStatus}
+          </GameButton>
         )}
       </div>
     </div>
