@@ -89,21 +89,28 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
 }
 
 export function checkWinner(state: GameState): number | null {
+  const activePlayers = state.players.filter(p => !p.isEliminated);
+  
   if (state.isBarbarianInvasion) {
-    const activePlayers = state.players.filter(p => !p.isEliminated);
+    // In invasion mode, if all human players are eliminated, Barbarians win
+    const humanPlayers = activePlayers.filter(p => !p.isOriginalBarbarian);
+    if (humanPlayers.length === 0) {
+      const barbarian = state.players.find(p => p.isOriginalBarbarian);
+      return barbarian ? barbarian.id : -1;
+    }
+    // If only one player (could be Barbarian or a human) is left, they win
     if (activePlayers.length === 1) {
       return activePlayers[0].id;
     }
     return null;
   }
 
-  const activePlayers = state.players.filter(p => !p.isEliminated && p.name !== 'Barbarians');
-  if (activePlayers.length === 1) {
-    return activePlayers[0].id;
+  const activeNonBarbarians = activePlayers.filter(p => p.name !== 'Barbarians');
+  if (activeNonBarbarians.length === 1) {
+    return activeNonBarbarians[0].id;
   }
   if (activePlayers.length === 0) {
-    // Should not happen, but handle it
-    return -1;
+    return -1; // Draw or error state
   }
   return null;
 }
@@ -268,8 +275,15 @@ export function processTurnTransition(state: GameState): GameState {
   // 3. Find next player
   let nextIndex = (state.currentPlayerIndex + 1) % updatedPlayers.length;
   const safety = new LoopSafety('processTurnTransition', updatedPlayers.length + 1);
+  
+  // If everyone is eliminated, safety will kick in
   while (updatedPlayers[nextIndex].isEliminated && !safety.tick()) {
     nextIndex = (nextIndex + 1) % updatedPlayers.length;
+  }
+
+  // If we couldn't find a non-eliminated player, the game should have ended
+  if (updatedPlayers[nextIndex].isEliminated) {
+    return { ...state, players: updatedPlayers, winnerId: -1 };
   }
 
   const nextPlayer = updatedPlayers[nextIndex];

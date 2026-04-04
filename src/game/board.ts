@@ -53,11 +53,9 @@ export function generateBoard(radius: number, spawnPoints: HexCoord[]) {
     return false;
   };
 
-  // A. Generate Lakes (evenly distributed using Poisson Disk Sampling)
-  // minDist of 5 hexes, avoid the very edge
-  const lakeSeeds = poissonDiskSampling(coords, 5, radius - 1, 15);
-  // Pick a subset for actual lakes/rivers to avoid over-saturating
-  const selectedLakeSeeds = lakeSeeds.sort(() => Math.random() - 0.5).slice(0, 5);
+  // A. Generate Lakes (evenly distributed)
+  const numLakes = 4 + Math.floor(Math.random() * 2); // 4 to 5 lakes
+  const selectedLakeSeeds = distributeEvenly(coords, numLakes, radius - 1, spawnPoints);
   
   selectedLakeSeeds.forEach(seed => {
     const lakeSize = 2 + Math.floor(Math.random() * 3);
@@ -97,15 +95,25 @@ export function generateBoard(radius: number, spawnPoints: HexCoord[]) {
      getNeighbors(t.coord).filter(n => getDistanceFromEdge(n, radius) === 0).forEach(n => setWater(n));
   });
 
-  // Then fill more perimeter until target reached
-  const shuffledPerimeter = [...perimeterTiles].sort(() => Math.random() - 0.5);
-  for (const pCoord of shuffledPerimeter) {
-    if (currentWaterCount >= targetWaterCount) break;
-    setWater(pCoord);
+  // Then fill more perimeter until target reached, but do it evenly
+  const perimeterTilesSorted = [...perimeterTiles].sort((a, b) => {
+    const angleA = Math.atan2(a.r, a.q);
+    const angleB = Math.atan2(b.r, b.q);
+    return angleA - angleB;
+  });
+  
+  const waterNeeded = Math.max(0, targetWaterCount - currentWaterCount);
+  if (waterNeeded > 0) {
+    const step = perimeterTilesSorted.length / waterNeeded;
+    for (let i = 0; i < waterNeeded; i++) {
+      const idx = Math.floor(i * step) % perimeterTilesSorted.length;
+      setWater(perimeterTilesSorted[idx]);
+    }
   }
 
   // 4. Generate Trees (Evenly Distributed Patches)
-  const forestSeeds = poissonDiskSampling(coords, 3, radius - 1, 20);
+  const numForestPatches = 12 + Math.floor(Math.random() * 6); // 12 to 18 patches
+  const forestSeeds = distributeEvenly(coords, numForestPatches, radius - 1, [...spawnPoints, ...selectedLakeSeeds]);
   forestSeeds.forEach(seed => {
     const tile = getTile(seed.q, seed.r);
     if (!tile || tile.terrain !== TerrainType.PLAINS) return;
@@ -167,8 +175,9 @@ export function distributeEvenly(coords: HexCoord[], targetCount: number, radius
   if (validCoords.length === 0) return [];
 
   const points: HexCoord[] = [];
+  const safety = new LoopSafety('distributeEvenly', 1000);
   
-  while (points.length < targetCount) {
+  while (points.length < targetCount && !safety.tick()) {
     let bestCandidate = validCoords[0];
     let maxDist = -1;
     

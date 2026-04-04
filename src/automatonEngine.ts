@@ -20,7 +20,7 @@ import { getUnitAction } from './automaton/unitActions';
 
 export { findNearestTarget, calculateKingdomStrength, getChokepointScore } from './automaton/utils';
 
-export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'attack' | 'move' | 'endTurn' | 'skipUnit' | 'upgrade' | 'surrender' | 'goRogue'; payload?: any } {
+export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'attack' | 'move' | 'endTurn' | 'skipUnit' | 'upgrade' | 'surrender' | 'goRogue' | 'barbarianSurrender'; payload?: any } {
   const currentPlayer = state.players[state.currentPlayerIndex];
   
   if (currentPlayer.isEliminated) {

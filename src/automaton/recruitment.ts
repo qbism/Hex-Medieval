@@ -87,7 +87,7 @@ export function getRecruitmentAction(
   for (const t of recruitmentTiles) {
     if (recruitSafety.tick()) break;
 
-    const allowedUnitTypes = isBarbarian ? [UnitType.INFANTRY] : (Object.keys(UNIT_STATS) as UnitType[]);
+    const allowedUnitTypes = (Object.keys(UNIT_STATS) as UnitType[]);
 
     for (const unitType of allowedUnitTypes) {
       const stats = UNIT_STATS[unitType];
@@ -127,19 +127,22 @@ export function getRecruitmentAction(
         if (unitType === UnitType.KNIGHT) {
           // Knights are great at sniping squishy targets
           if (!target.isSettlement && (target.unitType === UnitType.ARCHER || target.unitType === UnitType.CATAPULT)) {
-            actionValue += BASE_REWARD * 1.5;
+            actionValue += BASE_REWARD * 3.0; // Increased from 1.5
           }
           // Knights are great at rapid expansion/harassment
           // Bonus only if the settlement is unclaimed, within one move (turnsToAct <= 2), and unthreatened
           const threat = threatMatrix.get(`${target.coord.q},${target.coord.r}`);
           const targetThreatLevel = threat ? threat.minTurns : Infinity;
           if (target.isSettlement && target.ownerId === null && turnsToAct <= 2 && targetThreatLevel > 2) {
-            actionValue += BASE_REWARD * 2.0;
+            actionValue += BASE_REWARD * 4.0; // Increased from 2.0
           }
           // Knights are expensive; ensure we have decent income to sustain them
-          if (income < 40 && !isUnderThreat) {
-            actionValue -= BASE_REWARD * 2.0;
+          if (income < 25 && !isUnderThreat) { // Reduced threshold from 40 to 25
+            actionValue -= BASE_REWARD * 1.0; // Reduced penalty from 2.0 to 1.0
           }
+          
+          // General Knight appeal boost
+          actionValue += BASE_REWARD * 1.5;
         }
 
         // Catapult Specific Logic
@@ -147,29 +150,32 @@ export function getRecruitmentAction(
           // Catapults are siege engines
           if (target.isSettlement && target.ownerId !== null) {
             // High bonus for attacking enemy settlements
-            actionValue += BASE_REWARD * 2.0;
+            actionValue += BASE_REWARD * 4.0; // Increased from 2.0
             if (target.value > 400) { // High value settlements (Castles)
-              actionValue += BASE_REWARD * 1.0;
+              actionValue += BASE_REWARD * 2.0; // Increased from 1.0
             }
           }
           
           // Catapults are great for defense if placed correctly
           if (isNearMyBase && turnsToAct <= 2) {
-            actionValue += BASE_REWARD * 1.5;
+            actionValue += BASE_REWARD * 3.0; // Increased from 1.5
           }
 
           // Catapults are very expensive and slow
           // Penalty if income is low
-          if (income < 50 && !isUnderThreat) {
-            actionValue -= BASE_REWARD * 3.0;
+          if (income < 30 && !isUnderThreat) { // Reduced threshold from 50 to 30
+            actionValue -= BASE_REWARD * 1.5; // Reduced penalty from 3.0 to 1.5
           }
 
           // Mobility penalty: Catapults are useless if the front line is too far
-          if (turnsToAct > 4 && !isNearMyBase) {
-            actionValue -= BASE_REWARD * 10.0; // Significant penalty for long-range offensive catapults
-          } else if (turnsToAct > 5) {
-            actionValue -= BASE_REWARD * 2.0;
+          if (turnsToAct > 6 && !isNearMyBase) { // Increased threshold from 4 to 6
+            actionValue -= BASE_REWARD * 4.0; // Significantly reduced penalty from 10.0 to 4.0
+          } else if (turnsToAct > 7) { // Increased threshold from 5 to 7
+            actionValue -= BASE_REWARD * 1.0; // Reduced penalty from 2.0 to 1.0
           }
+
+          // General Catapult appeal boost
+          actionValue += BASE_REWARD * 1.0;
         }
         
         // Bonus for capturing neutral settlements
@@ -209,11 +215,24 @@ export function getRecruitmentAction(
       // Penalize spawning in danger unless it's for defense
       const threat = threatMatrix.get(`${t.coord.q},${t.coord.r}`);
       const threatLevel = threat ? threat.minTurns : Infinity;
+      
+      // Check if this specific tile is in eminent peril
+      const isTileInEminentPeril = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
+      
+      if (isTileInEminentPeril) {
+        // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
+        bestUnitScore += BASE_REWARD * 10.0;
+        
+        // Favor cheaper units for "sacrificial" defense to buy time
+        if (stats.cost <= 100) {
+          bestUnitScore += BASE_REWARD * 5.0;
+        }
+      }
+
       if (threatLevel <= 2 && !isBarbarian) {
         // If it's an eminent threat base, we still penalize but less, 
         // because we might need to block or defend.
-        const isDefensive = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
-        const penalty = isDefensive ? stats.cost * 1.0 : stats.cost * 5.0; // Increased from 0.5/2.5 to 1.0/5.0
+        const penalty = isTileInEminentPeril ? stats.cost * 0.5 : stats.cost * 5.0;
         bestUnitScore -= penalty;
       }
 

@@ -40,20 +40,17 @@ export function getUpgradeAction(
     let baseScore = 0;
 
     if (tile.terrain === TerrainType.MOUNTAIN && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
-      if (isBarbarian) continue;
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
       baseScore = BASE_REWARD * 2.5; // Priority 1: Maximize income (increased significantly)
       if (isLaggingIncome) baseScore += BASE_REWARD * 2.0; // Extra priority if lagging income
     } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
-      baseScore = isBarbarian ? BASE_REWARD * 0.5 : BASE_REWARD * 1.5; // Lower priority for barbarians
+      baseScore = isBarbarian ? BASE_REWARD * 1.5 : BASE_REWARD * 1.5; // Same priority for barbarians
       if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * 1.0; // Extra priority if lagging income
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
-      if (isBarbarian) continue;
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
       baseScore = BASE_REWARD * 0.1; // Priority 1: Defendable settlements
     } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
-      if (isBarbarian) continue;
       cost = UPGRADE_COSTS[TerrainType.CASTLE];
       baseScore = BASE_REWARD * 0.15; // Priority 1: Defendable settlements
     }
@@ -66,15 +63,15 @@ export function getUpgradeAction(
       // Targeted Upgrades (Economy vs. Frontline)
       if (cost === UPGRADE_COSTS[TerrainType.GOLD_MINE]) {
         // Gold Mines are an investment. They are great in the backline, terrible on the frontline.
-        if (distToEnemy <= 3) {
-          score -= BASE_REWARD * 1.5; // Do not build a gold mine right next to an enemy
-        } else if (distToEnemy >= 6) {
-          score += BASE_REWARD * 1.0; // Very safe, great investment
+        if (distToEnemy <= 2) { // Reduced threshold from 3 to 2
+          score -= BASE_REWARD * 2.0; // Increased penalty for very close enemies
+        } else if (distToEnemy >= 4) { // Reduced threshold from 6 to 4
+          score += BASE_REWARD * 2.0; // Increased bonus for safe investment
         }
         
-        // Priority 2: In balance with expansion. Keep a buffer of 50 gold for units/villages
-        const buffer = (isUnderThreat) ? 50 : 0;
-        if (currentPlayer.gold < cost + buffer && distToEnemy < 8) {
+        // Priority 2: In balance with expansion. Keep a buffer of 50 gold for units/villages only if very close to enemy
+        const buffer = (isUnderThreat && distToEnemy <= 4) ? 50 : 0;
+        if (currentPlayer.gold < cost + buffer) {
            score = -Infinity; // Can't afford the buffer
         }
       } else if (cost === UPGRADE_COSTS[TerrainType.FORTRESS] || cost === UPGRADE_COSTS[TerrainType.CASTLE]) {
@@ -126,7 +123,7 @@ export function getUpgradeAction(
            for (const n of neighbors) {
              const nTile = state.board.find(t => t.coord.q === n.q && t.coord.r === n.r);
              if (nTile) {
-               if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += isBarbarian ? 0 : BASE_REWARD * 0.5; // High value for future gold mines
+               if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += BASE_REWARD * 0.5; // High value for future gold mines
                if (nTile.terrain === TerrainType.FOREST) resourceBonus += BASE_REWARD * 0.15; // Good defensive terrain nearby
                if (nTile.terrain === TerrainType.WATER) resourceBonus -= BASE_REWARD * 0.05; // Less land to build on
              } else {

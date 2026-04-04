@@ -3,6 +3,9 @@ import {
   Player
 } from '../types';
 import { 
+  calculateKingdomStrength,
+} from './utils';
+import { 
   calculateThreatMatrix, 
   calculateInfluenceMap,
   assessThreats, 
@@ -56,7 +59,16 @@ export function getBarbarianAction(state: GameState, currentPlayer: Player) {
         strengthHistory[slen - 3] < strengthHistory[slen - 4];
 
       if (isIncomeDeclining && isStrengthDeclining) {
-        return { type: 'goRogue' as const }; // Use goRogue to trigger exitPlayer logic
+        // Check strength relative to player
+        const humanPlayer = state.players.find(p => !p.isOriginalBarbarian && !p.isEliminated);
+        if (humanPlayer) {
+          const playerStrength = calculateKingdomStrength(humanPlayer, state);
+          const myStrengthValue = calculateKingdomStrength(currentPlayer, state);
+          
+          if (myStrengthValue < playerStrength / 3) {
+            return { type: 'barbarianSurrender' as const };
+          }
+        }
       }
     }
   }

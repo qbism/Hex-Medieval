@@ -2,7 +2,6 @@ import {
   GameState, 
   TerrainType, 
   UnitType, 
-  axialToCube, 
   getDistance, 
   getNeighbors, 
   HexCoord,

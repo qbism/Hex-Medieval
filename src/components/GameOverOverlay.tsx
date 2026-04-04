@@ -35,8 +35,8 @@ export const GameOverOverlay = ({
                 <h2 className="text-xl font-black uppercase tracking-tighter">Conquest Complete</h2>
               </div>
             </div>
-            <p className="text-lg mb-4 font-bold" style={{ color: gameState.winnerId === -1 ? 'black' : gameState.players[gameState.winnerId].color }}>
-              {gameState.winnerId === -1 ? "It's a Draw!" : `${COLOR_NAMES[gameState.players[gameState.winnerId].color]} Empire Victorious!`}
+            <p className="text-lg mb-4 font-bold" style={{ color: gameState.winnerId === -1 ? 'black' : (gameState.players[gameState.winnerId]?.color || 'black') }}>
+              {gameState.winnerId === -1 ? "It's a Draw!" : `${COLOR_NAMES[gameState.players[gameState.winnerId]?.color || '#000']} Empire Victorious!`}
             </p>
             <div className="space-y-2">
               <GameButton 

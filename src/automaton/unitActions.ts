@@ -218,7 +218,9 @@ export function getUnitAction(
       let maxTargetScore = 0;
       let otherTargetsScore = 0;
       
+      const targetSafety = new LoopSafety('getUnitAction-moveTargets', 100);
       for (const target of moveTargets) {
+        if (targetSafety.tick()) break;
         const dist = getDistance(m, target.coord);
         const currentDist = getDistance(unitToAct.coord, target.coord);
         
@@ -313,7 +315,9 @@ export function getUnitAction(
         return t ? t.minTurns === 1 : false;
       });
       if (threatenedVillages.length > 0) {
+        const sacrificeSafety = new LoopSafety('getUnitAction-sacrifice', 100);
         for (const target of moveTargets) {
+          if (sacrificeSafety.tick()) break;
           if (!target.isSettlement && getDistance(m, target.coord) <= potentialRange) {
             // This move puts an enemy in range. Is that enemy threatening a village?
             const isEnemyThreateningVillage = threatenedVillages.some(v => getDistance(target.coord, v.coord) <= UNIT_STATS[target.unitType!].range);
@@ -326,7 +330,9 @@ export function getUnitAction(
 
       // Pair Coordination: If an enemy unit is already in peril from another friendly unit, 
       // and this move also puts it in peril, give a bonus.
+      const coordinationSafety = new LoopSafety('getUnitAction-coordination', 100);
       for (const target of moveTargets) {
+        if (coordinationSafety.tick()) break;
         if (!target.isSettlement && getDistance(m, target.coord) <= potentialRange) {
           const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
           const isAlreadyInPeril = otherFriendlyUnits.some(u => getDistance(u.coord, target.coord) <= UNIT_STATS[u.type].range);

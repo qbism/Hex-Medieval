@@ -20,6 +20,7 @@ export interface GameActions {
   clearAnimation: (animId: string) => void;
   skipUnit: (unitId: string) => void;
   concedeGame: () => void;
+  barbarianSurrender: () => void;
 }
 
 export function useGameActions(
@@ -294,6 +295,43 @@ export function useGameActions(
     });
   }, [setGameState]);
 
+  const barbarianSurrender = useCallback(() => {
+    setGameState(prev => {
+      if (!prev) return prev;
+      const barbarianPlayer = prev.players[prev.currentPlayerIndex];
+      // Find the first non-barbarian player to surrender to
+      const targetPlayer = prev.players.find(p => !p.isOriginalBarbarian && !p.isEliminated);
+      if (!targetPlayer) return prev;
+
+      // Transfer units to target player
+      const newUnits = prev.units.map(u => 
+        u.ownerId === barbarianPlayer.id ? { ...u, ownerId: targetPlayer.id } : u
+      );
+
+      // Transfer settlements to target player
+      const newBoard = prev.board.map(tile => 
+        tile.ownerId === barbarianPlayer.id ? { ...tile, ownerId: targetPlayer.id } : tile
+      );
+
+      // Mark barbarian as eliminated
+      const newPlayers = prev.players.map(p => 
+        p.id === barbarianPlayer.id ? { ...p, isEliminated: true } : p
+      );
+
+      // Transition to next player
+      return processTurnTransition({
+        ...prev,
+        units: newUnits,
+        board: newBoard,
+        players: newPlayers,
+        selectedHex: null,
+        selectedUnitId: null,
+        possibleMoves: [],
+        possibleAttacks: []
+      });
+    });
+  }, [setGameState]);
+
   return {
     startGame,
     moveUnit,
@@ -306,6 +344,7 @@ export function useGameActions(
     undoMove,
     clearAnimation,
     skipUnit,
-    concedeGame
+    concedeGame,
+    barbarianSurrender
   };
 }

@@ -96,6 +96,10 @@ export function useAutomatonTurn({
           actions.concedeGame();
           break;
         }
+        case 'barbarianSurrender':
+          setAutomatonStatus("Barbarian forces surrendering to your might!");
+          actions.barbarianSurrender();
+          break;
       }
       isProcessingRef.current = false;
     }, 500); // Delay for visual pacing

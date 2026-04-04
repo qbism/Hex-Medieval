@@ -208,7 +208,7 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
       )}
       {isPossibleMove && (
         <mesh 
-          position={[0, height + 0.04, 0]} 
+          position={[0, height + (tile.terrain === TerrainType.MOUNTAIN ? 0.8 : 0.04), 0]} 
           rotation={[-Math.PI / 2, 0, 0]} 
           geometry={tile.terrain === TerrainType.FOREST ? forestMoveGeo : possibleMoveGeo} 
           material={tile.terrain === TerrainType.FOREST ? forestMoveMat : possibleMoveMat} 

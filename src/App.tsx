@@ -2,20 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Game3D } from './components/Game3D';
 import { 
   GameState, 
-  TerrainType, 
-  UnitType, 
   HexCoord,
   axialToCube,
-  COLOR_NAMES,
-  UNIT_ICONS,
-  UNIT_STATS,
-  SETTLEMENT_INCOME,
-  UPGRADE_COSTS,
   Unit as _Unit,
-  cn,
-  TERRAIN_COLORS
 } from './types';
-import { createInitialState as _createInitialState, getValidMoves, getValidAttacks, getAttackRange, processTurnTransition as _processTurnTransition, calculateIncome, triggerBarbarianInvasion } from './gameEngine';
+import { getValidMoves, getValidAttacks, getAttackRange, triggerBarbarianInvasion } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';
 import { GameButton } from './components/GameButton';
@@ -27,7 +18,6 @@ import { GameOverOverlay } from './components/GameOverOverlay';
 import { HelpModal } from './components/HelpModal';
 import { soundEngine } from './services/soundEngine';
 import { triggerEffect } from './services/effectEngine';
-import { calculateStrength } from './utils';
 import { saveGame, loadGame } from './services/saveLoadService';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
