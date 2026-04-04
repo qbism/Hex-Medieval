@@ -13,7 +13,24 @@ import {
   SETTLEMENT_INCOME
 } from '../types';
 import { calculateKingdomStrength } from './utils';
-import { BASE_REWARD } from './constants';
+import { 
+  BASE_REWARD,
+  INFLUENCE_POWER_EXPONENT,
+  INFLUENCE_DECAY_EXPONENT,
+  SETTLEMENT_INFLUENCE_MULT,
+  LAGGING_THRESHOLD,
+  DOMINATING_THRESHOLD,
+  HVT_CATAPULT_MULT,
+  HVT_DISTANCE_FACTOR,
+  HVT_SCORE_MULT,
+  SAVING_VILLAGE_BASE_SCORE,
+  SAVING_VILLAGE_ISOLATION_BONUS,
+  SAVING_VILLAGE_CLUSTERING_PENALTY,
+  SAVING_VILLAGE_MOUNTAIN_BONUS,
+  SAVING_VILLAGE_FOREST_BONUS,
+  SAVING_VILLAGE_WATER_PENALTY,
+  SAVING_VILLAGE_MAP_EDGE_PENALTY
+} from './constants';
 import { calculateIncome } from '../gameEngine';
 
 /**
@@ -33,7 +50,7 @@ export function calculateInfluenceMap(state: GameState, currentPlayerId: number)
       const dist = getDistance(unit.coord, tile.coord);
       
       // Lanchester-inspired power: Square of cost (quality) scaled by distance decay
-      const power = Math.pow(stats.cost, 1.2) / Math.pow(dist + 1, 1.5);
+      const power = Math.pow(stats.cost, INFLUENCE_POWER_EXPONENT) / Math.pow(dist + 1, INFLUENCE_DECAY_EXPONENT);
       
       if (unit.ownerId === currentPlayerId) {
         influence += power;
@@ -44,7 +61,7 @@ export function calculateInfluenceMap(state: GameState, currentPlayerId: number)
 
     // Settlement influence (Static control)
     if (tile.ownerId !== null) {
-      const settlementPower = (SETTLEMENT_INCOME[tile.terrain] || 0) * 5;
+      const settlementPower = (SETTLEMENT_INCOME[tile.terrain] || 0) * SETTLEMENT_INFLUENCE_MULT;
       if (tile.ownerId === currentPlayerId) {
         influence += settlementPower;
       } else {
@@ -117,8 +134,8 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
   const maxCompetitorStrength = competitors.length > 0 ? Math.max(...competitors.map(c => c.strength)) : 0;
   const maxCompetitorIncome = competitors.length > 0 ? Math.max(...competitors.map(c => c.income)) : 0;
 
-  const isLaggingStrength = myStats.strength < maxCompetitorStrength * 0.85;
-  const isLaggingIncome = myStats.income < maxCompetitorIncome * 0.85;
+  const isLaggingStrength = myStats.strength < maxCompetitorStrength * LAGGING_THRESHOLD;
+  const isLaggingIncome = myStats.income < maxCompetitorIncome * LAGGING_THRESHOLD;
   const isLagging = isLaggingStrength || isLaggingIncome;
 
   const activeStrengths = playerStats.filter(ps => ps.strength > 0).sort((a, b) => b.strength - a.strength);
@@ -129,7 +146,7 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
     const runnerUp = activeStrengths[1];
     leaderId = leader.id;
     // A player is dominating if they are 15% stronger than the runner-up
-    isLeaderDominating = leader.strength > runnerUp.strength * 1.15;
+    isLeaderDominating = leader.strength > runnerUp.strength * DOMINATING_THRESHOLD;
   }
   
   // If someone else is dominating, we focus on them.
@@ -154,12 +171,12 @@ export function identifyThreatenedSettlements(state: GameState, currentPlayerId:
 
   const eminentThreatBases = mySettlements.filter(s => {
     const threat = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
-    return threat !== undefined && threat.minTurns <= 2;
+    return threat !== undefined && threat.minTurns <= 1;
   });
 
   const possibleThreatBases = mySettlements.filter(s => {
     const threat = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
-    return threat !== undefined && threat.minTurns === 3;
+    return threat !== undefined && threat.minTurns === 2;
   });
 
   const isUnderThreat = eminentThreatBases.length > 0 || possibleThreatBases.length > 0;
@@ -184,8 +201,8 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
       const distToEmpire = getDistance(u.coord, empireCenter);
       
       let score = stats.cost;
-      if (u.type === UnitType.CATAPULT) score *= 2;
-      score += (20 - Math.min(20, distToEmpire)) * 10;
+      if (u.type === UnitType.CATAPULT) score *= HVT_CATAPULT_MULT;
+      score += (HVT_DISTANCE_FACTOR - Math.min(HVT_DISTANCE_FACTOR, distToEmpire)) * HVT_SCORE_MULT;
       
       if (score > maxHvtScore) {
         maxHvtScore = score;
@@ -239,7 +256,7 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player): boo
     if (tile?.terrain !== TerrainType.PLAINS || (tile.ownerId !== null && tile.ownerId !== currentPlayer.id)) return false;
     if (u.type === UnitType.CATAPULT && !canCatapultBuild) return false;
 
-    let score = BASE_REWARD * 0.2;
+    let score = BASE_REWARD * SAVING_VILLAGE_BASE_SCORE;
     const nearbyFriendlySettlements = state.board.filter(t => 
       t.ownerId === currentPlayer.id && 
       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
@@ -248,9 +265,9 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player): boo
     ).length;
 
     if (nearbyFriendlySettlements === 0) {
-      score += BASE_REWARD * 0.6;
+      score += BASE_REWARD * SAVING_VILLAGE_ISOLATION_BONUS;
     } else if (nearbyFriendlySettlements >= 2) {
-      score -= BASE_REWARD * 0.2;
+      score -= BASE_REWARD * SAVING_VILLAGE_CLUSTERING_PENALTY;
     }
 
     const neighbors = getNeighbors(tile.coord);
@@ -258,11 +275,11 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player): boo
     for (const n of neighbors) {
       const nTile = state.board.find(t => t.coord.q === n.q && t.coord.r === n.r);
       if (nTile) {
-        if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += BASE_REWARD * 0.3;
-        if (nTile.terrain === TerrainType.FOREST) resourceBonus += BASE_REWARD * 0.1;
-        if (nTile.terrain === TerrainType.WATER) resourceBonus -= BASE_REWARD * 0.05;
+        if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += BASE_REWARD * SAVING_VILLAGE_MOUNTAIN_BONUS;
+        if (nTile.terrain === TerrainType.FOREST) resourceBonus += BASE_REWARD * SAVING_VILLAGE_FOREST_BONUS;
+        if (nTile.terrain === TerrainType.WATER) resourceBonus -= BASE_REWARD * SAVING_VILLAGE_WATER_PENALTY;
       } else {
-        resourceBonus -= BASE_REWARD * 0.1;
+        resourceBonus -= BASE_REWARD * SAVING_VILLAGE_MAP_EDGE_PENALTY;
       }
     }
     score += resourceBonus;

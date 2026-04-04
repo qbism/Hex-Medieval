@@ -8,7 +8,36 @@ import {
   getNeighbors 
 } from '../types';
 import { findNearestTarget } from './utils';
-import { BASE_REWARD } from './constants';
+import { 
+  BASE_REWARD,
+  UPGRADE_GOLD_MINE_BONUS,
+  UPGRADE_LAGGING_INCOME_BONUS,
+  UPGRADE_VILLAGE_BONUS,
+  UPGRADE_VILLAGE_LAGGING_INCOME_BONUS,
+  UPGRADE_FORTRESS_BONUS,
+  UPGRADE_CASTLE_BONUS,
+  GOLD_MINE_FRONTLINE_DISTANCE,
+  GOLD_MINE_FRONTLINE_PENALTY,
+  GOLD_MINE_BACKLINE_DISTANCE,
+  GOLD_MINE_BACKLINE_BONUS,
+  GOLD_MINE_BUFFER,
+  FORTRESS_FRONTLINE_DISTANCE,
+  FORTRESS_FRONTLINE_BONUS,
+  FORTRESS_BACKLINE_BONUS,
+  CASTLE_BUFFER,
+  FORTRESS_BUFFER,
+  VILLAGE_BASE_SCORE,
+  VILLAGE_ISOLATION_BONUS,
+  VILLAGE_CLUSTERING_PENALTY,
+  VILLAGE_CLUSTERING_SETTLEMENT_THRESHOLD_HIGH,
+  VILLAGE_CLUSTERING_SETTLEMENT_THRESHOLD_MED,
+  VILLAGE_CLUSTERING_PENALTY_MED_MULT,
+  VILLAGE_MOUNTAIN_RESOURCE_BONUS,
+  VILLAGE_FOREST_RESOURCE_BONUS,
+  VILLAGE_WATER_RESOURCE_PENALTY,
+  VILLAGE_MAP_EDGE_PENALTY,
+  VILLAGE_MIN_SCORE_THRESHOLD
+} from './constants';
 import { LoopSafety } from '../utils';
 
 export function getUpgradeAction(
@@ -41,18 +70,18 @@ export function getUpgradeAction(
 
     if (tile.terrain === TerrainType.MOUNTAIN && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
-      baseScore = BASE_REWARD * 2.5; // Priority 1: Maximize income (increased significantly)
-      if (isLaggingIncome) baseScore += BASE_REWARD * 2.0; // Extra priority if lagging income
+      baseScore = BASE_REWARD * UPGRADE_GOLD_MINE_BONUS; // Priority 1: Maximize income (increased significantly)
+      if (isLaggingIncome) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
     } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
-      baseScore = isBarbarian ? BASE_REWARD * 1.5 : BASE_REWARD * 1.5; // Same priority for barbarians
-      if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * 1.0; // Extra priority if lagging income
+      baseScore = BASE_REWARD * UPGRADE_VILLAGE_BONUS; // Same priority for barbarians
+      if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
-      baseScore = BASE_REWARD * 0.1; // Priority 1: Defendable settlements
+      baseScore = BASE_REWARD * UPGRADE_FORTRESS_BONUS; // Priority 1: Defendable settlements
     } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.CASTLE];
-      baseScore = BASE_REWARD * 0.15; // Priority 1: Defendable settlements
+      baseScore = BASE_REWARD * UPGRADE_CASTLE_BONUS; // Priority 1: Defendable settlements
     }
 
     if (cost > 0 && currentPlayer.gold >= cost) {
@@ -63,27 +92,27 @@ export function getUpgradeAction(
       // Targeted Upgrades (Economy vs. Frontline)
       if (cost === UPGRADE_COSTS[TerrainType.GOLD_MINE]) {
         // Gold Mines are an investment. They are great in the backline, terrible on the frontline.
-        if (distToEnemy <= 2) { // Reduced threshold from 3 to 2
-          score -= BASE_REWARD * 2.0; // Increased penalty for very close enemies
-        } else if (distToEnemy >= 4) { // Reduced threshold from 6 to 4
-          score += BASE_REWARD * 2.0; // Increased bonus for safe investment
+        if (distToEnemy <= GOLD_MINE_FRONTLINE_DISTANCE) { // Reduced threshold from 3 to 2
+          score -= BASE_REWARD * GOLD_MINE_FRONTLINE_PENALTY; // Increased penalty for very close enemies
+        } else if (distToEnemy >= GOLD_MINE_BACKLINE_DISTANCE) { // Reduced threshold from 6 to 4
+          score += BASE_REWARD * GOLD_MINE_BACKLINE_BONUS; // Increased bonus for safe investment
         }
         
         // Priority 2: In balance with expansion. Keep a buffer of 50 gold for units/villages only if very close to enemy
-        const buffer = (isUnderThreat && distToEnemy <= 4) ? 50 : 0;
+        const buffer = (isUnderThreat && distToEnemy <= 4) ? GOLD_MINE_BUFFER : 0;
         if (currentPlayer.gold < cost + buffer) {
            score = -Infinity; // Can't afford the buffer
         }
       } else if (cost === UPGRADE_COSTS[TerrainType.FORTRESS] || cost === UPGRADE_COSTS[TerrainType.CASTLE]) {
         // Defensive structures are great on the frontline, but also serve as massive economic boosts in the backline.
-        if (distToEnemy <= 3) {
-          score += BASE_REWARD * 0.6; // Frontline defense!
+        if (distToEnemy <= FORTRESS_FRONTLINE_DISTANCE) {
+          score += BASE_REWARD * FORTRESS_FRONTLINE_BONUS; // Frontline defense!
         } else {
-          score += BASE_REWARD * 0.4; // Backline economic investment
+          score += BASE_REWARD * FORTRESS_BACKLINE_BONUS; // Backline economic investment
         }
         
         // Buffer check
-        const buffer = isEarlyGame ? 0 : (cost === UPGRADE_COSTS[TerrainType.CASTLE] ? 200 : 100);
+        const buffer = isEarlyGame ? 0 : (cost === UPGRADE_COSTS[TerrainType.CASTLE] ? CASTLE_BUFFER : FORTRESS_BUFFER);
         if (currentPlayer.gold < cost + buffer) {
            score = -Infinity;
         }
@@ -94,7 +123,7 @@ export function getUpgradeAction(
            score = -Infinity;
         } else {
            // Base score for building a village (income is always good)
-           score += BASE_REWARD * 0.2;
+           score += BASE_REWARD * VILLAGE_BASE_SCORE;
 
            // Expansion bonus: Reward spreading settlements thin, penalize clustering
            const nearbyFriendlySettlements = state.board.filter(t => 
@@ -105,14 +134,14 @@ export function getUpgradeAction(
            ).length;
 
            if (nearbyFriendlySettlements === 0) {
-             score += BASE_REWARD * 1.0; // Priority 1: Huge bonus for expanding into isolated areas
+             score += BASE_REWARD * VILLAGE_ISOLATION_BONUS; // Priority 1: Huge bonus for expanding into isolated areas
            } else if (nearbyFriendlySettlements >= 2) {
              // Relax clustering penalty based on settlement count
-             let penaltyMult = 0.4;
-             if (numSettlements >= 15) {
+             let penaltyMult = VILLAGE_CLUSTERING_PENALTY;
+             if (numSettlements >= VILLAGE_CLUSTERING_SETTLEMENT_THRESHOLD_HIGH) {
                penaltyMult = 0;
-             } else if (numSettlements >= 10) {
-               penaltyMult = 0.2; // 50% of 0.4
+             } else if (numSettlements >= VILLAGE_CLUSTERING_SETTLEMENT_THRESHOLD_MED) {
+               penaltyMult = VILLAGE_CLUSTERING_PENALTY * VILLAGE_CLUSTERING_PENALTY_MED_MULT;
              }
              score -= BASE_REWARD * penaltyMult;
            }
@@ -123,18 +152,18 @@ export function getUpgradeAction(
            for (const n of neighbors) {
              const nTile = state.board.find(t => t.coord.q === n.q && t.coord.r === n.r);
              if (nTile) {
-               if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += BASE_REWARD * 0.5; // High value for future gold mines
-               if (nTile.terrain === TerrainType.FOREST) resourceBonus += BASE_REWARD * 0.15; // Good defensive terrain nearby
-               if (nTile.terrain === TerrainType.WATER) resourceBonus -= BASE_REWARD * 0.05; // Less land to build on
+               if (nTile.terrain === TerrainType.MOUNTAIN) resourceBonus += BASE_REWARD * VILLAGE_MOUNTAIN_RESOURCE_BONUS; // High value for future gold mines
+               if (nTile.terrain === TerrainType.FOREST) resourceBonus += BASE_REWARD * VILLAGE_FOREST_RESOURCE_BONUS; // Good defensive terrain nearby
+               if (nTile.terrain === TerrainType.WATER) resourceBonus -= BASE_REWARD * VILLAGE_WATER_RESOURCE_PENALTY; // Less land to build on
              } else {
-               resourceBonus -= BASE_REWARD * 0.1; // Map edge
+               resourceBonus -= BASE_REWARD * VILLAGE_MAP_EDGE_PENALTY; // Map edge
              }
            }
            score += resourceBonus;
 
            // If the village is in a bad location (score <= 0), don't build it!
            // But be more lenient as we expand
-           const minScore = numSettlements >= 10 ? -BASE_REWARD * 0.2 : 0;
+           const minScore = numSettlements >= 10 ? -BASE_REWARD * VILLAGE_MIN_SCORE_THRESHOLD : 0;
            if (score <= minScore) {
              score = -Infinity;
            }
