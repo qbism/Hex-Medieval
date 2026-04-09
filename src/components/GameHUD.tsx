@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 import { 
   GameState, 
-  COLOR_NAMES, 
   cn as _cn 
 } from '../types';
+import { COLOR_NAMES } from '../constants/colors';
 
 interface GameHUDProps {
   gameState: GameState;

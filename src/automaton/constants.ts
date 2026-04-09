@@ -41,6 +41,7 @@ export const NEUTRAL_CAPTURE_BONUS = 0.5;
 // Unit Actions
 export const STAY_PUT_BIAS = 0.5;
 export const IMMEDIATE_CAPTURE_BONUS = 6.0;
+export const UNCLAIMED_VILLAGE_PRIORITY_BONUS = 10.0;
 export const FOREST_DEFENSE_BONUS = 1.5;
 export const PUT_ENEMY_IN_PERIL_BONUS = 3.0;
 export const EXPANSION_DISTANCE_BONUS = 1.5;
@@ -62,6 +63,8 @@ export const INFLUENCE_PENALTY_MED_RATIO = 1.5;
 export const INFLUENCE_EXPANSION_BONUS = 0.5;
 export const HVT_PROXIMITY_BONUS_FACTOR = 1.5;
 export const SCREENING_BONUS = 2.0;
+export const FRONT_LINE_BONUS = 1.5;
+export const COUNTER_ATTACK_BONUS = 5.0;
 export const THREAT_PENALTY_SACRIFICE_MULT = 0.3;
 export const THREAT_PENALTY_L1_MULT = 10.0;
 export const THREAT_PENALTY_L2_MULT = 5.0;

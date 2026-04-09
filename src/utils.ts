@@ -1,4 +1,4 @@
-import { Unit, UnitType } from './types';
+import { Unit, UnitType, HexTile } from './types';
 
 /**
  * Runaway loop detection utility.
@@ -33,6 +33,28 @@ export class LoopSafety {
   get count(): number {
     return this.counter;
   }
+}
+
+const boardMapCache = new WeakMap<HexTile[], Map<string, HexTile>>();
+export function getBoardMap(board: HexTile[]): Map<string, HexTile> {
+  let map = boardMapCache.get(board);
+  if (!map) {
+    map = new Map();
+    board.forEach(tile => map!.set(`${tile.coord.q},${tile.coord.r}`, tile));
+    boardMapCache.set(board, map);
+  }
+  return map;
+}
+
+const unitsMapCache = new WeakMap<Unit[], Map<string, Unit>>();
+export function getUnitsMap(units: Unit[]): Map<string, Unit> {
+  let map = unitsMapCache.get(units);
+  if (!map) {
+    map = new Map();
+    units.forEach(unit => map!.set(`${unit.coord.q},${unit.coord.r}`, unit));
+    unitsMapCache.set(units, map);
+  }
+  return map;
 }
 
 export const calculateStrength = (playerId: number, units: Unit[]) => {

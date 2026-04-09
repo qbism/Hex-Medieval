@@ -1,7 +1,7 @@
 import { soundEngine } from './soundEngine';
 import { HexCoord, GameState, UnitType } from '../types';
 
-export type EffectType = 'move' | 'attack' | 'damage' | 'miss' | 'recruit' | 'upgrade' | 'victory' | 'click' | 'turnStart';
+export type EffectType = 'move' | 'attack' | 'damage' | 'miss' | 'recruit' | 'upgrade' | 'victory' | 'click' | 'turnStart' | 'defeat' | 'conquest' | 'goldMine';
 
 export interface EffectPayload {
   unitId?: string;
@@ -24,7 +24,10 @@ export function triggerEffect(
     case 'move': soundEngine.playMove(payload?.unitType); break;
     case 'attack': soundEngine.playAttack(payload?.unitType); break;
     case 'damage': soundEngine.playDamage(); break;
-    case 'recruit': soundEngine.playRecruit(); break;
+    case 'recruit': soundEngine.playRecruit(payload?.unitType); break;
+    case 'defeat': soundEngine.playDefeat(payload?.unitType); break;
+    case 'conquest': soundEngine.playConquest(); break;
+    case 'goldMine': soundEngine.playGoldMine(); break;
     case 'upgrade': soundEngine.playUpgrade(); break;
     case 'victory': soundEngine.playVictory(); break;
     case 'click': soundEngine.playClick(); break;

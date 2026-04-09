@@ -1,6 +1,6 @@
 import { 
   GameState, 
-  TerrainType as _TerrainType
+  TerrainType
 } from './types';
 import { getBarbarianAction } from './automaton/barbarianAI';
 import { 
@@ -20,23 +20,58 @@ import { getUnitAction } from './automaton/unitActions';
 
 export { findNearestTarget, calculateKingdomStrength, getChokepointScore } from './automaton/utils';
 
+// Cache for expensive calculations within the same GameState
+const actionCache = new WeakMap<GameState, any>();
+
 export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'attack' | 'move' | 'endTurn' | 'skipUnit' | 'upgrade' | 'surrender' | 'goRogue' | 'barbarianSurrender'; payload?: any } {
+  // Check cache first
+  if (actionCache.has(state)) {
+    // We can't cache the action itself because it might depend on which unit we pick to act next,
+    // but we can cache the expensive pre-calculations.
+  }
+
   const currentPlayer = state.players[state.currentPlayerIndex];
   
   if (currentPlayer.isEliminated) {
     return { type: 'endTurn' as const };
   }
   
-  // --- Barbarian AI Behavior ---
-  if (currentPlayer.name === 'Barbarians') {
-    return getBarbarianAction(state, currentPlayer);
+  // Use a local cache for this specific state to avoid recalculating within this function call
+  // and potentially across multiple calls if the state is identical.
+  let cachedData = actionCache.get(state);
+  if (!cachedData) {
+    const threatAssessment = assessThreats(state, currentPlayer);
+    const threatMatrix = calculateThreatMatrix(state, currentPlayer.id);
+    const influenceMap = calculateInfluenceMap(state, currentPlayer.id);
+    const mySettlements = state.board.filter(t => 
+      t.ownerId === currentPlayer.id && 
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+    );
+    const empireCenter = getEmpireCenter(mySettlements);
+    const hvt = getHVT(state, currentPlayer.id, empireCenter);
+
+    cachedData = {
+      threatAssessment,
+      threatMatrix,
+      influenceMap,
+      mySettlements,
+      empireCenter,
+      hvt
+    };
+    actionCache.set(state, cachedData);
   }
 
-  // --- Threat Assessment (Kingmaking Awareness) ---
-  const { playerStrengths, myStrength, focusOnLeader, leaderId, isLaggingStrength, isLaggingIncome, isLagging } = assessThreats(state, currentPlayer);
+  // --- Barbarian AI Behavior ---
+  if (currentPlayer.name === 'Barbarians') {
+    return getBarbarianAction(state, currentPlayer, cachedData);
+  }
 
-  // --- Threat Matrix (Enemy Attack Range) ---
-  const threatMatrix = calculateThreatMatrix(state, currentPlayer.id);
+  const { playerStrengths, myStrength, focusOnLeader, leaderId, isLaggingStrength, isLaggingIncome, isLagging } = cachedData.threatAssessment;
+  const threatMatrix = cachedData.threatMatrix;
+  const influenceMap = cachedData.influenceMap;
+  const mySettlements = cachedData.mySettlements;
+  const empireCenter = cachedData.empireCenter;
+  const hvt = cachedData.hvt;
 
   // Check surrender conditions (Go Rogue logic)
   const incomeHistory = currentPlayer.incomeHistory || [];
@@ -64,16 +99,10 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
   }
 
   // Identify threatened settlements
-  const { mySettlements, eminentThreatBases, possibleThreatBases, isUnderThreat } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
-
-  // Calculate Influence Map
-  const influenceMap = calculateInfluenceMap(state, currentPlayer.id);
+  const { eminentThreatBases, possibleThreatBases, isUnderThreat } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
 
   const isEarlyGame = state.turnNumber <= 15;
   const numSettlements = mySettlements.length;
-
-  const empireCenter = getEmpireCenter(mySettlements);
-  const hvt = getHVT(state, currentPlayer.id, empireCenter);
 
   const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome);
   const savingForVillage = isSavingForVillage(state, currentPlayer);

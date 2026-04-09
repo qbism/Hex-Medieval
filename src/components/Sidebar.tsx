@@ -15,13 +15,12 @@ import {
   GameState, 
   TerrainType, 
   UnitType, 
-  COLOR_NAMES, 
   UNIT_ICONS, 
   UNIT_STATS, 
   SETTLEMENT_INCOME, 
   cn, 
-  TERRAIN_COLORS 
 } from '../types';
+import { COLOR_NAMES, TERRAIN_COLORS } from '../constants/colors';
 import { calculateIncome } from '../gameEngine';
 import { calculateStrength } from '../utils';
 import { GameButton } from './GameButton';

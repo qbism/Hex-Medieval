@@ -18,6 +18,7 @@ import {
   HORIZON,
   STAY_PUT_BIAS,
   IMMEDIATE_CAPTURE_BONUS,
+  UNCLAIMED_VILLAGE_PRIORITY_BONUS,
   FOREST_DEFENSE_BONUS,
   PUT_ENEMY_IN_PERIL_BONUS,
   EXPANSION_DISTANCE_BONUS,
@@ -39,6 +40,8 @@ import {
   INFLUENCE_EXPANSION_BONUS,
   HVT_PROXIMITY_BONUS_FACTOR,
   SCREENING_BONUS,
+  FRONT_LINE_BONUS,
+  COUNTER_ATTACK_BONUS,
   THREAT_PENALTY_SACRIFICE_MULT,
   THREAT_PENALTY_L1_MULT,
   THREAT_PENALTY_L2_MULT,
@@ -79,6 +82,17 @@ export function getUnitAction(
   
   if (!unitToAct) return null;
 
+  // Pre-calculate maps and lists for O(1) lookups and efficient filtering
+  const unitsMap = new Map<string, Unit>();
+  state.units.forEach(u => unitsMap.set(`${u.coord.q},${u.coord.r}`, u));
+  const boardMap = new Map<string, any>();
+  state.board.forEach(t => boardMap.set(`${t.coord.q},${t.coord.r}`, t));
+  
+  const mySettlements = state.board.filter(t => 
+    t.ownerId === currentPlayer.id && 
+    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+  );
+
   const stats = UNIT_STATS[unitToAct.type];
   const myValue = stats.cost;
 
@@ -88,12 +102,13 @@ export function getUnitAction(
     let bestAttack = attacks[0];
     let maxPriority = -Infinity;
 
-    const attackSafety = new LoopSafety('getAutomatonBestAction-attacks-economic', 1000);
+    const attackSafety = new LoopSafety('getUnitAction-attacks-economic', 1000);
     for (const a of attacks) {
       if (attackSafety.tick()) break;
       
-      const targetUnit = state.units.find(u => u.coord.q === a.q && u.coord.r === a.r);
-      const targetTile = state.board.find(t => t.coord.q === a.q && t.coord.r === a.r);
+      const coordKey = `${a.q},${a.r}`;
+      const targetUnit = unitsMap.get(coordKey);
+      const targetTile = boardMap.get(coordKey);
 
       const threat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
       const myThreatLevel = threat ? threat.minTurns : Infinity;
@@ -186,13 +201,18 @@ export function getUnitAction(
     ].sort((a, b) => getDistance(unitToAct.coord, a.coord) - getDistance(unitToAct.coord, b.coord))
      .slice(0, 8);
 
+    const enemySettlements = state.board.filter(t => 
+      t.ownerId !== null && t.ownerId !== currentPlayer.id && 
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+    );
+
     for (const m of moves) {
       if (moveSafety.tick()) break;
       
       let score = 0;
-      const tile = state.board.find(t => t.coord.q === m.q && t.coord.r === m.r)!;
+      const tile = boardMap.get(`${m.q},${m.r}`)!;
       const isStayPut = m.q === unitToAct.coord.q && m.r === unitToAct.coord.r;
-
+      
       const moveThreat = threatMatrix.get(`${m.q},${m.r}`);
       const moveThreatLevel = moveThreat ? moveThreat.minTurns : Infinity;
       const isMoveInPeril = moveThreatLevel === 1;
@@ -215,27 +235,42 @@ export function getUnitAction(
       // 1. Put enemies in peril: If we can move to within attack range of an enemy unit or village in one turn, 
       // AND it won't place our unit into peril, then do it.
       const potentialRange = getUnitRange({ ...unitToAct, coord: m }, state.board);
-      if (!isMoveInPeril) {
+      const unitCurrentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
+      const isUnitInPeril = unitCurrentThreat ? unitCurrentThreat.minTurns === 1 : false;
+
+      if (!isMoveInPeril || isBarbarian || isUnitInPeril) {
+        const perilSafety = new LoopSafety('getUnitAction-peril', 100);
+        let putsEnemyInPeril = false;
         for (const target of moveTargets) {
+          if (perilSafety.tick()) break;
           const dist = getDistance(m, target.coord);
           if (dist <= potentialRange) {
             score += BASE_REWARD * PUT_ENEMY_IN_PERIL_BONUS; // High bonus for putting enemy in peril
+            putsEnemyInPeril = true;
+            
+            // Counter-Attack Bonus: If we are already in peril, but this move turns the tide
+            if (isUnitInPeril) {
+              score += BASE_REWARD * COUNTER_ATTACK_BONUS;
+            }
+          }
+        }
+
+        // Strategic Movement: Unclaimed Village Priority
+        // If an AI unit is going to move to an unoccupied tile that is not in peril 
+        // or does not provide the advantage of putting an enemy in peril the 1st choice by far: unclaimed village
+        if (!isMoveInPeril && !putsEnemyInPeril && !isBarbarian) {
+          if (tile.ownerId === null && tile.terrain === TerrainType.VILLAGE) {
+            score += BASE_REWARD * UNCLAIMED_VILLAGE_PRIORITY_BONUS;
           }
         }
       }
 
       // 2. Empire expansion: If a unit and any nearby villages are not in peril, 
-      // the unit should be actively moving as far as possible from the center of it's empire each turn, 
-      // or building a village if it is on a plains tile.
-      const unitCurrentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
-      const isUnitInPeril = unitCurrentThreat ? unitCurrentThreat.minTurns === 1 : false;
       
-      const nearbyVillages = state.board.filter(t => 
-        t.ownerId === currentPlayer.id && 
-        (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-        getDistance(t.coord, unitToAct.coord) <= 3
-      );
+      const nearbyVillages = mySettlements.filter(v => getDistance(v.coord, unitToAct.coord) <= 3);
+      const villageSafety = new LoopSafety('getUnitAction-villages-peril', 100);
       const isNearbyVillageInPeril = nearbyVillages.some(v => {
+        if (villageSafety.tick()) return false;
         const t = threatMatrix.get(`${v.coord.q},${v.coord.r}`);
         return t ? t.minTurns === 1 : false;
       });
@@ -302,7 +337,9 @@ export function getUnitAction(
         // Bonus for moving towards friendly settlements when in danger
         const friendlySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE));
         let minDistToSettlement = Infinity;
+        const settlementSafety = new LoopSafety('getUnitAction-friendly-settlements', 100);
         for (const s of friendlySettlements) {
+          if (settlementSafety.tick()) break;
           const d = getDistance(m, s.coord);
           if (d < minDistToSettlement) minDistToSettlement = d;
         }
@@ -324,7 +361,9 @@ export function getUnitAction(
         }
 
         // Siege positioning: Prefer being exactly at max range from an enemy settlement
+        const siegeSafety = new LoopSafety('getUnitAction-siege', 100);
         for (const target of moveTargets) {
+          if (siegeSafety.tick()) break;
           if (target.isSettlement && target.ownerId !== null) {
             const d = getDistance(m, target.coord);
             if (d === potentialRange) {
@@ -369,15 +408,31 @@ export function getUnitAction(
       // Pair Coordination: If an enemy unit is already in peril from another friendly unit, 
       // and this move also puts it in peril, give a bonus.
       const coordinationSafety = new LoopSafety('getUnitAction-coordination', 100);
+
       for (const target of moveTargets) {
         if (coordinationSafety.tick()) break;
         if (!target.isSettlement && getDistance(m, target.coord) <= potentialRange) {
           const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
           const isAlreadyInPeril = otherFriendlyUnits.some(u => getDistance(u.coord, target.coord) <= UNIT_STATS[u.type].range);
           if (isAlreadyInPeril) {
-            score += BASE_REWARD * COORDINATION_BONUS; // Coordination bonus
+            let bonus = COORDINATION_BONUS;
+            // Enhanced Coordination: If the target is threatening a friendly settlement, increase bonus
+            const isTargetThreateningMyBase = threatenedVillages.some(v => getDistance(target.coord, v.coord) <= UNIT_STATS[target.unitType!].range);
+            if (isTargetThreateningMyBase) {
+              bonus *= 2.0;
+            }
+            score += BASE_REWARD * bonus; 
           }
         }
+      }
+
+      // Front Line Positioning: Recognize "fronts" between friendly and enemy settlements
+      const distToFriendlyBase = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord))) : Infinity;
+      const distToEnemyBase = enemySettlements.length > 0 ? Math.min(...enemySettlements.map(s => getDistance(m, s.coord))) : Infinity;
+      
+      // A "front line" tile is one that is close to both a friendly and an enemy base
+      if (distToFriendlyBase <= 3 && distToEnemyBase <= 4) {
+        score += BASE_REWARD * FRONT_LINE_BONUS;
       }
 
       // Influence Scoring (Potential Fields)
@@ -405,7 +460,9 @@ export function getUnitAction(
       // Body-Blocking / Screening Bonus
       if (unitToAct.type === UnitType.INFANTRY || unitToAct.type === UnitType.KNIGHT) {
         const myCatapults = state.units.filter(u => u.ownerId === currentPlayer.id && u.type === UnitType.CATAPULT);
+        const screeningSafety = new LoopSafety('getUnitAction-screening', 100);
         for (const cat of myCatapults) {
+          if (screeningSafety.tick()) break;
           const distToCat = getDistance(m, cat.coord);
           if (distToCat === 1) {
             // We are adjacent to a catapult. Check if we are between it and an enemy.
@@ -468,6 +525,26 @@ export function getUnitAction(
     }
 
     if (bestMove.q === unitToAct.coord.q && bestMove.r === unitToAct.coord.r) {
+      // Opportunistic Attack: If staying put anyway, check if there's ANY valid attack
+      // This ensures units don't ignore enemies in range if they decide not to move.
+      const anyAttacks = getValidAttacks(unitToAct, state.board, state.units);
+      if (anyAttacks.length > 0) {
+        let bestTarget = anyAttacks[0];
+        let maxVal = -1;
+        for (const a of anyAttacks) {
+          const targetUnit = unitsMap.get(`${a.q},${a.r}`);
+          const targetTile = boardMap.get(`${a.q},${a.r}`);
+          let val = 0;
+          if (targetUnit) val = UNIT_STATS[targetUnit.type].cost;
+          else if (targetTile) val = SETTLEMENT_INCOME[targetTile.terrain] * HORIZON;
+          
+          if (val > maxVal) {
+            maxVal = val;
+            bestTarget = a;
+          }
+        }
+        return { type: 'attack' as const, payload: { unitId: unitToAct.id, target: bestTarget } };
+      }
       return { type: 'skipUnit' as const, payload: { unitId: unitToAct.id } };
     }
 

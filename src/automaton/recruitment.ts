@@ -122,7 +122,9 @@ export function getRecruitmentAction(
 
     const allowedUnitTypes = (Object.keys(UNIT_STATS) as UnitType[]);
 
+    const typeSafety = new LoopSafety('getRecruitmentAction-types', 100);
     for (const unitType of allowedUnitTypes) {
+      if (typeSafety.tick()) break;
       const stats = UNIT_STATS[unitType];
       if (currentGold < stats.cost) continue;
       
@@ -135,7 +137,9 @@ export function getRecruitmentAction(
       let bestUnitScore = -Infinity;
       
       // Evaluate this unit type against all targets from this tile
+      const targetSafety = new LoopSafety('getRecruitmentAction-targets', 1000);
       for (const target of targets) {
+        if (targetSafety.tick()) break;
         const dist = getDistance(t.coord, target.coord);
         
         // Calculate turns to act
@@ -253,12 +257,27 @@ export function getRecruitmentAction(
       const isTileInEminentPeril = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
       
       if (isTileInEminentPeril) {
-        // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
-        bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS;
-        
-        // Favor cheaper units for "sacrificial" defense to buy time
-        if (stats.cost <= 100) {
-          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS;
+        // User's rule: Only sacrifice if reinforcements can arrive within 3 turns.
+        // Otherwise, it's a "remote settlement" and we shouldn't waste units.
+        const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
+        const canReinforce = otherFriendlyUnits.some(u => {
+            const stats = UNIT_STATS[u.type];
+            const dist = getDistance(u.coord, t.coord);
+            // Can reach within 3 turns? (3 * moves + range)
+            return dist <= 3 * stats.moves + stats.range;
+        });
+
+        if (canReinforce) {
+          // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
+          bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS;
+          
+          // Favor cheaper units for "sacrificial" defense to buy time
+          if (stats.cost <= 100) {
+            bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS;
+          }
+        } else {
+          // Remote settlement - don't waste units on a lost cause
+          bestUnitScore -= BASE_REWARD * 10.0;
         }
       }
 

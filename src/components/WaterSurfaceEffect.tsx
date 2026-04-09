@@ -4,7 +4,7 @@ import { shaderMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 const WaterSurfaceMaterial = shaderMaterial(
-  { time: 0, color: new THREE.Color('#3b82f6') },
+  { time: 0, color: new THREE.Color('#7495be') },
   // vertex shader
   `
     varying vec2 vUv;
@@ -74,22 +74,14 @@ const getWaterGeometry = (radius: number) => {
   return waterGeometries[radius];
 };
 
+const sharedWaterMaterial = new WaterSurfaceMaterial();
+
 export const WaterSurfaceEffect = ({ radius }: { radius: number }) => {
-  const materialRef = useRef<any>(null);
-  
   useFrame((state) => {
-    if (materialRef.current) {
-      materialRef.current.time = state.clock.elapsedTime;
-    }
+    sharedWaterMaterial.time = state.clock.elapsedTime;
   });
 
   return (
-    <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.01, 0]} geometry={getWaterGeometry(radius)}>
-      <waterSurfaceMaterial
-        ref={materialRef}
-        transparent
-        depthWrite={false}
-      />
-    </mesh>
+    <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.01, 0]} geometry={getWaterGeometry(radius)} material={sharedWaterMaterial} />
   );
 };

@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GameButton } from './GameButton';
-import { COLOR_NAMES, GameState } from '../types';
+import { GameState } from '../types';
+import { COLOR_NAMES } from '../constants/colors';
 
 interface GameOverOverlayProps {
   gameState: GameState;

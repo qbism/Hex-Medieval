@@ -121,27 +121,6 @@ export const UNIT_ICONS: Record<UnitType, string> = {
   [UnitType.CATAPULT]: '🪨',
 };
 
-export const COLOR_NAMES: Record<string, string> = {
-  '#e11d48': 'Red',
-  '#2563eb': 'Blue',
-  '#16a34a': 'Green',
-  '#d97706': 'Orange',
-  '#7c3aed': 'Purple',
-  '#0891b2': 'Cyan',
-  '#444444': 'Barbarian',
-};
-
-export const TERRAIN_COLORS: Record<TerrainType, string> = {
-  [TerrainType.WATER]: '#3b82f6',
-  [TerrainType.PLAINS]: '#84cc16',
-  [TerrainType.FOREST]: '#15803d',
-  [TerrainType.MOUNTAIN]: '#57534e',
-  [TerrainType.VILLAGE]: '#fcd34d',
-  [TerrainType.FORTRESS]: '#9ca3af',
-  [TerrainType.CASTLE]: '#4b5563',
-  [TerrainType.GOLD_MINE]: '#fbbf24',
-};
-
 export function axialToCube(q: number, r: number): HexCoord {
   return { q, r, s: -q - r };
 }

@@ -4,7 +4,7 @@ import { shaderMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 const WaterfallMaterial = shaderMaterial(
-  { time: 0, color: new THREE.Color('#60a5fa') },
+  { time: 0, color: new THREE.Color('#8eaecf') },
   // vertex shader
   `
     varying vec2 vUv;
@@ -62,23 +62,15 @@ const getWaterfallGeometry = (depth: number) => {
   return waterfallGeometries[depth];
 };
 
+const sharedWaterfallMaterial = new WaterfallMaterial();
+sharedWaterfallMaterial.side = THREE.DoubleSide;
+
 export const WaterfallEffect = ({ topHeight, depth }: { topHeight: number, depth: number }) => {
-  const materialRef = useRef<any>(null);
-  
   useFrame((state) => {
-    if (materialRef.current) {
-      materialRef.current.time = state.clock.elapsedTime;
-    }
+    sharedWaterfallMaterial.time = state.clock.elapsedTime;
   });
 
   return (
-    <mesh position={[0, topHeight - depth / 2, 0]} geometry={getWaterfallGeometry(depth)}>
-      <waterfallMaterial
-        ref={materialRef}
-        transparent
-        depthWrite={false}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <mesh position={[0, topHeight - depth / 2, 0]} geometry={getWaterfallGeometry(depth)} material={sharedWaterfallMaterial} />
   );
 };

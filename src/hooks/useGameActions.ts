@@ -37,22 +37,36 @@ export function useGameActions(
   }, [setGameState, setSetupMode]);
 
   const moveUnit = useCallback((unitId: string, target: HexCoord) => {
+    const unit = gameState?.units.find(u => u.id === unitId);
+    if (unit) {
+      triggerEffect('move', { unitId, unitType: unit.type, to: target }, setGameState as any);
+    }
+
     setGameState(prev => {
       if (!prev) return prev;
-      const unit = prev.units.find(u => u.id === unitId);
-      if (unit) {
-        triggerEffect('move', { unitId, unitType: unit.type, to: target }, setGameState as any);
-      }
       
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
+      const newHistory = [...history, stateWithoutHistory].slice(-50);
       return {
         ...prev,
-        history: [...history, stateWithoutHistory],
+        history: newHistory,
       };
     });
-  }, [setGameState]);
+  }, [gameState, setGameState]);
 
   const finalizeMove = useCallback((unitId: string, target: HexCoord) => {
+    const tile = gameState?.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
+    if (tile && tile.ownerId === null) {
+      const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+      if (isSettlement) {
+        if (tile.terrain === TerrainType.GOLD_MINE) {
+          triggerEffect('goldMine');
+        } else {
+          triggerEffect('conquest');
+        }
+      }
+    }
+
     setGameState(prev => {
       if (!prev) return prev;
       const unit = prev.units.find(u => u.id === unitId);
@@ -92,30 +106,37 @@ export function useGameActions(
         animations: prev.animations.filter(a => a.unitId !== unitId)
       };
     });
-  }, [setGameState]);
+  }, [setGameState, gameState]);
 
   const attackUnit = useCallback((attackerId: string, targetCoord: HexCoord) => {
+    const attacker = gameState?.units.find(u => u.id === attackerId);
+    if (attacker) {
+      triggerEffect('attack', { unitId: attackerId, unitType: attacker.type, to: targetCoord }, setGameState as any);
+    }
+
     setGameState(prev => {
       if (!prev) return prev;
-      const attacker = prev.units.find(u => u.id === attackerId);
-      if (attacker) {
-        triggerEffect('attack', { unitId: attackerId, unitType: attacker.type, to: targetCoord }, setGameState as any);
-      }
 
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
+      const newHistory = [...history, stateWithoutHistory].slice(-50);
       return {
         ...prev,
-        history: [...history, stateWithoutHistory],
+        history: newHistory,
       };
     });
-  }, [setGameState]);
+  }, [gameState, setGameState]);
 
   const finalizeAttack = useCallback((attackerId: string, targetCoord: HexCoord) => {
-    triggerEffect('damage', { 
-      unitId: `tile-${targetCoord.q}-${targetCoord.r}`, 
-      to: targetCoord, 
-      value: -1 
-    }, setGameState as any);
+    const defender = gameState?.units.find(u => u.coord.q === targetCoord.q && u.coord.r === targetCoord.r);
+    if (defender) {
+      triggerEffect('defeat', { unitType: defender.type });
+    } else {
+      triggerEffect('damage', { 
+        unitId: `tile-${targetCoord.q}-${targetCoord.r}`, 
+        to: targetCoord, 
+        value: -1 
+      }, setGameState as any);
+    }
 
     setGameState(prev => {
       if (!prev) return prev;
@@ -164,10 +185,10 @@ export function useGameActions(
         animations: prev.animations.filter(a => a.unitId !== attackerId)
       };
     });
-  }, [setGameState]);
+  }, [setGameState, gameState]);
 
   const recruitUnit = useCallback((type: UnitType, coord: HexCoord) => {
-    triggerEffect('recruit');
+    triggerEffect('recruit', { unitType: type });
     setGameState(prev => {
       if (!prev) return prev;
       const player = prev.players[prev.currentPlayerIndex];
@@ -193,10 +214,11 @@ export function useGameActions(
       );
 
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
+      const newHistory = [...history, stateWithoutHistory].slice(-50);
 
       return {
         ...prev,
-        history: [...history, stateWithoutHistory],
+        history: newHistory,
         units: [...prev.units, newUnit],
         players: newPlayers,
         selectedHex: null,
@@ -208,9 +230,17 @@ export function useGameActions(
   }, [setGameState]);
 
   const handleUpgradeSettlement = useCallback((coord: HexCoord) => {
-    triggerEffect('upgrade');
+    const tile = gameState?.board.find(t => t.coord.q === coord.q && t.coord.r === coord.r);
+    if (tile) {
+      const player = gameState?.players[gameState.currentPlayerIndex];
+      if (player && tile.terrain === TerrainType.MOUNTAIN && tile.ownerId !== player.id) {
+        triggerEffect('goldMine');
+      } else {
+        triggerEffect('upgrade');
+      }
+    }
     setGameState(prev => prev ? upgradeSettlement(prev, coord) : prev);
-  }, [setGameState]);
+  }, [setGameState, gameState]);
 
   const endTurn = useCallback(() => {
     triggerEffect('click');

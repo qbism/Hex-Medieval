@@ -1,17 +1,17 @@
-import { useRef } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // Shared Geometries and Materials for Terrain Features
-const forestCone1 = new THREE.ConeGeometry(0.2, 0.6, 4);
-const forestCone2 = new THREE.ConeGeometry(0.25, 0.8, 4);
-const forestCone3 = new THREE.ConeGeometry(0.15, 0.5, 4);
-const forestMat = new THREE.MeshStandardMaterial({ color: "#064e3b" });
+export const forestCone1 = new THREE.ConeGeometry(0.2, 0.6, 4);
+export const forestCone2 = new THREE.ConeGeometry(0.25, 0.8, 4);
+export const forestCone3 = new THREE.ConeGeometry(0.15, 0.5, 4);
+export const forestMat = new THREE.MeshStandardMaterial({ color: "#064e3b" });
 
-const mountainCone1 = new THREE.ConeGeometry(0.6, 1, 4);
-const mountainMat1 = new THREE.MeshStandardMaterial({ color: "#78716c" });
-const mountainCone2 = new THREE.ConeGeometry(0.3, 0.3, 4);
-const mountainMat2 = new THREE.MeshStandardMaterial({ color: "white" });
+export const mountainCone1 = new THREE.ConeGeometry(0.6, 1, 4);
+export const mountainMat1 = new THREE.MeshStandardMaterial({ color: "#78716c" });
+export const mountainCone2 = new THREE.ConeGeometry(0.3, 0.3, 4);
+export const mountainMat2 = new THREE.MeshStandardMaterial({ color: "white" });
 
 const castleWallGeo = new THREE.BoxGeometry(0.65, 0.5, 0.15);
 const castleMat = new THREE.MeshStandardMaterial({ color: "#d1d5db" });

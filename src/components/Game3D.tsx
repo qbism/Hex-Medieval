@@ -1,21 +1,25 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, MapControls, Text, useCursor, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
-import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, TERRAIN_COLORS, getDistance, UNIT_STATS } from '../types';
-import { soundEngine } from '../services/soundEngine';
-
+import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, getDistance, UNIT_STATS } from '../types';
+import { TERRAIN_COLORS } from '../constants/colors';
 import { Sparks3D, SmokeEffect3D, Projectile3D, MissEffect3D } from './Effects3D';
 import { WaterfallEffect } from './WaterfallEffect';
 import { WaterSurfaceEffect } from './WaterSurfaceEffect';
 import { 
-  ForestFeature, 
-  MountainFeature, 
   CastleFeature, 
   FortressFeature, 
   VillageFeature, 
   GoldMineFeature,
-  getPlayerBasicMaterial
+  forestCone1,
+  forestCone2,
+  forestCone3,
+  forestMat,
+  mountainCone1,
+  mountainMat1,
+  mountainCone2,
+  mountainMat2
 } from './TerrainFeatures3D';
 
 interface Game3DProps {
@@ -90,8 +94,7 @@ const attackRangeGeo = new THREE.CircleGeometry(0.85, 6);
 const territoryRingGeo = new THREE.RingGeometry(0.7, 0.9, 6);
 
 // Shared Geometries and Materials for Units
-const unitBaseGeo1 = new THREE.CylinderGeometry(0.38, 0.38, 0.2, 16);
-const unitBaseGeo2 = new THREE.CylinderGeometry(0.42, 0.42, 0.18, 16);
+const unitConeGeo = new THREE.ConeGeometry(0.4, 0.6, 16);
 const unitBaseMat = new THREE.MeshStandardMaterial({ color: "white" });
 
 const infantryGeo = new THREE.BoxGeometry(0.4, 0.8, 0.4);
@@ -113,8 +116,12 @@ const getPlayerMaterial = (color: string) => {
   return playerMaterials[color];
 };
 
+const territoryRingMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+const attackIndicatorMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+const attackTargetMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.2, wireframe: true });
+
 // 3D Hex Tile
-const PulsatingAttackIndicator = ({ height, geometry, active }: { height: number, geometry: THREE.BufferGeometry, active: boolean }) => {
+const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { height: number, geometry: THREE.BufferGeometry, active: boolean }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   
   useFrame(({ clock }) => {
@@ -133,11 +140,10 @@ const PulsatingAttackIndicator = ({ height, geometry, active }: { height: number
       position={[0, height + 0.045, 0]} 
       rotation={[-Math.PI / 2, 0, Math.PI / 6]} 
       geometry={geometry}
-    >
-      <meshBasicMaterial color="#ef4444" transparent opacity={0.5} side={THREE.DoubleSide} />
-    </mesh>
+      material={attackIndicatorMat}
+    />
   );
-};
+});
 
 const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
@@ -217,9 +223,12 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
 
       {/* Ownership indicator for settlements */}
       {tile.ownerId !== null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && (
-        <mesh position={[0, height + 0.02, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 6]} geometry={territoryRingGeo}>
-          <meshBasicMaterial color={playerColor} side={THREE.DoubleSide} />
-        </mesh>
+        <mesh 
+          position={[0, height + 0.02, 0]} 
+          rotation={[-Math.PI / 2, 0, Math.PI / 6]} 
+          geometry={territoryRingGeo}
+          material={getBorderMaterial(playerColor)}
+        />
       )}
 
       {/* Recruitment Hint */}
@@ -250,8 +259,6 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
       )}
 
       {/* Terrain Features */}
-      {tile.terrain === TerrainType.FOREST && <ForestFeature position={[0, height, 0]} />}
-      {tile.terrain === TerrainType.MOUNTAIN && <MountainFeature position={[0, height, 0]} />}
       {tile.terrain === TerrainType.CASTLE && <CastleFeature position={[0, height, 0]} playerColor={playerColor} />}
       {tile.terrain === TerrainType.FORTRESS && <FortressFeature position={[0, height, 0]} playerColor={playerColor} />}
       {tile.terrain === TerrainType.VILLAGE && <VillageFeature position={[0, height, 0]} playerColor={playerColor} isClaimed={tile.ownerId !== null} />}
@@ -261,7 +268,7 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
 });
 
 // 3D Unit
-const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, onClick, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget }: any) => {
+const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnimationEnd, onClick, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget }: any) => {
   const { x, y: z } = hexToPixel(unit.coord.q, unit.coord.r);
   
   const targetX = anim?.to ? hexToPixel(anim.to.q, anim.to.r).x : x;
@@ -277,8 +284,6 @@ const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, o
     if (anim) {
       animTimeRef.current = 0;
       animDoneRef.current = false;
-      if (anim.type === 'move') soundEngine.playMove();
-      if (anim.type === 'attack') soundEngine.playAttack();
     }
   }, [anim]);
 
@@ -331,13 +336,15 @@ const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, o
       position={[x, baseHeight, z]}
       onClick={(e: any) => { e.stopPropagation(); onClick(); }}
     >
-      {/* Unit Base */}
-      <mesh position={[0, 0.1, 0]} geometry={unitBaseGeo1} material={unitBaseMat}>
-        <mesh position={[0, -0.01, 0]} geometry={unitBaseGeo2} material={isSelected ? unitBaseMat : getPlayerBasicMaterial(playerColor)} />
-      </mesh>
+      {/* Unit Support Cone */}
+      <mesh 
+        position={[0, 0.3, 0]} 
+        geometry={unitConeGeo} 
+        material={isSelected ? unitBaseMat : getPlayerMaterial(playerColor)} 
+      />
 
       {/* Unit Body */}
-      <Billboard position={[0, 0.2, 0]}>
+      <Billboard position={[0, 0.6, 0]}>
         {unit.type === UnitType.INFANTRY && (
           <mesh position={[0, 0.4, 0]} geometry={infantryGeo} material={getPlayerMaterial(playerColor)} />
         )}
@@ -359,7 +366,7 @@ const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, o
       </Billboard>
 
       {/* Icon */}
-      <Billboard position={[0, 1.5, 0]}>
+      <Billboard position={[0, 1.8, 0]}>
         {isOnWater && (
           <Text position={[-0.5, 0, 0]} fontSize={0.6}>
             🛶
@@ -372,19 +379,21 @@ const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, o
 
       {/* Action Dot */}
       {canMove && !isSelected && (
-        <mesh position={[0, 2.0, 0]} geometry={actionDotGeo} material={actionDotMat} />
+        <mesh position={[0, 2.3, 0]} geometry={actionDotGeo} material={actionDotMat} />
       )}
 
       {/* Attack Target Indicator */}
       {isPossibleAttackTarget && (
-        <mesh position={[0, 0.5, 0]} geometry={new THREE.SphereGeometry(0.8, 16, 16)}>
-          <meshBasicMaterial color="#ef4444" transparent opacity={0.2} wireframe />
-        </mesh>
+        <mesh 
+          position={[0, 0.5, 0]} 
+          geometry={new THREE.SphereGeometry(0.8, 16, 16)}
+          material={attackTargetMat}
+        />
       )}
 
       {/* Prohibited Target Indicator (Catapult vs Forest) */}
       {isProhibitedTarget && (
-        <Billboard position={[0, 2.0, 0]}>
+        <Billboard position={[0, 2.3, 0]}>
           <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black">
             🚫
           </Text>
@@ -392,8 +401,96 @@ const AnimatedUnit3D = ({ unit, playerColor, isSelected, anim, onAnimationEnd, o
       )}
     </group>
   );
-};
+});
 
+const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
+  const forests = useMemo(() => board.filter(t => t.terrain === TerrainType.FOREST), [board]);
+  const mountains = useMemo(() => board.filter(t => t.terrain === TerrainType.MOUNTAIN), [board]);
+
+  const forestRefs = [useRef<THREE.InstancedMesh>(null), useRef<THREE.InstancedMesh>(null), useRef<THREE.InstancedMesh>(null)];
+  const mountainRefs = [useRef<THREE.InstancedMesh>(null), useRef<THREE.InstancedMesh>(null)];
+
+  useEffect(() => {
+    const dummy = new THREE.Object3D();
+    
+    // Forest 1
+    if (forestRefs[0].current) {
+      forests.forEach((tile, i) => {
+        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+        const height = TERRAIN_HEIGHTS[TerrainType.FOREST];
+        dummy.position.set(x - 0.2, height + 0.3, z - 0.2);
+        dummy.updateMatrix();
+        forestRefs[0].current!.setMatrixAt(i, dummy.matrix);
+      });
+      forestRefs[0].current.instanceMatrix.needsUpdate = true;
+    }
+    // Forest 2
+    if (forestRefs[1].current) {
+      forests.forEach((tile, i) => {
+        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+        const height = TERRAIN_HEIGHTS[TerrainType.FOREST];
+        dummy.position.set(x + 0.3, height + 0.4, z + 0.1);
+        dummy.updateMatrix();
+        forestRefs[1].current!.setMatrixAt(i, dummy.matrix);
+      });
+      forestRefs[1].current.instanceMatrix.needsUpdate = true;
+    }
+    // Forest 3
+    if (forestRefs[2].current) {
+      forests.forEach((tile, i) => {
+        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+        const height = TERRAIN_HEIGHTS[TerrainType.FOREST];
+        dummy.position.set(x - 0.1, height + 0.25, z + 0.3);
+        dummy.updateMatrix();
+        forestRefs[2].current!.setMatrixAt(i, dummy.matrix);
+      });
+      forestRefs[2].current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Mountain 1
+    if (mountainRefs[0].current) {
+      mountains.forEach((tile, i) => {
+        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+        const height = TERRAIN_HEIGHTS[TerrainType.MOUNTAIN];
+        dummy.position.set(x, height + 0.5, z);
+        dummy.rotation.set(0, Math.PI / 4, 0);
+        dummy.updateMatrix();
+        mountainRefs[0].current!.setMatrixAt(i, dummy.matrix);
+      });
+      mountainRefs[0].current.instanceMatrix.needsUpdate = true;
+    }
+    // Mountain 2
+    if (mountainRefs[1].current) {
+      mountains.forEach((tile, i) => {
+        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+        const height = TERRAIN_HEIGHTS[TerrainType.MOUNTAIN];
+        dummy.position.set(x, height + 1.0, z);
+        dummy.rotation.set(0, Math.PI / 4, 0);
+        dummy.updateMatrix();
+        mountainRefs[1].current!.setMatrixAt(i, dummy.matrix);
+      });
+      mountainRefs[1].current.instanceMatrix.needsUpdate = true;
+    }
+  }, [forests, mountains]);
+
+  return (
+    <group>
+      {forests.length > 0 && (
+        <>
+          <instancedMesh ref={forestRefs[0]} args={[forestCone1, forestMat, forests.length]} />
+          <instancedMesh ref={forestRefs[1]} args={[forestCone2, forestMat, forests.length]} />
+          <instancedMesh ref={forestRefs[2]} args={[forestCone3, forestMat, forests.length]} />
+        </>
+      )}
+      {mountains.length > 0 && (
+        <>
+          <instancedMesh ref={mountainRefs[0]} args={[mountainCone1, mountainMat1, mountains.length]} />
+          <instancedMesh ref={mountainRefs[1]} args={[mountainCone2, mountainMat2, mountains.length]} />
+        </>
+      )}
+    </group>
+  );
+});
 const skySphereGeo = new THREE.SphereGeometry(500, 32, 32);
 const skySphereMat = new THREE.ShaderMaterial({
   side: THREE.BackSide,
@@ -429,6 +526,30 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
   const selectedUnit = gameState.units.find(u => u.id === gameState.selectedUnitId);
   const isSelectedCatapult = selectedUnit?.type === UnitType.CATAPULT;
 
+  // Pre-calculate lookups for performance
+  const possibleMovesSet = useMemo(() => new Set(gameState.possibleMoves.map(m => `${m.q},${m.r}`)), [gameState.possibleMoves]);
+  const possibleAttacksSet = useMemo(() => new Set(gameState.possibleAttacks.map(a => `${a.q},${a.r}`)), [gameState.possibleAttacks]);
+  const attackRangeSet = useMemo(() => new Set(gameState.attackRange.map(r => `${r.q},${r.r}`)), [gameState.attackRange]);
+  const unitsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    gameState.units.forEach(u => map.set(`${u.coord.q},${u.coord.r}`, u));
+    return map;
+  }, [gameState.units]);
+
+  const boardMap = useMemo(() => {
+    const map = new Map<string, any>();
+    gameState.board.forEach(t => map.set(`${t.coord.q},${t.coord.r}`, t));
+    return map;
+  }, [gameState.board]);
+
+  const animationsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    gameState.animations.forEach(a => {
+      if (a.unitId) map.set(a.unitId, a);
+    });
+    return map;
+  }, [gameState.animations]);
+
   return (
     <Canvas>
       {/* Epic Ambient Sky Sphere */}
@@ -451,88 +572,96 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         intensity={1.5} 
       />
 
-      <group position={[0, 0, 0]}>
-        {/* Render Board */}
-        {gameState.board.map((tile) => {
-          const isSelected = gameState.selectedHex?.q === tile.coord.q && gameState.selectedHex?.r === tile.coord.r;
-          const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
-          const isPossibleMove = gameState.possibleMoves.some(m => m.q === tile.coord.q && m.r === tile.coord.r);
-          const isPossibleAttack = gameState.possibleAttacks.some(a => a.q === tile.coord.q && a.r === tile.coord.r);
-          const isAttackRange = gameState.attackRange.some(r => r.q === tile.coord.q && r.r === tile.coord.r);
-          const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord) > UNIT_STATS[selectedUnit.type].range;
-          const unitAtHex = gameState.units.find(u => u.coord.q === tile.coord.q && u.coord.r === tile.coord.r);
-          
-          let hasAdjacentSettlement = false;
-          if (tile.terrain === TerrainType.WATER) {
-            const neighbors = getNeighbors(tile.coord);
-            hasAdjacentSettlement = gameState.board.some(t => 
-              (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || 
-               t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-              neighbors.some(n => n.q === t.coord.q && n.r === t.coord.r)
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Render Board Features (Instanced) */}
+      <FeaturesInstanced board={gameState.board} />
+
+      {/* Render Board */}
+      {gameState.board.map((tile) => {
+        const coordKey = `${tile.coord.q},${tile.coord.r}`;
+        const isSelected = gameState.selectedHex?.q === tile.coord.q && gameState.selectedHex?.r === tile.coord.r;
+        const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
+        const isPossibleMove = possibleMovesSet.has(coordKey);
+        const isPossibleAttack = possibleAttacksSet.has(coordKey);
+        const isAttackRange = attackRangeSet.has(coordKey);
+        const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord) > UNIT_STATS[selectedUnit.type].range;
+        const unitAtHex = unitsMap.get(coordKey);
+        
+        let hasAdjacentSettlement = false;
+        if (tile.terrain === TerrainType.WATER) {
+          const neighbors = getNeighbors(tile.coord);
+          hasAdjacentSettlement = neighbors.some(n => {
+            const neighborTile = boardMap.get(`${n.q},${n.r}`);
+            return neighborTile && (
+              neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORTRESS || 
+              neighborTile.terrain === TerrainType.CASTLE || neighborTile.terrain === TerrainType.GOLD_MINE
             );
-          }
+          });
+        }
 
-          return (
-            <HexTile3D
-              key={`tile-${tile.coord.q}-${tile.coord.r}`}
-              tile={tile}
-              isSelected={isSelected}
-              isHovered={isHovered}
-              isPossibleMove={isPossibleMove}
-              isPossibleAttack={isPossibleAttack}
-              isAttackRange={isAttackRange}
-              isExtendedRange={isExtendedRange}
-              playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
-              hasAdjacentSettlement={hasAdjacentSettlement}
-              unitAtHex={unitAtHex}
-              isCurrentPlayer={tile.ownerId === currentPlayer.id}
-              onClick={handleHexClick}
-              onPointerEnter={setHoveredHex}
-              onPointerLeave={setHoveredHex}
+        return (
+          <HexTile3D
+            key={`tile-${tile.coord.q}-${tile.coord.r}`}
+            tile={tile}
+            isSelected={isSelected}
+            isHovered={isHovered}
+            isPossibleMove={isPossibleMove}
+            isPossibleAttack={isPossibleAttack}
+            isAttackRange={isAttackRange}
+            isExtendedRange={isExtendedRange}
+            playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
+            hasAdjacentSettlement={hasAdjacentSettlement}
+            unitAtHex={unitAtHex}
+            isCurrentPlayer={tile.ownerId === currentPlayer.id}
+            onClick={handleHexClick}
+            onPointerEnter={setHoveredHex}
+            onPointerLeave={setHoveredHex}
+          />
+        );
+      })}
+
+      {/* Render Units */}
+      {gameState.units.map((unit) => {
+        const anim = animationsMap.get(unit.id);
+        const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
+        const coordKey = `${displayCoord.q},${displayCoord.r}`;
+        const tile = boardMap.get(coordKey);
+        const isOnWater = tile?.terrain === TerrainType.WATER;
+        const tileHeight = tile ? (TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4) : 0.4;
+        
+        const isAttackRange = attackRangeSet.has(`${unit.coord.q},${unit.coord.r}`);
+        const isProhibitedTarget = isSelectedCatapult && tile?.terrain === TerrainType.FOREST && isAttackRange && unit.ownerId !== currentPlayer.id;
+
+        return (
+          <React.Fragment key={unit.id}>
+            <AnimatedUnit3D
+              unit={unit}
+              playerColor={gameState.players[unit.ownerId].color}
+              isSelected={gameState.selectedUnitId === unit.id}
+              canMove={unit.ownerId === currentPlayer.id && unit.movesLeft > 0}
+              anim={anim}
+              isOnWater={isOnWater}
+              tileHeight={tileHeight}
+              isPossibleAttackTarget={possibleAttacksSet.has(`${unit.coord.q},${unit.coord.r}`)}
+              isProhibitedTarget={isProhibitedTarget}
+              onAnimationEnd={() => {
+                if (anim?.type === 'move') finalizeMove(unit.id, anim.to!);
+                if (anim?.type === 'attack') finalizeAttack(unit.id, anim.to!);
+              }}
+              onClick={() => handleHexClick(unit.coord.q, unit.coord.r)}
             />
-          );
-        })}
-
-        {/* Render Units */}
-        {gameState.units.map((unit) => {
-          const anim = gameState.animations.find(a => a.unitId === unit.id && (a.type === 'move' || a.type === 'attack'));
-          const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
-          const tile = gameState.board.find(t => t.coord.q === displayCoord.q && t.coord.r === displayCoord.r);
-          const isOnWater = tile?.terrain === TerrainType.WATER;
-          const tileHeight = tile ? (TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4) : 0.4;
-          
-          const isAttackRange = gameState.attackRange.some(r => r.q === unit.coord.q && r.r === unit.coord.r);
-          const isProhibitedTarget = isSelectedCatapult && tile?.terrain === TerrainType.FOREST && isAttackRange && unit.ownerId !== currentPlayer.id;
-
-          return (
-            <React.Fragment key={unit.id}>
-              <AnimatedUnit3D
-                unit={unit}
-                playerColor={gameState.players[unit.ownerId].color}
-                isSelected={gameState.selectedUnitId === unit.id}
-                canMove={unit.ownerId === currentPlayer.id && unit.movesLeft > 0}
-                anim={anim}
-                isOnWater={isOnWater}
-                tileHeight={tileHeight}
-                isPossibleAttackTarget={gameState.possibleAttacks.some(a => a.q === unit.coord.q && a.r === unit.coord.r)}
-                isProhibitedTarget={isProhibitedTarget}
-                onAnimationEnd={() => {
-                  if (anim?.type === 'move') finalizeMove(unit.id, anim.to!);
-                  if (anim?.type === 'attack') finalizeAttack(unit.id, anim.to!);
-                }}
-                onClick={() => handleHexClick(unit.coord.q, unit.coord.r)}
+            {/* Projectiles for ranged attacks */}
+            {anim?.type === 'attack' && (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) && (
+              <Projectile3D 
+                from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
+                to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
+                type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
               />
-              {/* Projectiles for ranged attacks */}
-              {anim?.type === 'attack' && (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) && (
-                <Projectile3D 
-                  from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
-                  to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
-                  type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
+            )}
+          </React.Fragment>
+        );
+      })}
 
         {/* Damage Popups and Sparks */}
         {gameState.animations.filter(a => a.type === 'damage' || a.type === 'miss').map(anim => {

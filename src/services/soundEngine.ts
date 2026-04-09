@@ -100,9 +100,9 @@ class SoundEngine {
   playMove(unitType?: UnitType) {
     switch (unitType) {
       case UnitType.KNIGHT:
-        // Gallop sound
-        this.playTone(150, 'triangle', 0.1, 0.4, 200);
-        setTimeout(() => this.playTone(120, 'triangle', 0.1, 0.3, 180), 100);
+        // Gallop sound (clop clop)
+        this.playTone(350, 'triangle', 0.05, 0.4, 300);
+        setTimeout(() => this.playTone(300, 'triangle', 0.05, 0.3, 250), 80);
         break;
       case UnitType.ARCHER:
         // Light footsteps
@@ -134,9 +134,14 @@ class SoundEngine {
         this.playTone(80, 'sawtooth', 0.15, 0.6, 40);
         break;
       case UnitType.KNIGHT: {
-        // Whinny of a horse: High-pitched sliding vibrato
+        // Whinny of a horse + metallic clash
         this.playTone(400, 'sine', 0.4, 0.3, 600);
-        setTimeout(() => this.playTone(550, 'sine', 0.3, 0.2, 450), 100);
+        setTimeout(() => {
+          this.playTone(550, 'sine', 0.3, 0.2, 450);
+          // Metallic clash
+          this.playTone(1000, 'square', 0.05, 0.3, 800);
+          this.playNoise(0.1, 0.4, 4000, 1000);
+        }, 100);
         break;
       }
       case UnitType.INFANTRY:
@@ -149,9 +154,57 @@ class SoundEngine {
     }
   }
 
-  playRecruit() {
-    this.playTone(300, 'sine', 0.4, 0.6, 600);
-    setTimeout(() => this.playTone(450, 'sine', 0.3, 0.5, 900), 100);
+  playRecruit(unitType?: UnitType) {
+    switch (unitType) {
+      case UnitType.KNIGHT:
+        // High-pitched whinny
+        this.playTone(400, 'sine', 0.4, 0.4, 600);
+        setTimeout(() => this.playTone(550, 'sine', 0.3, 0.3, 450), 100);
+        break;
+      case UnitType.ARCHER:
+        // Light chime + bow string tension
+        this.playTone(600, 'sine', 0.1, 0.4, 800);
+        this.playTone(150, 'triangle', 0.2, 0.3, 200);
+        break;
+      case UnitType.CATAPULT:
+        // Heavy mechanical assembly
+        this.playTone(80, 'sawtooth', 0.5, 0.4, 120);
+        this.playNoise(0.5, 0.2, 400);
+        break;
+      case UnitType.INFANTRY:
+      default:
+        // Sharp march start / "Attention!"
+        this.playTone(300, 'square', 0.1, 0.5, 300);
+        setTimeout(() => this.playTone(400, 'square', 0.1, 0.4, 400), 100);
+        break;
+    }
+  }
+
+  playDefeat(unitType?: UnitType) {
+    switch (unitType) {
+      case UnitType.KNIGHT:
+        // Horse fall: Low sliding triangle + noise
+        this.playTone(150, 'triangle', 0.5, 0.4, 50);
+        this.playNoise(0.5, 0.3, 200);
+        break;
+      case UnitType.ARCHER:
+        // "Argh!": Medium noise + descending slide
+        this.playTone(300, 'sine', 0.3, 0.4, 100);
+        this.playNoise(0.3, 0.3, 800, 200);
+        break;
+      case UnitType.CATAPULT:
+        // Wood splintering: High noise bursts + low sawtooth
+        this.playNoise(0.1, 0.6, 2000, 500);
+        setTimeout(() => this.playNoise(0.1, 0.5, 1500, 400), 100);
+        this.playTone(60, 'sawtooth', 0.4, 0.4, 30);
+        break;
+      case UnitType.INFANTRY:
+      default:
+        // "Ugh!": Low noise thud + descending tone
+        this.playTone(200, 'triangle', 0.3, 0.5, 80);
+        this.playNoise(0.3, 0.4, 400, 100);
+        break;
+    }
   }
 
   playUpgrade() {
@@ -161,6 +214,30 @@ class SoundEngine {
 
   playHeal() {
     this.playTone(600, 'sine', 0.6, 0.4, 1200);
+  }
+
+  playConquest() {
+    // Triumphant 3-note fanfare
+    this.playTone(440, 'square', 0.15, 0.5, 440);
+    setTimeout(() => this.playTone(554.37, 'square', 0.15, 0.5, 554.37), 150);
+    setTimeout(() => this.playTone(659.25, 'square', 0.4, 0.6, 680), 300);
+  }
+
+  playGoldMine() {
+    // "Cha-ching": High-pitched metallic ring + coin jingle
+    // Added "reverb" echoes to simulate being in a mine
+    const playCoin = (vol: number, delay: number) => {
+      setTimeout(() => {
+        this.playTone(1500, 'sine', 0.1, vol, 1600);
+        this.playTone(1200, 'sine', 0.05, vol * 0.6);
+        this.playNoise(0.1, vol * 0.5, 8000, 4000);
+      }, delay);
+    };
+
+    playCoin(0.6, 0);      // Initial sound
+    playCoin(0.3, 150);    // First echo
+    playCoin(0.15, 300);   // Second echo
+    playCoin(0.05, 500);   // Faint third echo
   }
 
   playDamage() {

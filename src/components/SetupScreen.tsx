@@ -1,9 +1,8 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { User, HelpCircle, Upload, AlertTriangle } from 'lucide-react';
+import { motion } from 'motion/react';
+import { User, HelpCircle, Upload } from 'lucide-react';
 import { GameButton } from './GameButton';
-import { COLOR_NAMES } from '../types';
-import { HelpModal } from './HelpModal';
+import { COLOR_NAMES } from '../constants/colors';
 
 interface PlayerConfig {
   name: string;
@@ -15,11 +14,8 @@ interface SetupScreenProps {
   setPlayerConfigs: React.Dispatch<React.SetStateAction<PlayerConfig[]>>;
   startGame: (configs: PlayerConfig[]) => void;
   handleLoadWithConfirmation: () => void;
-  showInstructions: boolean;
   setShowInstructions: (show: boolean) => void;
   COLORS: string[];
-  error: string | null;
-  setError: (error: string | null) => void;
 }
 
 export const SetupScreen = ({ 
@@ -27,18 +23,15 @@ export const SetupScreen = ({
   setPlayerConfigs, 
   startGame, 
   handleLoadWithConfirmation,
-  showInstructions, 
   setShowInstructions,
   COLORS,
-  error,
-  setError
 }: SetupScreenProps) => {
   return (
-    <div className="min-h-screen bg-[#2a1a1a] flex items-center justify-center p-8 font-serif">
+    <div className="min-h-full bg-[#2a1a1a] flex flex-col items-center py-12 px-4 sm:p-8 font-serif">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-2xl w-full bg-parchment border-2 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center"
+        className="max-w-2xl w-full bg-parchment border-2 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center my-auto"
       >
         <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-10 gap-2 w-full">
           <div className="grayscale opacity-60 pointer-events-none select-none">
@@ -111,43 +104,6 @@ export const SetupScreen = ({
           </GameButton>
         </div>
       </motion.div>
-      <HelpModal isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
-
-      {/* Error Dialog */}
-      <AnimatePresence>
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
-            >
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-red-100 border-2 border-black">
-                  <AlertTriangle className="text-red-600" size={32} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black uppercase tracking-tight">Error</h3>
-                  <p className="text-stone-600 font-medium">{error}</p>
-                </div>
-              </div>
-              <GameButton 
-                onClick={() => setError(null)}
-                variant="primary"
-                fullWidth
-                className="border-2 border-black"
-              >
-                Dismiss
-              </GameButton>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

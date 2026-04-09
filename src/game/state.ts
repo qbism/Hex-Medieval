@@ -12,8 +12,7 @@ import {
 } from '../types';
 import { LoopSafety } from '../utils';
 import { BOARD_RADIUS, generateBoard, getSpawnPoints } from './board';
-
-const COLORS = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
+import { PLAYER_COLORS as COLORS } from '../constants/colors';
 
 export function createInitialState(playerConfigs: { name: string; isAutomaton: boolean }[]): GameState {
   const players: Player[] = playerConfigs.map((config, i) => ({

@@ -8,7 +8,7 @@ import {
   Unit,
   UNIT_STATS,
 } from '../types';
-import { LoopSafety } from '../utils';
+import { LoopSafety, getBoardMap, getUnitsMap } from '../utils';
 
 export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit[]): HexCoord[] {
   if (unit.hasActed) return [];
@@ -16,9 +16,12 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
   const minCosts = new Map<string, number>();
   const queue: { coord: HexCoord; cost: number }[] = [{ coord: unit.coord, cost: 0 }];
   const safety = new LoopSafety('getValidMoves', 5000);
+  
+  const boardMap = getBoardMap(board);
+  const unitsMap = getUnitsMap(units);
 
   // Starting terrain check: reduced range when starting on a forest tile
-  const startTile = board.find(t => t.coord.q === unit.coord.q && t.coord.r === unit.coord.r);
+  const startTile = boardMap.get(`${unit.coord.q},${unit.coord.r}`);
   let maxMoves = unit.movesLeft;
   if (startTile?.terrain === TerrainType.FOREST) {
     if (unit.type === UnitType.INFANTRY || unit.type === UnitType.ARCHER) {
@@ -34,10 +37,10 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
     
     const neighbors = getNeighbors(coord);
     for (const neighbor of neighbors) {
-      const tile = board.find(t => t.coord.q === neighbor.q && t.coord.r === neighbor.r);
+      const tile = boardMap.get(`${neighbor.q},${neighbor.r}`);
       if (!tile) continue;
 
-      const unitOnTile = units.find(u => u.coord.q === neighbor.q && u.coord.r === neighbor.r);
+      const unitOnTile = unitsMap.get(`${neighbor.q},${neighbor.r}`);
       
       const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || 
                                  tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && 
@@ -52,7 +55,7 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
 
       // Water rule: impassable unless adjacent to a village/settlement OR moving from another water tile
       if (tile.terrain === TerrainType.WATER) {
-        const currentTile = board.find(t => t.coord.q === coord.q && t.coord.r === coord.r);
+        const currentTile = boardMap.get(`${coord.q},${coord.r}`);
         const isMovingFromWater = currentTile?.terrain === TerrainType.WATER;
         
         if (!isMovingFromWater) {
@@ -104,7 +107,9 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
   const friendlySettlements = board.filter(t => t.ownerId === unit.ownerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE));
   const maxRange = UNIT_STATS[unit.type].moves;
 
+  const settlementSafety = new LoopSafety('getValidMoves-settlements', 1000);
   return uniqueMoves.filter(m => {
+    if (settlementSafety.tick()) return false;
     let minSettlementDist = Infinity;
     for (const s of friendlySettlements) {
       const d = getDistance(m, s.coord);
@@ -116,7 +121,8 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
 
 export function getUnitRange(unit: Unit, board: GameState['board']): number {
   const baseRange = UNIT_STATS[unit.type].range;
-  const currentTile = board.find(t => t.coord.q === unit.coord.q && t.coord.r === unit.coord.r);
+  const boardMap = getBoardMap(board);
+  const currentTile = boardMap.get(`${unit.coord.q},${unit.coord.r}`);
   
   if (!currentTile) return baseRange;
   
@@ -138,14 +144,17 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
   
   const range = getUnitRange(unit, board);
   const attacks: HexCoord[] = [];
+  const safety = new LoopSafety('getValidAttacks', 2000);
+  const boardMap = getBoardMap(board);
 
   // Attack units
   units.forEach(other => {
+    if (safety.tick()) return;
     if (other.ownerId !== unit.ownerId) {
       const dist = getDistance(unit.coord, other.coord);
       if (dist <= range) {
         // Catapults cannot target units in forests
-        const targetTile = board.find(t => t.coord.q === other.coord.q && t.coord.r === other.coord.r);
+        const targetTile = boardMap.get(`${other.coord.q},${other.coord.r}`);
         if (unit.type === UnitType.CATAPULT && targetTile?.terrain === TerrainType.FOREST) {
           return;
         }
@@ -155,18 +164,28 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
   });
 
   // Attack settlements (only if owned by an enemy, not unclaimed)
-  board.forEach(tile => {
-    const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
-    if (isSettlement && tile.ownerId !== null && tile.ownerId !== unit.ownerId) {
-      const dist = getDistance(unit.coord, tile.coord);
-      if (dist <= range) {
-        // Only add if not already in attacks (though coords are unique)
-        if (!attacks.some(a => a.q === tile.coord.q && a.r === tile.coord.r)) {
-          attacks.push(tile.coord);
+  const settlementSafety = new LoopSafety('getValidAttacks-settlements', 2000);
+  
+  // Optimization: only check tiles within range instead of the whole board
+  for (let dq = -range; dq <= range; dq++) {
+    for (let dr = Math.max(-range, -dq - range); dr <= Math.min(range, -dq + range); dr++) {
+      if (settlementSafety.tick()) break;
+      const targetCoord = { q: unit.coord.q + dq, r: unit.coord.r + dr, s: unit.coord.s - dq - dr };
+      const tile = boardMap.get(`${targetCoord.q},${targetCoord.r}`);
+      
+      if (tile) {
+        const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+        if (isSettlement && tile.ownerId !== null && tile.ownerId !== unit.ownerId) {
+          const dist = getDistance(unit.coord, tile.coord);
+          if (dist <= range) {
+            if (!attacks.some(a => a.q === tile.coord.q && a.r === tile.coord.r)) {
+              attacks.push(tile.coord);
+            }
+          }
         }
       }
     }
-  });
+  }
 
   return attacks;
 }
@@ -174,19 +193,31 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
 export function getAttackRange(unit: Unit, board: GameState['board'], units: Unit[]): HexCoord[] {
   const range = getUnitRange(unit, board);
   const inRange: HexCoord[] = [];
+  const safety = new LoopSafety('getAttackRange', 2000);
+  const boardMap = getBoardMap(board);
+  const unitsMap = getUnitsMap(units);
   
-  board.forEach(tile => {
-    const dist = getDistance(unit.coord, tile.coord);
-    if (dist <= range && dist > 0) {
-      // Check if there is an enemy unit or enemy settlement here
-      const hasEnemyUnit = units.some(u => u.coord.q === tile.coord.q && u.coord.r === tile.coord.r && u.ownerId !== unit.ownerId);
-      const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== null && tile.ownerId !== unit.ownerId;
+  for (let dq = -range; dq <= range; dq++) {
+    for (let dr = Math.max(-range, -dq - range); dr <= Math.min(range, -dq + range); dr++) {
+      if (safety.tick()) break;
+      const targetCoord = { q: unit.coord.q + dq, r: unit.coord.r + dr, s: unit.coord.s - dq - dr };
+      const tile = boardMap.get(`${targetCoord.q},${targetCoord.r}`);
       
-      if (hasEnemyUnit || isEnemySettlement) {
-        inRange.push(tile.coord);
+      if (tile) {
+        const dist = getDistance(unit.coord, tile.coord);
+        if (dist <= range && dist > 0) {
+          // Check if there is an enemy unit or enemy settlement here
+          const unitOnTile = unitsMap.get(`${targetCoord.q},${targetCoord.r}`);
+          const hasEnemyUnit = unitOnTile && unitOnTile.ownerId !== unit.ownerId;
+          const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== null && tile.ownerId !== unit.ownerId;
+          
+          if (hasEnemyUnit || isEnemySettlement) {
+            inRange.push(tile.coord);
+          }
+        }
       }
     }
-  });
+  }
   
   return inRange;
 }
