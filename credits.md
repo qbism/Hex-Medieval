@@ -13,6 +13,7 @@ This project uses the following libraries and resources:
 ## Game Design & Logic
 - **Hexagonal Grid Math**: Inspired by [Red Blob Games](https://www.redblobgames.com/grids/hexagons/) (Creative Commons Attribution 3.0)
 - **AI Logic**: Custom implementation using influence maps and threat matrices.
+- **Music Engine**: Custom SID-inspired procedural synthesis engine with dynamic "Metal" performance logic.
 - **Poisson Disk Sampling**: Inspired by Robert Bridson's algorithm for blue noise distribution.
 
 ## Assets

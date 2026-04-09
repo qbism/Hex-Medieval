@@ -71,3 +71,27 @@ In addition to the mathematical core, the AI uses several tuned heuristics:
 *   **Targeted Upgrades**: Gold Mines are prioritized in safe backlines (>= 6 hexes away), while Fortresses/Castles are prioritized on the frontline (<= 4 hexes away).
 *   **Combined Arms**: Army composition is adjusted based on local needs (e.g., spawning Infantry for static brawls, Knights for open-field flanking).
 *   **Body-Blocking**: Infantry and Knights receive a "Screening Bonus" for positioning themselves between valuable Catapults and approaching enemies.
+*   **Tactical Focus Fire**: The AI prioritizes targets that multiple units can hit, ensuring lethal engagements rather than spreading damage.
+*   **Strategic Siege Deployment**: Catapults are prioritized when enemies are within a 3-4 hex radius of a recruitment center, ensuring they are deployed as effective defensive or siege assets rather than slow-moving liabilities.
+
+---
+
+## Technical Notes: Expressive Music Engine (`src/services/musicEngine.ts`)
+
+The game features a custom-built, real-time procedural music engine inspired by the MOS Technology 6581 (SID) chip and modern "Metal" production techniques.
+
+### 1. SID-Inspired Synthesis
+*   **Oscillators**: Uses raw sawtooth and pulse waves with manual pulse-width modulation (PWM) to create a "dirty," analog feel.
+*   **Arpeggios**: Fast, 3-note arpeggios simulate polyphony on a monophonic channel, a classic SID technique.
+*   **Cabinet Simulation**: A custom Biquad filter chain simulates the frequency response of a guitar cabinet, adding warmth and "thump."
+
+### 2. Expressive Guitar Performance
+*   **Note Anticipation**: The engine "looks ahead" at the chord progression to blend sequential notes into long, sustained legato lines.
+*   **Dynamic Distortion**: Longer notes automatically increase in saturation and "dirt" as they sustain.
+*   **Humanized Nuance**: Attack rates, sustain levels, and vibrato depth are randomized for every note to mimic a real performance.
+*   **Cathedral Reverb**: A high-wetness, 5-second decay convolution reverb places the "quartet" in a vast, gothic cathedral space.
+
+### 3. Procedural Composition
+*   **Infinite Variety**: Songs are generated in random keys and BPMs with structures like Intro-A-B-A-C-Outro.
+*   **Rhythm Styles**: Supports multiple genres including Rock, Dubstep, Techno, House, Trap, and Riddim, with style-specific drum patterns and bass wobbles.
+*   **Dynamic Soloing**: The engine cycles through Guitar, Bass, and Drum solos during the performance.

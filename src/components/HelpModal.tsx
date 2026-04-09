@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameButton } from './GameButton';
-import { Play, Coins, HelpCircle, RotateCcw, Sword, Shield, X, PlusCircle } from 'lucide-react';
+import { Play, Coins, HelpCircle, RotateCcw, Sword, Shield, X, PlusCircle, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TerrainType, UnitType, UNIT_ICONS, UNIT_STATS, SETTLEMENT_INCOME, UPGRADE_COSTS } from '../types';
 
@@ -128,6 +128,25 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                   <li className="flex gap-2">
                     <span className="font-bold">6.</span>
                     <span><span className="font-bold text-amber-700">High Ground:</span> Archers and Catapults gain <span className="font-bold text-amber-900">+1 Range</span> when attacking from Mountain tiles. Archers lose <span className="font-bold text-red-700">-1 Range</span> when attacking from Forest tiles.</span>
+                  </li>
+                </ul>
+              </section>
+
+              <section className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
+                <h3 className="text-xl font-bold mb-3 flex items-center gap-2 text-purple-900">
+                  <Music size={18} /> Music & Atmosphere
+                </h3>
+                <p className="text-sm text-purple-800 leading-relaxed mb-3">
+                  The game features a <span className="font-bold">SID-inspired procedural music engine</span> that generates infinite "Metal" compositions in a vast cathedral space.
+                </p>
+                <ul className="space-y-2 text-sm text-purple-800">
+                  <li className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-400" />
+                    <span><span className="font-bold">Dynamic Performance:</span> The guitar and synth react to the song's length, adding more distortion and vibrato to sustained notes.</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-400" />
+                    <span><span className="font-bold">Volume Control:</span> Open the <span className="font-bold">Game Menu</span> (Settings icon) to adjust Music and Effects volume sliders.</span>
                   </li>
                 </ul>
               </section>

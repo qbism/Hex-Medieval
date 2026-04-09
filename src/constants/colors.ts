@@ -15,7 +15,7 @@ export const COLOR_NAMES: Record<string, string> = {
 
 export const TERRAIN_COLORS: Record<TerrainType, string> = {
   [TerrainType.WATER]: '#7495be',
-  [TerrainType.PLAINS]: '#8db52d',
+  [TerrainType.PLAINS]: '#7ca54a',
   [TerrainType.FOREST]: '#15803d',
   [TerrainType.MOUNTAIN]: '#57534e',
   [TerrainType.VILLAGE]: '#fcd34d',

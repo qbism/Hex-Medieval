@@ -25,6 +25,13 @@ class SoundEngine {
     this.enabled = enabled;
   }
 
+  setVolume(vol: number) {
+    this.init();
+    if (this.masterGain) {
+      this.masterGain.gain.value = vol * 0.6; // Scale to reasonable max
+    }
+  }
+
   private playTone(freq: number, type: OscillatorType, duration: number, volume: number = 1, slideTo?: number) {
     this.init();
     if (!this.ctx || !this.masterGain || !this.enabled) return;

@@ -1,12 +1,14 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // Shared Geometries and Materials for Terrain Features
-export const forestCone1 = new THREE.ConeGeometry(0.2, 0.6, 4);
-export const forestCone2 = new THREE.ConeGeometry(0.25, 0.8, 4);
-export const forestCone3 = new THREE.ConeGeometry(0.15, 0.5, 4);
-export const forestMat = new THREE.MeshStandardMaterial({ color: "#064e3b" });
+export const forestCone1 = new THREE.ConeGeometry(0.2, 0.7, 5);
+export const forestCone2 = new THREE.ConeGeometry(0.28, 0.9, 5);
+export const forestCone3 = new THREE.ConeGeometry(0.18, 0.6, 5);
+export const forestMat = new THREE.MeshStandardMaterial({ color: "#022c22" });
+const vineMat = new THREE.MeshStandardMaterial({ color: "#111827" });
+const thornGeo = new THREE.ConeGeometry(0.02, 0.08, 3);
 
 export const mountainCone1 = new THREE.ConeGeometry(0.6, 1, 4);
 export const mountainMat1 = new THREE.MeshStandardMaterial({ color: "#78716c" });
@@ -50,9 +52,35 @@ export const getPlayerBasicMaterial = (color: string) => {
 
 export const ForestFeature = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
-    <mesh position={[-0.2, 0.3, -0.2]} geometry={forestCone1} material={forestMat} />
-    <mesh position={[0.3, 0.4, 0.1]} geometry={forestCone2} material={forestMat} />
-    <mesh position={[-0.1, 0.25, 0.3]} geometry={forestCone3} material={forestMat} />
+    {/* Main Trees - more irregular heights and rotations */}
+    <group position={[-0.2, 0.35, -0.2]} rotation={[0.1, 0, 0.1]}>
+      <mesh geometry={forestCone1} material={forestMat} />
+      {/* Thorns */}
+      <mesh position={[0.1, 0, 0]} rotation={[0, 0, Math.PI/2]} geometry={thornGeo} material={vineMat} />
+      <mesh position={[-0.1, 0.1, 0]} rotation={[0, 0, -Math.PI/2]} geometry={thornGeo} material={vineMat} />
+    </group>
+    
+    <group position={[0.3, 0.45, 0.1]} rotation={[-0.1, 0.5, 0]}>
+      <mesh geometry={forestCone2} material={forestMat} />
+      <mesh position={[0.12, -0.1, 0]} rotation={[0, 0, Math.PI/2]} geometry={thornGeo} material={vineMat} />
+    </group>
+
+    <group position={[-0.1, 0.3, 0.3]} rotation={[0, -0.3, -0.1]}>
+      <mesh geometry={forestCone3} material={forestMat} />
+      <mesh position={[0, 0.1, 0.1]} rotation={[Math.PI/2, 0, 0]} geometry={thornGeo} material={vineMat} />
+    </group>
+
+    {/* Twisted Vines */}
+    {Array.from({ length: 4 }).map((_, i) => (
+      <mesh 
+        key={i} 
+        position={[Math.sin(i * 1.5) * 0.3, 0.1, Math.cos(i * 1.5) * 0.3]} 
+        rotation={[Math.random(), Math.random(), Math.random()]}
+      >
+        <cylinderGeometry args={[0.01, 0.01, 0.6, 4]} />
+        <meshStandardMaterial color="#064e3b" />
+      </mesh>
+    ))}
   </group>
 );
 
@@ -95,9 +123,7 @@ export const CastleFeature = ({ position, playerColor }: { position: [number, nu
                 <mesh position={[0, 0.2, 0]} geometry={castleRoofGeo} material={castleRoofMat} />
                 <group position={[0, 0.4, 0]}>
                   <mesh position={[0, 0.2, 0]} geometry={flagPoleGeo} material={castleTowerMat} />
-                  <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)}>
-                    <primitive object={flagGeo} attach="geometry" />
-                  </mesh>
+                  <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)} />
                 </group>
               </group>
             )}
@@ -138,9 +164,7 @@ export const FortressFeature = ({ position, playerColor }: { position: [number, 
             {isMainTower && (
               <group position={[0, 0.2, 0]}>
                 <mesh position={[0, 0.2, 0]} geometry={flagPoleGeo} material={castleTowerMat} />
-                <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)}>
-                  <primitive object={flagGeo} attach="geometry" />
-                </mesh>
+                <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)} />
               </group>
             )}
           </group>
@@ -170,9 +194,7 @@ export const VillageFeature = ({ position, playerColor, isClaimed }: { position:
         <group position={[0, 0, 0.3]}>
           <mesh position={[0, 0.25, 0]} geometry={villageTowerGeo} material={villageMat1} />
           <mesh position={[0, 0.5, 0]} geometry={flagPoleGeo} material={castleTowerMat} />
-          <mesh ref={flagRef} position={[0.15, 0.6, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)}>
-            <primitive object={flagGeo} attach="geometry" />
-          </mesh>
+          <mesh ref={flagRef} position={[0.15, 0.6, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)} />
         </group>
       )}
     </group>

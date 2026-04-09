@@ -18,6 +18,7 @@ import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { GameOverOverlay } from './components/GameOverOverlay';
 import { HelpModal } from './components/HelpModal';
 import { soundEngine } from './services/soundEngine';
+import { musicEngine } from './services/musicEngine';
 import { triggerEffect } from './services/effectEngine';
 import { saveGame, loadGame } from './services/saveLoadService';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,6 +31,9 @@ export default function App() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [effectsVolume, setEffectsVolume] = useState(0.5);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{
     isOpen: boolean;
@@ -164,7 +168,19 @@ export default function App() {
 
   useEffect(() => {
     soundEngine.setEnabled(!isMuted);
-  }, [isMuted]);
+    if (!isMuted) {
+      soundEngine.setVolume(effectsVolume);
+    }
+  }, [isMuted, effectsVolume]);
+
+  useEffect(() => {
+    if (isMusicPlaying) {
+      musicEngine.start();
+      musicEngine.setVolume(musicVolume);
+    } else {
+      musicEngine.stop();
+    }
+  }, [isMusicPlaying, musicVolume]);
 
   useEffect(() => {
     if (gameState?.currentPlayerIndex !== undefined && !setupMode) {
@@ -330,6 +346,8 @@ export default function App() {
               currentPlayer={currentPlayer!}
               isMuted={isMuted}
               setIsMuted={setIsMuted}
+              isMusicPlaying={isMusicPlaying}
+              setIsMusicPlaying={setIsMusicPlaying}
               setShowInstructions={setShowInstructions}
               setShowMenu={setShowMenu}
               recruitUnit={recruitUnit}
@@ -352,6 +370,10 @@ export default function App() {
         onExitAll={handleExitAll}
         onSave={handleSave}
         onLoad={handleLoadWithConfirmation}
+        musicVolume={musicVolume}
+        setMusicVolume={setMusicVolume}
+        effectsVolume={effectsVolume}
+        setEffectsVolume={setEffectsVolume}
       />
 
       <ConfirmationDialog

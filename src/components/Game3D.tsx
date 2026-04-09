@@ -116,9 +116,9 @@ const getPlayerMaterial = (color: string) => {
   return playerMaterials[color];
 };
 
-const territoryRingMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 const attackIndicatorMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.5, side: THREE.DoubleSide });
 const attackTargetMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.2, wireframe: true });
+const attackTargetGeo = new THREE.SphereGeometry(0.8, 16, 16);
 
 // 3D Hex Tile
 const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { height: number, geometry: THREE.BufferGeometry, active: boolean }) => {
@@ -386,7 +386,7 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
       {isPossibleAttackTarget && (
         <mesh 
           position={[0, 0.5, 0]} 
-          geometry={new THREE.SphereGeometry(0.8, 16, 16)}
+          geometry={attackTargetGeo}
           material={attackTargetMat}
         />
       )}

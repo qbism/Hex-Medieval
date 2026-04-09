@@ -33,6 +33,8 @@ import {
   CATAPULT_MOBILITY_PENALTY_FAR,
   CATAPULT_MOBILITY_PENALTY_VERY_FAR,
   CATAPULT_APPEAL_BOOST,
+  CATAPULT_PROXIMITY_BONUS_L1,
+  CATAPULT_PROXIMITY_BONUS_L2,
   NEUTRAL_CAPTURE_BONUS,
   NEAR_BASE_BONUS,
   INFLUENCE_BONUS_RATIO,
@@ -120,6 +122,8 @@ export function getRecruitmentAction(
   for (const t of recruitmentTiles) {
     if (recruitSafety.tick()) break;
 
+    const { dist: distToNearestEnemy } = findNearestTarget(t.coord, state, currentPlayer.id);
+
     const allowedUnitTypes = (Object.keys(UNIT_STATS) as UnitType[]);
 
     const typeSafety = new LoopSafety('getRecruitmentAction-types', 100);
@@ -205,14 +209,21 @@ export function getRecruitmentAction(
           }
 
           // Mobility penalty: Catapults are useless if the front line is too far
-          if (turnsToAct > 6 && !isNearMyBase) {
+          if (turnsToAct > 5 && !isNearMyBase) {
             actionValue -= BASE_REWARD * CATAPULT_MOBILITY_PENALTY_FAR;
-          } else if (turnsToAct > 7) {
+          } else if (turnsToAct > 6) {
             actionValue -= BASE_REWARD * CATAPULT_MOBILITY_PENALTY_VERY_FAR;
           }
 
           // General Catapult appeal boost
           actionValue += BASE_REWARD * CATAPULT_APPEAL_BOOST;
+
+          // Proximity Bonus: Encourage catapults if enemies are close to the spawning settlement
+          if (distToNearestEnemy <= 3) {
+            actionValue += BASE_REWARD * CATAPULT_PROXIMITY_BONUS_L1;
+          } else if (distToNearestEnemy <= 4) {
+            actionValue += BASE_REWARD * CATAPULT_PROXIMITY_BONUS_L2;
+          }
         }
         
         // Bonus for capturing neutral settlements

@@ -60,11 +60,11 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
         
         if (!isMovingFromWater) {
           const tileNeighbors = getNeighbors(tile.coord);
-          const hasAdjacentSettlement = board.some(t => 
-            (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || 
-             t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-            tileNeighbors.some(n => n.q === t.coord.q && n.r === t.coord.r)
-          );
+          const hasAdjacentSettlement = tileNeighbors.some(n => {
+            const nt = boardMap.get(`${n.q},${n.r}`);
+            return nt && (nt.terrain === TerrainType.VILLAGE || nt.terrain === TerrainType.FORTRESS || 
+                          nt.terrain === TerrainType.CASTLE || nt.terrain === TerrainType.GOLD_MINE);
+          });
           if (!hasAdjacentSettlement) {
             isPassable = false;
           }

@@ -42,6 +42,11 @@ import {
   SCREENING_BONUS,
   FRONT_LINE_BONUS,
   COUNTER_ATTACK_BONUS,
+  FOCUS_FIRE_BONUS,
+  LETHAL_THREAT_PENALTY_MULT,
+  MUTUAL_SUPPORT_BONUS,
+  KILL_PRIORITY_BONUS,
+  ATTACK_OVER_MOVE_THRESHOLD,
   THREAT_PENALTY_SACRIFICE_MULT,
   THREAT_PENALTY_L1_MULT,
   THREAT_PENALTY_L2_MULT,
@@ -117,11 +122,25 @@ export function getUnitAction(
 
       if (targetUnit) {
         const targetValue = UNIT_STATS[targetUnit.type].cost;
-        
-        // Economic Trade: Target Value - My Risk
         const risk = (myThreatLevel <= 2 && !isBarbarian) ? myValue : 0;
         
         priority = targetValue - risk;
+        
+        // Focus Fire Bonus: If other friendly units can also attack this target
+        const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id && !u.hasActed);
+        const potentialAttackers = otherFriendlyUnits.filter(u => {
+          const dist = getDistance(u.coord, targetUnit.coord);
+          return dist <= UNIT_STATS[u.type].range;
+        });
+        
+        if (potentialAttackers.length > 0) {
+          priority += BASE_REWARD * FOCUS_FIRE_BONUS * potentialAttackers.length;
+        }
+
+        // Kill Priority: Extra bonus if we can likely kill it
+        if (potentialAttackers.length >= 1) {
+          priority += BASE_REWARD * KILL_PRIORITY_BONUS;
+        }
         
         // Peril Counter-Attack Bonus: If we are in peril, we prefer to attack rather than run
         if (myThreatLevel === 1 && !isBarbarian) {
@@ -176,7 +195,9 @@ export function getUnitAction(
     }
 
     // Only attack if it's not a suicidal bad trade (unless defending or barbarian)
-    if (maxPriority > -myValue * 0.5 || eminentThreatBases.length > 0 || isBarbarian) {
+    // Threshold lowered significantly to prefer attacking even if risky.
+    // We use a very low threshold to ensure we almost always take the shot if it's in range.
+    if (maxPriority > myValue * ATTACK_OVER_MOVE_THRESHOLD || eminentThreatBases.length > 0 || isBarbarian) {
       return { type: 'attack' as const, payload: { unitId: unitToAct.id, target: bestAttack } };
     }
   }
@@ -438,6 +459,13 @@ export function getUnitAction(
       // Influence Scoring (Potential Fields)
       const influence = influenceMap.get(`${m.q},${m.r}`) || 0;
       
+      // Mutual Support Bonus: AI likes to stay near other friendly units
+      const nearbyFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
+      const isNearFriend = nearbyFriendlyUnits.some(u => getDistance(m, u.coord) === 1);
+      if (isNearFriend) {
+        score += BASE_REWARD * MUTUAL_SUPPORT_BONUS;
+      }
+
       if (influence < -100 && !isBarbarian) {
         score -= myValue * INFLUENCE_PENALTY_HIGH_RATIO; 
       } else if (influence < -50 && !isBarbarian) {
@@ -492,7 +520,12 @@ export function getUnitAction(
         }
 
         if (threatLevel === 1) {
-          score -= ((myValue * THREAT_PENALTY_L1_MULT) + (threatValue * 4.0) + (attackerCount * 100)) * penaltyMult;
+          let penalty = ((myValue * THREAT_PENALTY_L1_MULT) + (threatValue * 4.0) + (attackerCount * 100));
+          // Lethal Threat Penalty: If multiple attackers can hit us, it's much more dangerous
+          if (attackerCount >= 2) {
+            penalty *= LETHAL_THREAT_PENALTY_MULT;
+          }
+          score -= penalty * penaltyMult;
         } else if (threatLevel === 2) {
           score -= ((myValue * THREAT_PENALTY_L2_MULT) + (threatValue * 2.0) + (attackerCount * 50)) * penaltyMult;
         } else if (threatLevel === 3) {

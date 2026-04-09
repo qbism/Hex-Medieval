@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Settings, Save, Upload, RotateCcw, ChevronRight, Play } from 'lucide-react';
+import { Settings, Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music } from 'lucide-react';
 import { GameButton } from './GameButton';
 
 interface GameMenuProps {
@@ -10,6 +10,10 @@ interface GameMenuProps {
   onExitAll: () => void;
   onSave: () => void;
   onLoad: () => void;
+  musicVolume: number;
+  setMusicVolume: (vol: number) => void;
+  effectsVolume: number;
+  setEffectsVolume: (vol: number) => void;
 }
 
 export const GameMenu = ({ 
@@ -18,7 +22,11 @@ export const GameMenu = ({
   onExitCurrent, 
   onExitAll,
   onSave,
-  onLoad
+  onLoad,
+  musicVolume,
+  setMusicVolume,
+  effectsVolume,
+  setEffectsVolume
 }: GameMenuProps) => {
   return (
     <AnimatePresence>
@@ -44,6 +52,47 @@ export const GameMenu = ({
             </div>
             
             <div className="space-y-3">
+              {/* Volume Sliders */}
+              <div className="bg-stone-100 border-2 border-black p-4 space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest">
+                    <div className="flex items-center gap-2">
+                      <Music size={14} />
+                      <span>Music Volume</span>
+                    </div>
+                    <span>{Math.round(musicVolume * 100)}%</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={musicVolume}
+                    onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-stone-300 rounded-none appearance-none cursor-pointer accent-black border border-black"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest">
+                    <div className="flex items-center gap-2">
+                      <Volume2 size={14} />
+                      <span>Effects Volume</span>
+                    </div>
+                    <span>{Math.round(effectsVolume * 100)}%</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={effectsVolume}
+                    onChange={(e) => setEffectsVolume(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-stone-300 rounded-none appearance-none cursor-pointer accent-black border border-black"
+                  />
+                </div>
+              </div>
+
               <GameButton 
                 onClick={onSave}
                 variant="ghost"

@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { 
   Volume2, 
   VolumeX, 
+  Music,
   HelpCircle, 
   Settings, 
   Coins, 
@@ -30,6 +31,8 @@ interface SidebarProps {
   currentPlayer: any;
   isMuted: boolean;
   setIsMuted: (muted: boolean) => void;
+  isMusicPlaying: boolean;
+  setIsMusicPlaying: (playing: boolean) => void;
   setShowInstructions: (show: boolean) => void;
   setShowMenu: (show: boolean) => void;
   recruitUnit: (type: UnitType, hex: any) => void;
@@ -44,6 +47,8 @@ export const Sidebar = ({
   currentPlayer,
   isMuted,
   setIsMuted,
+  isMusicPlaying,
+  setIsMusicPlaying,
   setShowInstructions,
   setShowMenu,
   recruitUnit,
@@ -88,6 +93,18 @@ export const Sidebar = ({
               title={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            </GameButton>
+            <GameButton 
+              onClick={() => setIsMusicPlaying(!isMusicPlaying)}
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "p-1.5 border border-black/10 shadow-sm transition-colors",
+                isMusicPlaying ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-white text-stone-700"
+              )}
+              title={isMusicPlaying ? "Stop Music" : "Play Music"}
+            >
+              <Music size={14} className={isMusicPlaying ? "animate-pulse" : ""} />
             </GameButton>
             <GameButton 
               onClick={() => setShowInstructions(true)}

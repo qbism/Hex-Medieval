@@ -24,16 +24,19 @@ export function generateBoard(radius: number, spawnPoints: HexCoord[]) {
   }
 
   // 2. Initialize with Plains
+  const tileMap = new Map<string, HexTile>();
   coords.forEach(coord => {
-    tiles.push({
+    const tile: HexTile = {
       coord,
       terrain: TerrainType.PLAINS,
       ownerId: null,
-    });
+    };
+    tiles.push(tile);
+    tileMap.set(`${coord.q},${coord.r}`, tile);
   });
 
   // Helper to get tile by coord
-  const getTile = (q: number, r: number) => tiles.find(t => t.coord.q === q && t.coord.r === r);
+  const getTile = (q: number, r: number) => tileMap.get(`${q},${r}`);
   const getDistanceFromEdge = (coord: HexCoord, r: number) => {
     return r - Math.max(Math.abs(coord.q), Math.abs(coord.r), Math.abs(coord.s));
   };
@@ -111,9 +114,28 @@ export function generateBoard(radius: number, spawnPoints: HexCoord[]) {
     }
   }
 
-  // 4. Generate Trees (Evenly Distributed Patches)
+  // 4. Generate Villages and Mountains first so forests can avoid them
+  const numVillages = 12 + Math.floor(Math.random() * 9); // 12 to 20
+  const villageCoords = distributeEvenly(coords, numVillages, radius, [...spawnPoints]);
+  villageCoords.forEach(vCoord => {
+    const tile = getTile(vCoord.q, vCoord.r);
+    if (tile && tile.terrain === TerrainType.PLAINS) {
+      tile.terrain = TerrainType.VILLAGE;
+    }
+  });
+
+  const numMountains = 12 + Math.floor(Math.random() * 9); // 12 to 20
+  const mountainCoords = distributeEvenly(coords, numMountains, radius, [...spawnPoints, ...villageCoords]);
+  mountainCoords.forEach(mCoord => {
+    const tile = getTile(mCoord.q, mCoord.r);
+    if (tile && tile.terrain === TerrainType.PLAINS) {
+      tile.terrain = TerrainType.MOUNTAIN;
+    }
+  });
+
+  // 5. Generate Trees (Evenly Distributed Patches) - Spare villages and mountains
   const numForestPatches = 12 + Math.floor(Math.random() * 6); // 12 to 18 patches
-  const forestSeeds = distributeEvenly(coords, numForestPatches, radius - 1, [...spawnPoints, ...selectedLakeSeeds]);
+  const forestSeeds = distributeEvenly(coords, numForestPatches, radius - 1, [...spawnPoints, ...selectedLakeSeeds, ...villageCoords, ...mountainCoords]);
   forestSeeds.forEach(seed => {
     const tile = getTile(seed.q, seed.r);
     if (!tile || tile.terrain !== TerrainType.PLAINS) return;
@@ -135,28 +157,6 @@ export function generateBoard(radius: number, spawnPoints: HexCoord[]) {
         });
       }
     });
-  });
-
-  // 5. Generate Mountains and Villages
-  const numMountains = 12 + Math.floor(Math.random() * 9); // 12 to 20
-  const mountainCoords = distributeEvenly(coords, numMountains, radius, spawnPoints);
-  mountainCoords.forEach(mCoord => {
-    const tile = tiles.find(t => t.coord.q === mCoord.q && t.coord.r === mCoord.r);
-    // Only place on Plains or Forest
-    if (tile && (tile.terrain === TerrainType.PLAINS || tile.terrain === TerrainType.FOREST)) {
-      tile.terrain = TerrainType.MOUNTAIN;
-    }
-  });
-
-  const numVillages = 12 + Math.floor(Math.random() * 9); // 12 to 20
-  const villageCoords = distributeEvenly(coords, numVillages, radius, [...spawnPoints, ...mountainCoords]);
-  villageCoords.forEach(vCoord => {
-    const tile = tiles.find(t => t.coord.q === vCoord.q && t.coord.r === vCoord.r);
-    // Only place on Plains or Forest (Forest becomes Village)
-    // Also avoid placing a village on a mountain we just placed
-    if (tile && (tile.terrain === TerrainType.PLAINS || tile.terrain === TerrainType.FOREST)) {
-      tile.terrain = TerrainType.VILLAGE;
-    }
   });
 
   // 6. Final cleanup
