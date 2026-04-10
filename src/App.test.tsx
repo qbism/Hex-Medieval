@@ -11,7 +11,29 @@ vi.mock('./components/Game3D', () => ({
 vi.mock('./services/soundEngine', () => ({
   soundEngine: {
     setEnabled: vi.fn(),
-    play: vi.fn()
+    setVolume: vi.fn(),
+    playClick: vi.fn(),
+    playMove: vi.fn(),
+    playAttack: vi.fn(),
+    playRecruit: vi.fn(),
+    playDefeat: vi.fn(),
+    playUpgrade: vi.fn(),
+    playHeal: vi.fn(),
+    playConquest: vi.fn(),
+    playGoldMine: vi.fn(),
+    playDamage: vi.fn(),
+    playVictory: vi.fn(),
+    playTurnFanfare: vi.fn()
+  }
+}));
+
+// Mock musicEngine
+vi.mock('./services/musicEngine', () => ({
+  musicEngine: {
+    start: vi.fn(),
+    stop: vi.fn(),
+    setVolume: vi.fn(),
+    toggle: vi.fn()
   }
 }));
 
