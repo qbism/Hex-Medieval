@@ -10,6 +10,7 @@ import {
   UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../types';
+import { getUnitRange } from '../game/units';
 import { findNearestTarget, getChokepointScore as _getChokepointScore, findNearestEnemySettlement as _findNearestEnemySettlement } from './utils';
 import { calculateIncome } from '../gameEngine';
 import { 
@@ -35,9 +36,13 @@ import {
   CATAPULT_APPEAL_BOOST,
   CATAPULT_PROXIMITY_BONUS_L1,
   CATAPULT_PROXIMITY_BONUS_L2,
+  CATAPULT_MEAT_SHIELD_RECRUIT_PENALTY,
+  CATAPULT_MEAT_SHIELD_RECRUIT_BONUS,
   NEUTRAL_CAPTURE_BONUS,
   NEAR_BASE_BONUS,
   INFLUENCE_BONUS_RATIO,
+  HEAT_MAP_RECRUIT_BONUS,
+  HEAT_MAP_SAVINGS_THRESHOLD,
   COMPOSITION_RATIO_THRESHOLD,
   COMPOSITION_PENALTY_FACTOR,
   EMINENT_PERIL_BONUS,
@@ -46,7 +51,6 @@ import {
   DANGER_PENALTY_RATIO,
   MIN_RECRUIT_THRESHOLD_THREAT,
   MIN_RECRUIT_THRESHOLD_NORMAL,
-  INTERIOR_DISTANCE_THRESHOLD,
   INTERIOR_PENALTY_FACTOR,
   MAINTENANCE_RATIO,
   MAINTENANCE_PENALTY_FACTOR
@@ -67,6 +71,7 @@ export function getRecruitmentAction(
   isSavingForVillage: boolean,
   isLaggingStrength: boolean,
   isLaggingIncome: boolean,
+  heatMap: Map<string, number>,
   isBarbarian: boolean = false
 ) {
   const recruitmentTiles = state.board.filter(t => 
@@ -132,13 +137,19 @@ export function getRecruitmentAction(
       const stats = UNIT_STATS[unitType];
       if (currentGold < stats.cost) continue;
       
+      const tileKey = `${t.coord.q},${t.coord.r}`;
+      const heat = heatMap.get(tileKey) || 0;
+
       // Check if buying this unit puts us too far from our savings target
-      if (effectiveSavingsTarget > 0 && (currentGold - stats.cost) < effectiveSavingsTarget * SAVINGS_THRESHOLD_RATIO && !isLaggingStrength) {
-        // Only allow if it's a very cheap unit and we are not desperate
-        if (stats.cost > CHEAP_UNIT_THRESHOLD) continue;
+      // Normal AI: If heat is low, prioritize savings for high-tier structures
+      if (!isBarbarian && !isUnderThreat && effectiveSavingsTarget > 0 && heat < HEAT_MAP_SAVINGS_THRESHOLD) {
+        if ((currentGold - stats.cost) < effectiveSavingsTarget * SAVINGS_THRESHOLD_RATIO) {
+          if (stats.cost > CHEAP_UNIT_THRESHOLD) continue;
+        }
       }
 
       let bestUnitScore = -Infinity;
+      const range = getUnitRange({ type: unitType as UnitType, coord: t.coord } as any, state.board);
       
       // Evaluate this unit type against all targets from this tile
       const targetSafety = new LoopSafety('getRecruitmentAction-targets', 1000);
@@ -148,11 +159,11 @@ export function getRecruitmentAction(
         
         // Calculate turns to act
         let turnsToAct: number;
-        if (dist <= stats.range) {
+        if (dist <= range) {
           turnsToAct = 1; // Can act next turn (recruited units can't act same turn)
         } else {
           // turns = 1 (spawn) + ceil((dist - range) / moves)
-          turnsToAct = 1 + Math.ceil((dist - stats.range) / stats.moves);
+          turnsToAct = 1 + Math.ceil((dist - range) / stats.moves);
         }
 
         if (turnsToAct > MAX_TURNS_TO_ACT) continue; // Too far to care
@@ -224,6 +235,19 @@ export function getRecruitmentAction(
           } else if (distToNearestEnemy <= 4) {
             actionValue += BASE_REWARD * CATAPULT_PROXIMITY_BONUS_L2;
           }
+
+          // Meat Shield Check: Catapults need protection
+          const hasMeatShieldNearby = state.units.some(u => 
+            u.ownerId === currentPlayer.id && 
+            (u.type === UnitType.INFANTRY || u.type === UnitType.KNIGHT) &&
+            getDistance(t.coord, u.coord) <= 1
+          );
+          
+          if (!hasMeatShieldNearby) {
+            actionValue -= BASE_REWARD * CATAPULT_MEAT_SHIELD_RECRUIT_PENALTY; // Strong penalty if no meat shield
+          } else {
+            actionValue += BASE_REWARD * CATAPULT_MEAT_SHIELD_RECRUIT_BONUS; // Bonus if meat shield is present
+          }
         }
         
         // Bonus for capturing neutral settlements
@@ -241,8 +265,11 @@ export function getRecruitmentAction(
         const influence = influenceMap.get(`${t.coord.q},${t.coord.r}`) || 0;
         const influenceBonus = influence < 0 ? Math.abs(influence) * INFLUENCE_BONUS_RATIO : 0;
         
-        if (score + influenceBonus > bestUnitScore) {
-          let finalScore = score + influenceBonus;
+        // Heat Map Bonus: Recruit where the action is
+        const heatBonus = heat * HEAT_MAP_RECRUIT_BONUS;
+
+        if (score + influenceBonus + heatBonus > bestUnitScore) {
+          let finalScore = score + influenceBonus + heatBonus;
           
           // Composition Penalty: Avoid over-spamming one unit type
           const sameTypeCount = state.units.filter(u => u.ownerId === currentPlayer.id && u.type === unitType).length;
@@ -308,12 +335,12 @@ export function getRecruitmentAction(
   // Minimum score threshold to actually recruit
   let minThreshold = isUnderThreat ? MIN_RECRUIT_THRESHOLD_THREAT : MIN_RECRUIT_THRESHOLD_NORMAL;
   
-  // Interior Recruitment Penalty: If the recruitment tile is far from any enemy, increase the threshold
-  if (bestAction) {
-    const { dist: distToEnemy } = findNearestTarget(bestAction.coord, state, currentPlayer.id);
-    if (distToEnemy > INTERIOR_DISTANCE_THRESHOLD) {
-      // For every tile beyond threshold, increase threshold significantly
-      minThreshold += (distToEnemy - INTERIOR_DISTANCE_THRESHOLD) * INTERIOR_PENALTY_FACTOR;
+  // Heat Map Logic: If heat is low, we need a higher score to justify recruitment (unless barbarian)
+  if (bestAction && !isBarbarian) {
+    const tileKey = `${bestAction.coord.q},${bestAction.coord.r}`;
+    const heat = heatMap.get(tileKey) || 0;
+    if (heat < HEAT_MAP_SAVINGS_THRESHOLD) {
+      minThreshold += (HEAT_MAP_SAVINGS_THRESHOLD - heat) * INTERIOR_PENALTY_FACTOR;
     }
     
     // Also consider total unit count vs income

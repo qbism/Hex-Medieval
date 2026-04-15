@@ -263,6 +263,12 @@ class SoundEngine {
     this.playTone(392.00, 'square', 0.2, 0.5, 400);
     setTimeout(() => this.playTone(523.25, 'square', 0.4, 0.6, 530), 150);
   }
+
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
 }
 
 export const soundEngine = new SoundEngine();

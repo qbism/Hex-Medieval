@@ -10,6 +10,8 @@ interface GameMenuProps {
   onExitAll: () => void;
   onSave: () => void;
   onLoad: () => void;
+  onSaveDemo: () => void;
+  onLoadDemo: () => void;
   musicVolume: number;
   setMusicVolume: (vol: number) => void;
   effectsVolume: number;
@@ -23,6 +25,8 @@ export const GameMenu = ({
   onExitAll,
   onSave,
   onLoad,
+  onSaveDemo,
+  onLoadDemo,
   musicVolume,
   setMusicVolume,
   effectsVolume,
@@ -112,6 +116,30 @@ export const GameMenu = ({
                 icon={<Upload size={20} />}
               >
                 <span>Load Game</span>
+                <ChevronRight size={20} />
+              </GameButton>
+
+              <div className="h-px bg-black/20 my-2" />
+
+              <GameButton 
+                onClick={onSaveDemo}
+                variant="ghost"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<Save size={20} />}
+              >
+                <span>Save Demo (.hexd)</span>
+                <ChevronRight size={20} />
+              </GameButton>
+
+              <GameButton 
+                onClick={onLoadDemo}
+                variant="ghost"
+                fullWidth
+                className="border-2 border-black justify-between"
+                icon={<Upload size={20} />}
+              >
+                <span>Load Demo (.hexd)</span>
                 <ChevronRight size={20} />
               </GameButton>
 

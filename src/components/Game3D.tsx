@@ -30,6 +30,7 @@ interface Game3DProps {
   finalizeMove: (unitId: string, target: HexCoord) => void;
   finalizeAttack: (unitId: string, target: HexCoord) => void;
   clearAnimation: (animId: string) => void;
+  showStrategicView: boolean;
 }
 
 const TERRAIN_HEIGHTS: Record<TerrainType, number> = {
@@ -145,7 +146,7 @@ const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { hei
   );
 });
 
-const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer }: any) => {
+const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer, evaluation }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
   const depth = 2.0; // About the width of a tile
@@ -256,6 +257,38 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
             +
           </Text>
         </Billboard>
+      )}
+
+      {/* Strategic Evaluation Indicators */}
+      {evaluation && (
+        <group position={[0, height + 0.1, 0]}>
+          {evaluation.opportunity > 0 && (
+            <mesh position={[-0.3, 0, 0]}>
+              <sphereGeometry args={[Math.min(0.4, 0.05 * Math.sqrt(evaluation.opportunity)), 16, 16]} />
+              <meshBasicMaterial color="#22c55e" transparent opacity={0.7} />
+            </mesh>
+          )}
+          {evaluation.peril > 0 && (
+            <mesh position={[0.3, 0, 0]}>
+              <sphereGeometry args={[Math.min(0.4, 0.05 * Math.sqrt(evaluation.peril)), 16, 16]} />
+              <meshBasicMaterial color="#ef4444" transparent opacity={0.7} />
+            </mesh>
+          )}
+          {isHovered && (evaluation.opportunity !== 0 || evaluation.peril > 0) && (
+            <Billboard position={[0, 1.5, 0]}>
+              <Text 
+                fontSize={0.25} 
+                color="white" 
+                outlineWidth={0.02} 
+                outlineColor="black"
+                maxWidth={3}
+                textAlign="center"
+              >
+                {evaluation.reasons.join('\n')}
+              </Text>
+            </Billboard>
+          )}
+        </group>
       )}
 
       {/* Terrain Features */}
@@ -521,7 +554,7 @@ const skySphereMat = new THREE.ShaderMaterial({
   `
 });
 
-export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHoveredHex, handleHexClick, finalizeMove, finalizeAttack, clearAnimation }) => {
+export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHoveredHex, handleHexClick, finalizeMove, finalizeAttack, clearAnimation, showStrategicView }) => {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const selectedUnit = gameState.units.find(u => u.id === gameState.selectedUnitId);
   const isSelectedCatapult = selectedUnit?.type === UnitType.CATAPULT;
@@ -550,6 +583,16 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
     return map;
   }, [gameState.animations]);
 
+  const matrixMap = useMemo(() => {
+    const map = new Map<string, any>();
+    if (showStrategicView && gameState.opportunityPerilMatrix) {
+      gameState.opportunityPerilMatrix.forEach(eval_ => {
+        map.set(`${eval_.q},${eval_.r}`, eval_);
+      });
+    }
+    return map;
+  }, [showStrategicView, gameState.opportunityPerilMatrix]);
+
   return (
     <Canvas>
       {/* Epic Ambient Sky Sphere */}
@@ -572,8 +615,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         intensity={1.5} 
       />
 
-  return (
-    <group position={[0, 0, 0]}>
+      <group position={[0, 0, 0]}>
       {/* Render Board Features (Instanced) */}
       <FeaturesInstanced board={gameState.board} />
 
@@ -587,6 +629,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         const isAttackRange = attackRangeSet.has(coordKey);
         const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord) > UNIT_STATS[selectedUnit.type].range;
         const unitAtHex = unitsMap.get(coordKey);
+        const evaluation = matrixMap.get(coordKey);
         
         let hasAdjacentSettlement = false;
         if (tile.terrain === TerrainType.WATER) {
@@ -614,6 +657,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
             hasAdjacentSettlement={hasAdjacentSettlement}
             unitAtHex={unitAtHex}
             isCurrentPlayer={tile.ownerId === currentPlayer.id}
+            evaluation={evaluation}
             onClick={handleHexClick}
             onPointerEnter={setHoveredHex}
             onPointerLeave={setHoveredHex}

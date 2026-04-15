@@ -27,9 +27,9 @@ Each unit has unique strengths, movement ranges, and attack ranges.
 | Unit | Cost | Movement | Range | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **Infantry** | 50g | 2 | 1 | Cheap, reliable frontline fighters. Great for holding choke points or emergency base defense. |
-| **Archer** | 100g | 2 | 2* | Ranged attackers. Excellent for chipping away at approaching enemies. (*Range: +1 on Mountains, -1 in Forests*) |
+| **Archer** | 100g | 2 | 2* | Ranged attackers. Excellent for chipping away at approaching enemies. (*Range: -1 in Forests*) |
 | **Knight** | 200g | 4 | 1 | Fast, highly mobile cavalry. Perfect for flanking and capturing undefended settlements. |
-| **Catapult** | 300g | 1 | 3* | Slow but devastating artillery. (*Range: +1 on Mountains. Cannot target units in Forests*) |
+| **Catapult** | 300g | 1 | 3* | Slow but devastating artillery. (*Cannot target units in Forests*) |
 
 ---
 
@@ -78,20 +78,31 @@ In addition to the mathematical core, the AI uses several tuned heuristics:
 
 ## Technical Notes: Expressive Music Engine (`src/services/musicEngine.ts`)
 
-The game features a custom-built, real-time procedural music engine inspired by the MOS Technology 6581 (SID) chip and modern "Metal" production techniques.
+The game features a custom-built, real-time procedural music engine that simulates a full medieval quartet.
 
-### 1. SID-Inspired Synthesis
-*   **Oscillators**: Uses raw sawtooth and pulse waves with manual pulse-width modulation (PWM) to create a "dirty," analog feel.
-*   **Arpeggios**: Fast, 3-note arpeggios simulate polyphony on a monophonic channel, a classic SID technique.
-*   **Cabinet Simulation**: A custom Biquad filter chain simulates the frequency response of a guitar cabinet, adding warmth and "thump."
+### 1. 4-Part Quartet Polyphony
+*   **Cantus (Lead):** High-register Lute or Shawm, carrying the main melodic themes.
+*   **Altus (Counter):** Mid-high Recorder, providing flowing counter-melodies.
+*   **Tenor (Harmonic):** Mid-low Recorder, supporting the harmony with sustained tones.
+*   **Bassus (Foundation):** Low-register Viol or Hurdy-Gurdy, providing the rhythmic and tonal anchor.
 
-### 2. Expressive Guitar Performance
-*   **Note Anticipation**: The engine "looks ahead" at the chord progression to blend sequential notes into long, sustained legato lines.
-*   **Dynamic Distortion**: Longer notes automatically increase in saturation and "dirt" as they sustain.
-*   **Humanized Nuance**: Attack rates, sustain levels, and vibrato depth are randomized for every note to mimic a real performance.
-*   **Cathedral Reverb**: A high-wetness, 5-second decay convolution reverb places the "quartet" in a vast, gothic cathedral space.
+### 2. Structured Composition & Motifs
+*   **Song Structure:** Songs are generated with a clear architectural structure (e.g., A-B-A-C-A).
+*   **Motif System:** Each section has its own unique "motif" (a short melodic fragment). The voices reference these motifs throughout the section.
+*   **Dynamic Sectional Roles:** Each section assigns different roles to the quartet (e.g., Intro is sparse, A Section is full polyphony, B Section features duets).
 
-### 3. Procedural Composition
-*   **Infinite Variety**: Songs are generated in random keys and BPMs with structures like Intro-A-B-A-C-Outro.
-*   **Rhythm Styles**: Supports multiple genres including Rock, Dubstep, Techno, House, Trap, and Riddim, with style-specific drum patterns and bass wobbles.
-*   **Dynamic Soloing**: The engine cycles through Guitar, Bass, and Drum solos during the performance.
+### 3. Historical Music Integration
+*   **Authentic Melodies:** The engine includes a library of public domain medieval and Renaissance melodies (e.g., "Sumer Is Icumen In," "Palästinalied," "L'homme armé").
+*   **Playlist System:** At the start of each game, a shuffled playlist of these historical pieces is generated and played sequentially.
+*   **Advanced Counterpoint:** The engine uses rules for contrary motion and authentic cadences to generate historically plausible harmonies around the core melodies.
+
+---
+
+## Technical Notes: Demo Recording & Playback (`src/services/demoService.ts`)
+
+The game includes a robust system for recording and playing back full game sessions.
+
+*   **Full History Preservation:** The game state engine records every single state change from Turn 1 to the end of the game in the background.
+*   **Efficient Serialization:** Demos are serialized and zipped using `JSZip` to keep file sizes extremely small, saved with a `.hexd` extension.
+*   **Playback Mode:** Loading a demo puts the game into a dedicated playback mode, disabling normal input and AI turns.
+*   **VCR Controls:** Players can rewind, play/pause, fast-forward, and adjust playback speed (1x, 2x, 4x) to review the match.

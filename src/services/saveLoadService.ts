@@ -15,7 +15,12 @@ export const saveGame = async (state: GameState) => {
     possibleAttacks: [],
     attackRange: [],
     animations: [],
-    history: [] // We don't save undo history to keep file size small
+    history: [], // We don't save undo history to keep file size small
+    isPlaybackMode: undefined,
+    demoTimeline: undefined,
+    playbackIndex: undefined,
+    isPlayingDemo: undefined,
+    playbackSpeed: undefined
   };
 
   const jsonString = JSON.stringify(saveData);

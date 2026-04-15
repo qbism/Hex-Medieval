@@ -45,7 +45,7 @@ export function useAutomatonTurn({
   ]);
 
   useEffect(() => {
-    if (!meaningfulState || setupMode || meaningfulState.winnerId !== null) {
+    if (!meaningfulState || setupMode || meaningfulState.winnerId !== null || gameState?.isPlaybackMode) {
       isProcessingRef.current = false;
       return;
     }
@@ -99,6 +99,11 @@ export function useAutomatonTurn({
       try {
         const action = getAutomatonBestAction(gameState);
         
+        // Update the shared opportunity/peril matrix if provided
+        if (action.matrix) {
+          actions.updateAIMatrix(action.matrix);
+        }
+
         // Mark this state as processed to avoid loops
         lastStateRef.current = meaningfulState;
         actionsTakenRef.current++;

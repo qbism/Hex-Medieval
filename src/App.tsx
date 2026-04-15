@@ -21,8 +21,13 @@ import { soundEngine } from './services/soundEngine';
 import { musicEngine } from './services/musicEngine';
 import { triggerEffect } from './services/effectEngine';
 import { saveGame, loadGame } from './services/saveLoadService';
+import { saveDemo, loadDemo } from './services/demoService';
+import { calculateOpportunityPerilMatrix } from './automaton/opportunityPeril';
+import { calculateThreatMatrix } from './automaton/threatAnalysis';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
+
+import { Play, Pause, FastForward, Rewind, X } from 'lucide-react';
 
 export default function App() {
   const [hoveredHex, setHoveredHex] = useState<HexCoord | null>(null);
@@ -31,9 +36,9 @@ export default function App() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
-  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [musicVolume, setMusicVolume] = useState(0.33);
   const [effectsVolume, setEffectsVolume] = useState(0.5);
+  const [showStrategicView, setShowStrategicView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{
     isOpen: boolean;
@@ -48,16 +53,30 @@ export default function App() {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const demoInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
+    musicEngine.resume();
     if (gameState) {
       saveGame(gameState);
       setShowMenu(false);
     }
   };
 
+  const handleSaveDemo = () => {
+    if (gameState) {
+      saveDemo(gameState);
+      setShowMenu(false);
+    }
+  };
+
   const handleLoadClick = () => {
+    musicEngine.resume();
     fileInputRef.current?.click();
+  };
+
+  const handleLoadDemoClick = () => {
+    demoInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,6 +90,32 @@ export default function App() {
       } catch (error) {
         console.error('Failed to load game:', error);
         setError('Failed to load game. Make sure it is a valid .hexm file.');
+      }
+    }
+    // Reset input
+    e.target.value = '';
+  };
+
+  const handleDemoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const timeline = await loadDemo(file);
+        setGameState({
+          ...timeline[0],
+          history: [],
+          animations: [],
+          isPlaybackMode: true,
+          demoTimeline: timeline,
+          playbackIndex: 0,
+          isPlayingDemo: false,
+          playbackSpeed: 1000 // 1 second per move default
+        });
+        setShowMenu(false);
+        setSetupMode(false);
+      } catch (error) {
+        console.error('Failed to load demo:', error);
+        setError('Failed to load demo. Make sure it is a valid .hexd file.');
       }
     }
     // Reset input
@@ -120,6 +165,18 @@ export default function App() {
       handleLoadClick();
     }
   };
+
+  const handleLoadDemoWithConfirmation = () => {
+    if (gameState) {
+      confirmAction(
+        "Load Demo?",
+        "Loading a demo will end your current session. Are you sure?",
+        handleLoadDemoClick
+      );
+    } else {
+      handleLoadDemoClick();
+    }
+  };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
   const [playerConfigs, setPlayerConfigs] = useState([
     { name: 'Red', isAutomaton: false },
@@ -141,11 +198,21 @@ export default function App() {
     finalizeAttack,
     recruitUnit,
     upgradeSettlement,
+    updateAIMatrix,
     endTurn,
     undoMove,
     clearAnimation,
     concedeGame
   } = actions;
+
+  // Real-time strategic matrix calculation for player view
+  useEffect(() => {
+    if (showStrategicView && gameState && !gameState.players[gameState.currentPlayerIndex].isAutomaton) {
+      const threatMatrix = calculateThreatMatrix(gameState, gameState.players[gameState.currentPlayerIndex].id);
+      const matrix = calculateOpportunityPerilMatrix(gameState, gameState.players[gameState.currentPlayerIndex].id, threatMatrix);
+      updateAIMatrix(matrix);
+    }
+  }, [showStrategicView, gameState?.board, gameState?.units, gameState?.currentPlayerIndex]);
 
   // Safety: Clear animations that have been stuck for too long
   useEffect(() => {
@@ -167,20 +234,34 @@ export default function App() {
   }, [gameState?.animations?.length]);
 
   useEffect(() => {
-    soundEngine.setEnabled(!isMuted);
-    if (!isMuted) {
+    if (effectsVolume > 0 && !isMuted) {
+      soundEngine.setEnabled(true);
       soundEngine.setVolume(effectsVolume);
+    } else {
+      soundEngine.setEnabled(false);
     }
   }, [isMuted, effectsVolume]);
 
   useEffect(() => {
-    if (isMusicPlaying) {
+    const handleInteraction = () => {
+      musicEngine.resume();
+    };
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('keydown', handleInteraction);
+    return () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (musicVolume > 0 && !isMuted) {
       musicEngine.start();
       musicEngine.setVolume(musicVolume);
     } else {
       musicEngine.stop();
     }
-  }, [isMusicPlaying, musicVolume]);
+  }, [musicVolume, isMuted]);
 
   useEffect(() => {
     if (gameState?.currentPlayerIndex !== undefined && !setupMode) {
@@ -209,8 +290,118 @@ export default function App() {
     }
   }, [!!gameState, setupMode]); // Only run when gameState becomes truthy or setupMode changes
 
+  // Global click listener to resume audio context (browser policy compliance)
+  useEffect(() => {
+    const handleInteraction = () => {
+      musicEngine.resume();
+      soundEngine.resume();
+    };
+
+    window.addEventListener('mousedown', handleInteraction);
+    window.addEventListener('keydown', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      window.removeEventListener('mousedown', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+  }, []);
+
+  // Demo Playback Logic
+  useEffect(() => {
+    if (gameState?.isPlaybackMode && gameState.isPlayingDemo && gameState.demoTimeline) {
+      const timer = setTimeout(() => {
+        setGameState(prev => {
+          if (!prev || !prev.isPlaybackMode || !prev.demoTimeline) return prev;
+          const nextIndex = (prev.playbackIndex || 0) + 1;
+          if (nextIndex >= prev.demoTimeline.length) {
+            return { ...prev, isPlayingDemo: false };
+          }
+          const nextState = prev.demoTimeline[nextIndex];
+          return {
+            ...nextState,
+            history: [],
+            animations: [],
+            isPlaybackMode: true,
+            demoTimeline: prev.demoTimeline,
+            playbackIndex: nextIndex,
+            isPlayingDemo: true,
+            playbackSpeed: prev.playbackSpeed
+          };
+        });
+      }, gameState.playbackSpeed || 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState?.isPlaybackMode, gameState?.isPlayingDemo, gameState?.playbackIndex, gameState?.playbackSpeed, gameState?.demoTimeline]);
+
+  const handleDemoControl = (action: 'play' | 'pause' | 'ffwd' | 'rwnd' | 'speed' | 'exit') => {
+    setGameState(prev => {
+      if (!prev || !prev.isPlaybackMode || !prev.demoTimeline) return prev;
+      
+      const currentIndex = prev.playbackIndex || 0;
+      const timeline = prev.demoTimeline;
+      
+      switch (action) {
+        case 'play':
+          if (currentIndex >= timeline.length - 1) {
+            // Restart if at end
+            return {
+              ...timeline[0],
+              history: [],
+              animations: [],
+              isPlaybackMode: true,
+              demoTimeline: timeline,
+              playbackIndex: 0,
+              isPlayingDemo: true,
+              playbackSpeed: prev.playbackSpeed
+            };
+          }
+          return { ...prev, isPlayingDemo: true };
+        case 'pause':
+          return { ...prev, isPlayingDemo: false };
+        case 'ffwd': {
+          const nextIndex = Math.min(timeline.length - 1, currentIndex + 1);
+          return {
+            ...timeline[nextIndex],
+            history: [],
+            animations: [],
+            isPlaybackMode: true,
+            demoTimeline: timeline,
+            playbackIndex: nextIndex,
+            isPlayingDemo: false,
+            playbackSpeed: prev.playbackSpeed
+          };
+        }
+        case 'rwnd': {
+          const prevIndex = Math.max(0, currentIndex - 1);
+          return {
+            ...timeline[prevIndex],
+            history: [],
+            animations: [],
+            isPlaybackMode: true,
+            demoTimeline: timeline,
+            playbackIndex: prevIndex,
+            isPlayingDemo: false,
+            playbackSpeed: prev.playbackSpeed
+          };
+        }
+        case 'speed': {
+          const currentSpeed = prev.playbackSpeed || 1000;
+          const newSpeed = currentSpeed === 1000 ? 500 : currentSpeed === 500 ? 250 : 1000;
+          return { ...prev, playbackSpeed: newSpeed };
+        }
+        case 'exit':
+          setSetupMode(true);
+          return null;
+        default:
+          return prev;
+      }
+    });
+  };
+
   const handleHexClick = React.useCallback((q: number, r: number) => {
-    if (!gameState || gameState.winnerId !== null || setupMode) return;
+    if (!gameState || gameState.winnerId !== null || setupMode || gameState.isPlaybackMode) return;
     triggerEffect('click');
     const coord = axialToCube(q, r);
     
@@ -291,6 +482,11 @@ export default function App() {
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
 
+  const handleStartGame = (configs: any) => {
+    musicEngine.resume();
+    startGame(configs);
+  };
+
   return (
     <div className="h-screen w-screen bg-[#2a1a1a] overflow-hidden relative font-serif">
       <AnimatePresence mode="wait">
@@ -305,7 +501,7 @@ export default function App() {
             <SetupScreen 
               playerConfigs={playerConfigs}
               setPlayerConfigs={setPlayerConfigs}
-              startGame={startGame}
+              startGame={handleStartGame}
               handleLoadWithConfirmation={handleLoadWithConfirmation}
               setShowInstructions={setShowInstructions}
               COLORS={COLORS}
@@ -329,6 +525,7 @@ export default function App() {
                 finalizeMove={finalizeMove}
                 finalizeAttack={finalizeAttack}
                 clearAnimation={clearAnimation}
+                showStrategicView={showStrategicView}
               />
             </div>
 
@@ -346,14 +543,14 @@ export default function App() {
               currentPlayer={currentPlayer!}
               isMuted={isMuted}
               setIsMuted={setIsMuted}
-              isMusicPlaying={isMusicPlaying}
-              setIsMusicPlaying={setIsMusicPlaying}
               setShowInstructions={setShowInstructions}
               setShowMenu={setShowMenu}
               recruitUnit={recruitUnit}
               upgradeSettlement={upgradeSettlement}
               undoMove={undoMove}
               endTurn={endTurn}
+              showStrategicView={showStrategicView}
+              setShowStrategicView={setShowStrategicView}
               automatonStatus={automatonStatus}
             />
           </motion.div>
@@ -361,6 +558,30 @@ export default function App() {
       </AnimatePresence>
 
       {/* Global Overlays */}
+      {gameState?.isPlaybackMode && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-parchment border-4 border-black p-4 flex items-center gap-4 z-[100] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="text-sm font-black uppercase tracking-widest mr-4">
+            Turn {gameState.turnNumber}
+          </div>
+          <GameButton onClick={() => handleDemoControl('rwnd')} variant="ghost" size="sm" className="border-2 border-black" icon={<Rewind size={16} />}>
+            Rewind
+          </GameButton>
+          <GameButton onClick={() => handleDemoControl(gameState.isPlayingDemo ? 'pause' : 'play')} variant="primary" size="sm" className="border-2 border-black" icon={gameState.isPlayingDemo ? <Pause size={16} /> : <Play size={16} />}>
+            {gameState.isPlayingDemo ? 'Pause' : 'Play'}
+          </GameButton>
+          <GameButton onClick={() => handleDemoControl('ffwd')} variant="ghost" size="sm" className="border-2 border-black" icon={<FastForward size={16} />}>
+            Forward
+          </GameButton>
+          <GameButton onClick={() => handleDemoControl('speed')} variant="ghost" size="sm" className="border-2 border-black w-24">
+            {gameState.playbackSpeed === 1000 ? '1x' : gameState.playbackSpeed === 500 ? '2x' : '4x'} Speed
+          </GameButton>
+          <div className="w-px h-8 bg-black/20 mx-2" />
+          <GameButton onClick={() => handleDemoControl('exit')} variant="danger" size="sm" className="border-2 border-black" icon={<X size={16} />}>
+            Exit Demo
+          </GameButton>
+        </div>
+      )}
+
       <HelpModal isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
       
       <GameMenu 
@@ -370,6 +591,8 @@ export default function App() {
         onExitAll={handleExitAll}
         onSave={handleSave}
         onLoad={handleLoadWithConfirmation}
+        onSaveDemo={handleSaveDemo}
+        onLoadDemo={handleLoadDemoWithConfirmation}
         musicVolume={musicVolume}
         setMusicVolume={setMusicVolume}
         effectsVolume={effectsVolume}
@@ -425,6 +648,13 @@ export default function App() {
         ref={fileInputRef} 
         onChange={handleFileChange} 
         accept=".hexm" 
+        className="hidden" 
+      />
+      <input 
+        type="file" 
+        ref={demoInputRef} 
+        onChange={handleDemoFileChange} 
+        accept=".hexd" 
         className="hidden" 
       />
     </div>

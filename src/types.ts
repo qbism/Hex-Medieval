@@ -87,6 +87,15 @@ export interface Player {
   isOriginalBarbarian?: boolean;
 }
 
+export interface TileEvaluation {
+  q: number;
+  r: number;
+  peril: number;
+  opportunity: number;
+  score: number;
+  reasons: string[];
+}
+
 export interface GameState {
   board: HexTile[];
   units: Unit[];
@@ -100,6 +109,7 @@ export interface GameState {
   attackRange: HexCoord[];
   winnerId: number | null;
   isBarbarianInvasion?: boolean;
+  opportunityPerilMatrix?: TileEvaluation[];
   history: Omit<GameState, 'history' | 'animations'>[];
   animations: {
     id: string;
@@ -109,6 +119,12 @@ export interface GameState {
     to?: HexCoord;
     value?: number;
   }[];
+  // Demo Playback State
+  isPlaybackMode?: boolean;
+  demoTimeline?: Omit<GameState, 'history' | 'animations'>[];
+  playbackIndex?: number;
+  isPlayingDemo?: boolean;
+  playbackSpeed?: number;
 }
 
 // Hex Math Utilities (Pointy-top)

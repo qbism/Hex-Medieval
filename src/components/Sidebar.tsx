@@ -3,14 +3,15 @@ import { motion } from 'motion/react';
 import { 
   Volume2, 
   VolumeX, 
-  Music,
   HelpCircle, 
   Settings, 
   Coins, 
   PlusCircle, 
   Sword, 
   RotateCcw, 
-  ChevronRight 
+  ChevronRight,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { 
   GameState, 
@@ -31,14 +32,14 @@ interface SidebarProps {
   currentPlayer: any;
   isMuted: boolean;
   setIsMuted: (muted: boolean) => void;
-  isMusicPlaying: boolean;
-  setIsMusicPlaying: (playing: boolean) => void;
   setShowInstructions: (show: boolean) => void;
   setShowMenu: (show: boolean) => void;
   recruitUnit: (type: UnitType, hex: any) => void;
   upgradeSettlement: (coord: any) => void;
   undoMove: () => void;
   endTurn: () => void;
+  showStrategicView: boolean;
+  setShowStrategicView: (show: boolean) => void;
   automatonStatus: string;
 }
 
@@ -47,14 +48,14 @@ export const Sidebar = ({
   currentPlayer,
   isMuted,
   setIsMuted,
-  isMusicPlaying,
-  setIsMusicPlaying,
   setShowInstructions,
   setShowMenu,
   recruitUnit,
   upgradeSettlement,
   undoMove,
   endTurn,
+  showStrategicView,
+  setShowStrategicView,
   automatonStatus
 }: SidebarProps) => {
   return (
@@ -95,18 +96,6 @@ export const Sidebar = ({
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </GameButton>
             <GameButton 
-              onClick={() => setIsMusicPlaying(!isMusicPlaying)}
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "p-1.5 border border-black/10 shadow-sm transition-colors",
-                isMusicPlaying ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-white text-stone-700"
-              )}
-              title={isMusicPlaying ? "Stop Music" : "Play Music"}
-            >
-              <Music size={14} className={isMusicPlaying ? "animate-pulse" : ""} />
-            </GameButton>
-            <GameButton 
               onClick={() => setShowInstructions(true)}
               variant="ghost"
               size="icon"
@@ -114,6 +103,18 @@ export const Sidebar = ({
               title="Help"
             >
               <HelpCircle size={14} />
+            </GameButton>
+            <GameButton 
+              onClick={() => setShowStrategicView(!showStrategicView)}
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "p-1.5 border border-black/10 shadow-sm transition-colors",
+                showStrategicView ? "bg-blue-100 text-blue-900 border-blue-300" : "bg-white text-stone-700"
+              )}
+              title={showStrategicView ? "Hide Strategic View" : "Show Strategic View"}
+            >
+              {showStrategicView ? <Eye size={14} /> : <EyeOff size={14} />}
             </GameButton>
             <GameButton 
               onClick={() => setShowMenu(true)}
@@ -402,44 +403,46 @@ export const Sidebar = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="p-3 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 space-y-2 w-48 lg:w-full flex-shrink-0">
-        {!currentPlayer.isAutomaton && gameState.history && gameState.history.length > 0 && (
-          <GameButton 
-            onClick={undoMove}
-            variant="parchment"
-            size="sm"
-            fullWidth
-            className="py-2 text-sm border-2 border-black"
-            icon={<RotateCcw size={12} />}
-          >
-            Undo Move
-          </GameButton>
-        )}
-        {!currentPlayer.isAutomaton && (
-          <GameButton 
-            onClick={endTurn}
-            disabled={currentPlayer.isAutomaton}
-            variant="primary"
-            size="md"
-            fullWidth
-            className="py-3 text-sm"
-          >
-            {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
-            {!currentPlayer.isAutomaton && <ChevronRight size={16} className="ml-2 inline" />}
-          </GameButton>
-        )}
-        {currentPlayer.isAutomaton && (
-          <GameButton 
-            disabled
-            variant="primary"
-            size="md"
-            fullWidth
-            className="py-3 text-sm"
-          >
-            {automatonStatus}
-          </GameButton>
-        )}
-      </div>
+      {!gameState.isPlaybackMode && (
+        <div className="p-3 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 space-y-2 w-48 lg:w-full flex-shrink-0">
+          {!currentPlayer.isAutomaton && gameState.history && gameState.history.length > 0 && (
+            <GameButton 
+              onClick={undoMove}
+              variant="parchment"
+              size="sm"
+              fullWidth
+              className="py-2 text-sm border-2 border-black"
+              icon={<RotateCcw size={12} />}
+            >
+              Undo Move
+            </GameButton>
+          )}
+          {!currentPlayer.isAutomaton && (
+            <GameButton 
+              onClick={endTurn}
+              disabled={currentPlayer.isAutomaton}
+              variant="primary"
+              size="md"
+              fullWidth
+              className="py-3 text-sm"
+            >
+              {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
+              {!currentPlayer.isAutomaton && <ChevronRight size={16} className="ml-2 inline" />}
+            </GameButton>
+          )}
+          {currentPlayer.isAutomaton && (
+            <GameButton 
+              disabled
+              variant="primary"
+              size="md"
+              fullWidth
+              className="py-3 text-sm"
+            >
+              {automatonStatus}
+            </GameButton>
+          )}
+        </div>
+      )}
     </div>
   );
 };

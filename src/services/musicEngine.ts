@@ -1,496 +1,468 @@
 /**
- * SID-inspired Music Engine for rich, low-fi "metal" sounds.
- * Simulates pulse-width modulation, distortion, and fast arpeggios.
+ * Medieval Music Engine
+ * Simulates period instruments like Lutes, Recorders, and Tabors.
+ * Uses Modal scales (Dorian, Phrygian, Mixolydian) and parallel harmonies.
  */
 
-type SectionType = 'Intro' | 'A' | 'B' | 'C' | 'Outro';
-type Soloist = 'none' | 'guitar' | 'bass' | 'drums';
-type RhythmStyle = 'rock' | 'dubstep' | 'techno' | 'house' | 'trap' | 'riddim';
+import WebAudioTinySynth from 'webaudio-tinysynth';
+
+type SectionType = 'Intro' | 'A' | 'B' | 'SoloLute' | 'SoloRecorder' | 'SoloShawm' | 'DuetLuteRecorder' | 'DuetRecorderShawm' | 'Outro';
+type Instrument = 'lute' | 'recorder' | 'viol' | 'shawm' | 'talharpa' | 'perc' | 'hurdyGurdy';
+
+interface NoteEvent {
+  step: number;
+  pitch: number;
+  duration: number;
+  velocity: number;
+}
 
 class MusicEngine {
-  private ctx: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private reverbNode: ConvolverNode | null = null;
-  private cabinetFilter: BiquadFilterNode | null = null;
+  private synth: any = null;
   private isPlaying: boolean = false;
-  private currentStep: number = 0;
+  private currentGlobalStep: number = 0;
   private timer: NodeJS.Timeout | null = null;
+  private nextNoteTime: number = 0;
+  private readonly lookAhead = 0.2;
+  private readonly scheduleInterval = 25;
+  private stepDuration: number = 0.125; // 120 BPM 16th notes
+  private bpm: number = 120;
+  private baseNote: number = 50; // D3
+  private groove: 'straight' | 'syncopated' | 'driving' | 'march' = 'straight';
   
-  // Song State
-  private tempo: number = 135;
-  private rootFreq: number = 130.81; 
-  private songStructure: SectionType[] = [];
-  private currentSectionIndex: number = 0;
-  private stepsPerSection: number = 64;
-  private passCount: number = 0;
-  private currentSoloist: Soloist = 'none';
-  private style: RhythmStyle = 'rock';
-  private lastRootFreq: number = 0;
-  private lastStyle: RhythmStyle | null = null;
-
-  // Note Blending State
-  private guitarNoteEnd: number = 0;
-  private bassNoteEnd: number = 0;
-  private synthNoteEnd: number = 0;
-  private lastGuitarFreq: number = 0;
-  private lastBassFreq: number = 0;
-  private lastSynthFreq: number = 0;
-
-  // SID-style "Metal" Lead Synth with Overdrive and Cabinet Sim
-  private createLeadVoice(freq: number, duration: number, volume: number, overdrive: number = 1.0) {
-    if (!this.ctx || !this.masterGain || !this.reverbNode || !this.cabinetFilter) return;
-
-    const now = this.ctx.currentTime;
-    
-    const osc1 = this.ctx.createOscillator();
-    const osc2 = this.ctx.createOscillator();
-    const preGain = this.ctx.createGain();
-    const distortion = this.ctx.createWaveShaper();
-    const filter = this.ctx.createBiquadFilter();
-    const postGain = this.ctx.createGain();
-
-    const makeDistortionCurve = (amount: number) => {
-      const n_samples = 44100;
-      const curve = new Float32Array(n_samples);
-      for (let i = 0; i < n_samples; ++i) {
-        const x = (i * 2) / n_samples - 1;
-        curve[i] = (Math.tanh(x * amount) + (x * 0.1)) / 1.1;
-      }
-      return curve;
-    };
-
-    distortion.curve = makeDistortionCurve(25 * overdrive);
-    distortion.oversample = '4x';
-
-    osc1.type = 'sawtooth';
-    osc2.type = 'sawtooth';
-    
-    const flutter = Math.sin(now * 10) * 2;
-    osc1.frequency.setValueAtTime(freq + flutter, now);
-    osc2.frequency.setValueAtTime(freq * 1.008 + flutter, now); 
-
-    preGain.gain.setValueAtTime(4.0 * overdrive, now);
-
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(4000, now);
-    filter.Q.setValueAtTime(15, now);
-    filter.frequency.exponentialRampToValueAtTime(800, now + duration);
-
-    // Reduced volume by another 15% (Total ~42% of original)
-    const adjustedVolume = volume * 0.4165;
-    
-    // Dynamic Overdrive: Longer notes get more "dirt"
-    const lengthFactor = Math.min(duration / 2.0, 1.0); // Max out at 2 seconds
-    const dynamicOverdrive = overdrive * (1.0 + lengthFactor * 1.5);
-
-    // Randomized Attack Rate: 0.02s to 0.1s
-    const attackTime = 0.02 + Math.random() * 0.08;
-    
-    // Randomized Sustain Level: 0.2 to 0.6
-    const sustainLevel = 0.2 + Math.random() * 0.4;
-
-    distortion.curve = makeDistortionCurve(25 * dynamicOverdrive);
-    distortion.oversample = '4x';
-
-    postGain.gain.setValueAtTime(0, now);
-    postGain.gain.linearRampToValueAtTime(adjustedVolume, now + attackTime);
-    postGain.gain.linearRampToValueAtTime(adjustedVolume * sustainLevel, now + duration * 0.8);
-    postGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-
-    osc1.connect(preGain);
-    osc2.connect(preGain);
-    preGain.connect(distortion);
-    distortion.connect(filter);
-    filter.connect(postGain);
-    
-    // Vibrato and Tremolo for longer notes
-    if (duration > 0.3) {
-      // Vibrato (Frequency Modulation) - Scales with length
-      const vibrato = this.ctx.createOscillator();
-      const vibratoGain = this.ctx.createGain();
-      
-      // Randomize vibrato speed and depth
-      const vSpeed = 4 + Math.random() * 4;
-      // Vibrato depth increases with note length
-      const vDepth = (0.005 + Math.random() * 0.015) * (1.0 + lengthFactor * 2.5);
-      
-      vibrato.frequency.setValueAtTime(vSpeed, now);
-      vibratoGain.gain.setValueAtTime(freq * vDepth, now);
-      
-      vibrato.connect(vibratoGain);
-      vibratoGain.connect(osc1.frequency);
-      vibratoGain.connect(osc2.frequency);
-      vibrato.start(now);
-      vibrato.stop(now + duration);
-
-      // Random Pitch Bend for "expressional" feel - Intensity increases with length
-      if (Math.random() > 0.5) {
-        const bendTime = duration * (0.2 + Math.random() * 0.5);
-        // Reduced pitch bend by 80% (multiplied by 0.2)
-        const bendIntensity = (0.01 + Math.random() * 0.02) * (1.0 + lengthFactor * 3.0) * 0.2;
-        const bendAmount = 1 + (Math.random() > 0.5 ? bendIntensity : -bendIntensity);
-        
-        osc1.frequency.exponentialRampToValueAtTime(freq * bendAmount, now + bendTime);
-        osc2.frequency.exponentialRampToValueAtTime(freq * 1.008 * bendAmount, now + bendTime);
-        // Return to pitch
-        osc1.frequency.exponentialRampToValueAtTime(freq, now + duration);
-        osc2.frequency.exponentialRampToValueAtTime(freq * 1.008, now + duration);
-      }
-
-      // Tremolo (Amplitude Modulation)
-      const tremolo = this.ctx.createGain();
-      const tremoloOsc = this.ctx.createOscillator();
-      const tremoloDepth = this.ctx.createGain();
-      
-      tremoloOsc.frequency.setValueAtTime(6, now);
-      tremoloDepth.gain.setValueAtTime(0.2, now); // Slightly deeper tremolo
-      tremolo.gain.setValueAtTime(0.8, now);
-      
-      tremoloOsc.connect(tremoloDepth);
-      tremoloDepth.connect(tremolo.gain);
-      
-      postGain.connect(tremolo);
-      tremolo.connect(this.cabinetFilter);
-      
-      tremoloOsc.start(now);
-      tremoloOsc.stop(now + duration);
-    } else {
-      postGain.connect(this.cabinetFilter);
-    }
-
-    osc1.start(now);
-    osc2.start(now);
-    osc1.stop(now + duration);
-    osc2.stop(now + duration);
-  }
-
-  private createPercussion(type: 'kick' | 'snare' | 'hihat' | 'tympani' | 'woodblock', volume: number) {
-    if (!this.ctx || !this.masterGain || !this.reverbNode) return;
-    const now = this.ctx.currentTime;
-    
-    // Increased drum volume by 25%
-    const adjVolume = volume * 1.25;
-
-    if (type === 'kick') {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      // Techno/House kicks are punchier
-      const isElectronic = this.style === 'techno' || this.style === 'house';
-      osc.frequency.setValueAtTime(isElectronic ? 180 : 150, now);
-      osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.12);
-      gain.gain.setValueAtTime(adjVolume, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(now);
-      osc.stop(now + 0.12);
-    } else if (type === 'snare') {
-      const noise = this.ctx.createBufferSource();
-      const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.15, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      noise.buffer = buffer;
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'highpass';
-      filter.frequency.setValueAtTime(this.style === 'trap' ? 1500 : 800, now);
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(adjVolume, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterGain);
-      gain.connect(this.reverbNode);
-      noise.start(now);
-      noise.stop(now + 0.15);
-    } else if (type === 'tympani') {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(80, now);
-      osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
-      gain.gain.setValueAtTime(adjVolume, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      gain.connect(this.reverbNode);
-      osc.start(now);
-      osc.stop(now + 0.4);
-    } else if (type === 'woodblock') {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(1200, now);
-      gain.gain.setValueAtTime(adjVolume, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(now);
-      osc.stop(now + 0.05);
-    } else {
-      const noise = this.ctx.createBufferSource();
-      const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.05, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      noise.buffer = buffer;
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'highpass';
-      filter.frequency.setValueAtTime(8000, now);
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(adjVolume * 0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterGain);
-      noise.start(now);
-      noise.stop(now + 0.05);
-    }
-  }
-
-  private createBassVoice(freq: number, duration: number, volume: number, isSolo: boolean = false) {
-    if (!this.ctx || !this.masterGain || !this.reverbNode) return;
-    const now = this.ctx.currentTime;
-
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
-    const distortion = this.ctx.createWaveShaper();
-
-    const makeDistortionCurve = (amount: number) => {
-      const n_samples = 44100;
-      const curve = new Float32Array(n_samples);
-      for (let i = 0; i < n_samples; ++i) {
-        const x = (i * 2) / n_samples - 1;
-        curve[i] = (Math.PI + amount) * x / (Math.PI + amount * Math.abs(x));
-      }
-      return curve;
-    };
-    
-    // Dubstep/Riddim get much dirtier bass
-    const isWobble = this.style === 'dubstep' || this.style === 'riddim';
-    distortion.curve = makeDistortionCurve(isWobble ? 100 : (isSolo ? 50 : 15));
-
-    osc.type = isSolo || isWobble ? 'sawtooth' : 'square';
-    osc.frequency.setValueAtTime(freq, now);
-    
-    filter.type = 'lowpass';
-    
-    if (isWobble) {
-      // Wobble effect: LFO-like filter sweep
-      const wobbleSpeed = this.style === 'riddim' ? 4 : 8;
-      const t = (this.currentStep % wobbleSpeed) / wobbleSpeed;
-      const sweepFreq = 200 + Math.sin(t * Math.PI) * 1800;
-      filter.frequency.setValueAtTime(sweepFreq, now);
-      filter.frequency.exponentialRampToValueAtTime(100, now + duration);
-    } else {
-      filter.frequency.setValueAtTime(isSolo ? 2500 : 1200, now);
-      filter.frequency.exponentialRampToValueAtTime(isSolo ? 500 : 100, now + duration);
-    }
-
-    gain.gain.setValueAtTime(volume, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-
-    osc.connect(distortion);
-    distortion.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain);
-    gain.connect(this.reverbNode);
-
-    osc.start(now);
-    osc.stop(now + duration);
-  }
-
-  private createSynthVoice(freq: number, duration: number, volume: number) {
-    if (!this.ctx || !this.masterGain || !this.reverbNode) return;
-    const now = this.ctx.currentTime;
-
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
-    const distortion = this.ctx.createWaveShaper();
-
-    const makeDistortionCurve = (amount: number) => {
-      const n_samples = 44100;
-      const curve = new Float32Array(n_samples);
-      for (let i = 0; i < n_samples; ++i) {
-        const x = (i * 2) / n_samples - 1;
-        curve[i] = (Math.PI + amount) * x / (Math.PI + amount * Math.abs(x));
-      }
-      return curve;
-    };
-    distortion.curve = makeDistortionCurve(5);
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, now);
-    
-    // Expressional Pitch Bend
-    if (Math.random() > 0.4) {
-      const bendAmount = 0.98 + (Math.random() * 0.04);
-      osc.frequency.exponentialRampToValueAtTime(freq * bendAmount, now + duration * 0.4);
-      osc.frequency.exponentialRampToValueAtTime(freq, now + duration * 0.8);
-    }
-    
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1500, now);
-    filter.Q.setValueAtTime(1, now);
-
-    // Sustain logic
-    const sustainLevel = duration > 1.0 ? 0.7 : 0.3;
-
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(volume, now + duration * 0.2); 
-    gain.gain.linearRampToValueAtTime(volume * sustainLevel, now + duration * 0.8);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-
-    osc.connect(distortion);
-    distortion.connect(filter);
-    filter.connect(gain);
-    
-    // Vibrato and Tremolo for longer synth notes
-    if (duration > 0.8) {
-      // Random Vibrato
-      const vibrato = this.ctx.createOscillator();
-      const vibratoGain = this.ctx.createGain();
-      vibrato.frequency.setValueAtTime(3 + Math.random() * 2, now);
-      vibratoGain.gain.setValueAtTime(freq * 0.005, now);
-      vibrato.connect(vibratoGain);
-      vibratoGain.connect(osc.frequency);
-      vibrato.start(now);
-      vibrato.stop(now + duration);
-
-      const tremolo = this.ctx.createGain();
-      const tremoloOsc = this.ctx.createOscillator();
-      const tremoloDepth = this.ctx.createGain();
-      
-      tremoloOsc.frequency.setValueAtTime(4, now);
-      tremoloDepth.gain.setValueAtTime(0.1, now);
-      tremolo.gain.setValueAtTime(0.9, now);
-      
-      tremoloOsc.connect(tremoloDepth);
-      tremoloDepth.connect(tremolo.gain);
-      
-      gain.connect(tremolo);
-      tremolo.connect(this.masterGain);
-      tremolo.connect(this.reverbNode);
-      
-      tremoloOsc.start(now);
-      tremoloOsc.stop(now + duration);
-    } else {
-      gain.connect(this.masterGain);
-      gain.connect(this.reverbNode);
-    }
-
-    osc.start(now);
-    osc.stop(now + duration);
-  }
-
-  private createReverb() {
-    if (!this.ctx) return;
-    const length = this.ctx.sampleRate * 5.0; // 5.0s "Gothic Cathedral" reverb
-    const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
-    for (let channel = 0; channel < 2; channel++) {
-      const data = impulse.getChannelData(channel);
-      for (let i = 0; i < length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5);
-      }
-    }
-    this.reverbNode = this.ctx.createConvolver();
-    this.reverbNode.buffer = impulse;
-    
-    const reverbGain = this.ctx.createGain();
-    reverbGain.gain.value = 0.9; // Mostly wet reverb for cathedral feel
-    
-    this.reverbNode.connect(reverbGain);
-    reverbGain.connect(this.masterGain!);
-  }
-
-  private createCabinetSim() {
-    if (!this.ctx) return;
-    this.cabinetFilter = this.ctx.createBiquadFilter();
-    this.cabinetFilter.type = 'peaking';
-    this.cabinetFilter.frequency.value = 2500;
-    this.cabinetFilter.Q.value = 1.5;
-    this.cabinetFilter.gain.value = 6;
-
-    const lowPass = this.ctx.createBiquadFilter();
-    lowPass.type = 'lowpass';
-    lowPass.frequency.value = 5000;
-
-    this.cabinetFilter.connect(lowPass);
-    lowPass.connect(this.masterGain!);
-    lowPass.connect(this.reverbNode!);
-  }
+  private tracks: Record<Instrument, NoteEvent[]> = {
+    lute: [], recorder: [], viol: [], shawm: [], talharpa: [], perc: [], hurdyGurdy: []
+  };
+  private totalSteps: number = 0;
+  private mode: number[] = [0, 2, 3, 5, 7, 9, 10]; // Dorian
 
   private init() {
-    if (this.ctx) return;
+    if (this.synth) return;
     try {
-      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 0.12; 
-      this.masterGain.connect(this.ctx.destination);
-      this.createReverb();
-      this.createCabinetSim();
+      this.synth = new WebAudioTinySynth({ quality: 1, useReverb: 1 });
+      
+      // Set up instruments
+      this.synth.send([0xC0, 104]); // Ch 0: Lute -> Sitar
+      this.synth.send([0xC1, 79]);  // Ch 1: Recorder -> Ocarina
+      this.synth.send([0xC2, 42]);  // Ch 2: Viol (Cello)
+      this.synth.send([0xB2, 73, 90]); // CC 73: Attack Time (soft)
+      this.synth.send([0xB2, 72, 90]); // CC 72: Release Time (soft)
+      this.synth.send([0xC3, 69]);  // Ch 3: Shawm -> English Horn
+      this.synth.send([0xC4, 20]);  // Ch 4: Hurdy-Gurdy -> Reed Organ
+      this.synth.send([0xB4, 1, 80]); // CC 1: Modulation (Vibrato) for Organ
+      this.synth.send([0xC5, 32]);  // Ch 5: Talharpa (Acoustic Bass - twangy backbeat)
     } catch (e) {
       console.warn("Music Engine: Web Audio not supported", e);
     }
   }
 
   private generateSong() {
-    const keys = [130.81, 138.59, 146.83, 155.56, 164.81, 174.61, 185.00, 196.00, 207.65, 220.00, 233.08, 246.94];
+    this.tracks = { lute: [], recorder: [], viol: [], shawm: [], talharpa: [], perc: [], hurdyGurdy: [] };
+    this.totalSteps = 0;
     
-    // Ensure a different key and style each time
-    let newFreq = keys[Math.floor(Math.random() * keys.length)];
-    while (newFreq === this.lastRootFreq && keys.length > 1) {
-      newFreq = keys[Math.floor(Math.random() * keys.length)];
-    }
-    this.rootFreq = newFreq;
-    this.lastRootFreq = newFreq;
+    const styles = [
+      { name: 'Tavern Jig', bpm: [130, 160], modes: [[0, 2, 4, 5, 7, 9, 10], [0, 2, 4, 5, 7, 9, 11]], groove: 'driving' }, // Mixolydian, Ionian
+      { name: 'Royal Court', bpm: [90, 110], modes: [[0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 9, 10]], groove: 'march' }, // Ionian, Dorian
+      { name: 'Dark Battle', bpm: [110, 135], modes: [[0, 1, 3, 5, 7, 8, 10], [0, 2, 3, 5, 7, 8, 10]], groove: 'syncopated' }, // Phrygian, Aeolian
+      { name: 'Melancholy Dirge', bpm: [70, 90], modes: [[0, 2, 3, 5, 7, 8, 10], [0, 2, 3, 5, 7, 8, 11]], groove: 'straight' } // Aeolian, Harmonic Minor
+    ];
     
-    const styles: RhythmStyle[] = ['rock', 'dubstep', 'techno', 'house', 'trap', 'riddim'];
-    let newStyle = styles[Math.floor(Math.random() * styles.length)];
-    while (newStyle === this.lastStyle && styles.length > 1) {
-      newStyle = styles[Math.floor(Math.random() * styles.length)];
-    }
-    this.style = newStyle;
-    this.lastStyle = newStyle;
-
-    // Style-based BPM
-    if (this.style === 'house' || this.style === 'techno') {
-      this.tempo = 120 + Math.floor(Math.random() * 15);
-    } else if (this.style === 'trap' || this.style === 'dubstep' || this.style === 'riddim') {
-      this.tempo = 140 + Math.floor(Math.random() * 20);
+    const style = styles[Math.floor(Math.random() * styles.length)];
+    this.bpm = Math.floor(Math.random() * (style.bpm[1] - style.bpm[0])) + style.bpm[0];
+    this.stepDuration = 60 / this.bpm / 4; // 16th note duration
+    this.mode = style.modes[Math.floor(Math.random() * style.modes.length)];
+    this.baseNote = Math.floor(Math.random() * 12) + 45; // Random key from A2 to G#3
+    this.groove = style.groove as any;
+    
+    const isMajor = this.mode[2] === 4;
+    const keyType = isMajor ? 'Major' : 'Minor';
+    console.log(`Generated Song: ${style.name} | ${this.bpm} BPM | Key: ${this.baseNote} (${keyType})`);
+    
+    let progressions = [];
+    if (isMajor) {
+      progressions = [
+        [0, 3, 4, 0], // I - IV - V - I
+        [0, 5, 3, 4], // I - vi - IV - V
+        [0, 4, 5, 3], // I - V - vi - IV
+        [0, 1, 4, 0], // I - ii - V - I
+      ];
     } else {
-      this.tempo = 110 + Math.floor(Math.random() * 40);
+      progressions = [
+        [0, 5, 6, 0], // i - VI - VII - i
+        [0, 3, 4, 0], // i - iv - v - i
+        [0, 6, 5, 4], // i - VII - VI - V
+        [0, 2, 6, 0], // i - III - VII - i
+      ];
     }
-
-    const targetSections = 8 + Math.floor(Math.random() * 4);
-    const sections: SectionType[] = ['Intro'];
-    for (let i = 0; i < targetSections; i++) {
-      const pool: SectionType[] = ['A', 'B', 'C'];
-      sections.push(pool[Math.floor(Math.random() * pool.length)]);
+    const progA = progressions[Math.floor(Math.random() * progressions.length)];
+    const progB = progressions[Math.floor(Math.random() * progressions.length)];
+    
+    const motifA = this.generateMotif();
+    const motifB = this.generateMotif();
+    
+    // A classic arrangement structure: Intro, Theme A, Theme B, Solo 1, Theme A, Duet, Theme B, Outro
+    // Total measures: 8 + 16 + 16 + 24 + 16 + 24 + 16 + 8 = 128 measures (approx 4.2 minutes at 120bpm)
+    const structure: SectionType[] = ['Intro', 'A', 'B', 'SoloLute', 'A', 'DuetRecorderShawm', 'B', 'Outro'];
+    
+    let currentStep = 0;
+    for (const section of structure) {
+      let numMeasures = 16;
+      if (section === 'Intro' || section === 'Outro') numMeasures = 8;
+      else if (section.startsWith('Solo') || section.startsWith('Duet')) numMeasures = 24;
+      
+      this.generateSection(section, progA, progB, motifA, motifB, currentStep, numMeasures);
+      currentStep += numMeasures * 16; // numMeasures * 16 steps
     }
-    sections.push('Outro');
+    this.totalSteps = currentStep;
+  }
 
-    this.songStructure = sections;
-    this.currentSectionIndex = 0;
-    this.currentStep = 0;
-    this.passCount = 0;
-    this.currentSoloist = 'none';
+  private generateMotif() {
+    const notes = [];
+    let currentDeg = 0;
+    
+    // Generate a 4-measure (64 step) motif for longer, more lyrical phrasing
+    for (let m = 0; m < 4; m++) {
+      let s = 0;
+      while (s < 16) {
+        // Favor longer notes (8th, quarter, half) for a more lyrical melody
+        const lengths = [2, 2, 4, 4, 8]; 
+        const len = lengths[Math.floor(Math.random() * lengths.length)];
+        
+        if (s + len > 16) {
+          s++;
+          continue;
+        }
+        
+        const isStrong = s % 4 === 0;
+        const chordTones = [0, 2, 4, -3];
+        const passingTones = [-1, 1, 3, 5];
+        
+        if (Math.random() > 0.1) { // 90% chance to play a note
+          // Move smoothly
+          if (isStrong) {
+            currentDeg = chordTones[Math.floor(Math.random() * chordTones.length)];
+          } else {
+            currentDeg = passingTones[Math.floor(Math.random() * passingTones.length)];
+          }
+          
+          notes.push({ step: m * 16 + s, degree: currentDeg, duration: len * 0.9 });
+        }
+        s += len;
+      }
+    }
+    return notes;
+  }
 
-    // Reset blending state
-    this.guitarNoteEnd = 0;
-    this.bassNoteEnd = 0;
-    this.synthNoteEnd = 0;
-    this.lastGuitarFreq = 0;
-    this.lastBassFreq = 0;
-    this.lastSynthFreq = 0;
+  private generateSection(
+    section: SectionType, 
+    progA: number[], progB: number[], 
+    motifA: any[], motifB: any[], 
+    startStep: number,
+    numMeasures: number = 8
+  ) {
+    const prog = (section === 'B' || section === 'SoloRecorder') ? progB : progA;
+    const motif = (section === 'B' || section === 'SoloRecorder') ? motifB : motifA;
+    
+    let currentSoloDeg = prog[0];
+    
+    for (let m = 0; m < numMeasures; m++) {
+      const chordRoot = prog[Math.floor(m / 2) % prog.length];
+      const measureStart = startStep + m * 16;
+      
+      const isTransition = (m === numMeasures - 1) || (m === numMeasures - 2); // Make fills longer
+      const isOutro = section === 'Outro';
+      const isIntro = section === 'Intro';
+      
+      // 1. Percussion
+      if (isOutro) {
+        if (m === 0) {
+          this.tracks.perc.push({ step: measureStart, pitch: 35, duration: 4, velocity: 1.0 }); // Big final kick
+          this.tracks.perc.push({ step: measureStart, pitch: 54, duration: 4, velocity: 1.0 }); // Big final tambourine crash
+        }
+      } else if (!isIntro) {
+        if (isTransition) {
+          // Flourish
+          this.tracks.perc.push({ step: measureStart + 0, pitch: 35, duration: 2, velocity: 1.0 });
+          this.tracks.perc.push({ step: measureStart + 4, pitch: 38, duration: 2, velocity: 1.0 });
+          for (let i = 8; i < 16; i++) {
+            const pitch = i % 2 === 0 ? 38 : 47;
+            this.tracks.perc.push({ step: measureStart + i, pitch, duration: 0.5, velocity: 0.6 + ((i - 8) * 0.05) });
+          }
+        } else {
+          // Normal beat based on groove
+          if (this.groove === 'driving') {
+            this.tracks.perc.push({ step: measureStart + 0, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 4, pitch: 38, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 8, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 12, pitch: 38, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 10, pitch: 35, duration: 2, velocity: 0.8 });
+          } else if (this.groove === 'march') {
+            this.tracks.perc.push({ step: measureStart + 0, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 4, pitch: 38, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 8, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 12, pitch: 38, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 14, pitch: 38, duration: 1, velocity: 0.7 });
+            this.tracks.perc.push({ step: measureStart + 15, pitch: 38, duration: 1, velocity: 0.7 });
+          } else if (this.groove === 'syncopated') {
+            this.tracks.perc.push({ step: measureStart + 0, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 3, pitch: 35, duration: 2, velocity: 0.8 });
+            this.tracks.perc.push({ step: measureStart + 8, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 10, pitch: 38, duration: 2, velocity: 0.8 });
+            this.tracks.perc.push({ step: measureStart + 14, pitch: 35, duration: 2, velocity: 0.8 });
+          } else {
+            this.tracks.perc.push({ step: measureStart + 0, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 4, pitch: 38, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 8, pitch: 35, duration: 2, velocity: 1.0 });
+            this.tracks.perc.push({ step: measureStart + 12, pitch: 38, duration: 2, velocity: 1.0 });
+          }
+        }
+        
+        const tambStep = this.groove === 'driving' ? 2 : 4;
+        for (let i=0; i<16; i+=tambStep) {
+            this.tracks.perc.push({ step: measureStart + i, pitch: 54, duration: 0.5, velocity: 0.8 });
+        }
+      }
+      
+      // 2. Talharpa (Bass)
+      if (!isIntro && !isOutro) {
+        const bassNotes = this.generateBassLine(chordRoot, this.groove, isTransition);
+        for (const note of bassNotes) {
+          this.tracks.talharpa.push({
+            step: measureStart + note.step,
+            pitch: this.getMidiNoteFromDegree(note.degree - 7), // Octave down
+            duration: note.duration,
+            velocity: note.velocity
+          });
+        }
+      }
+      
+      // 3. Viol & Organ (Pads)
+      if (m % 2 === 0 || isOutro) {
+        const padDuration = isOutro ? 64 : 31.5;
+        if (!isOutro || m === 0) {
+          this.tracks.viol.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot - 7), duration: padDuration, velocity: 0.4 });
+          this.tracks.viol.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: padDuration, velocity: 0.35 });
+          
+          this.tracks.hurdyGurdy.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: padDuration, velocity: 0.3 });
+          this.tracks.hurdyGurdy.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 2), duration: padDuration, velocity: 0.25 });
+          this.tracks.hurdyGurdy.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 4), duration: padDuration, velocity: 0.25 });
+        }
+      }
+      
+      // 4. Melody & Solos
+      if (isOutro) {
+        if (m === 0) {
+          this.tracks.lute.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 7), duration: 32, velocity: 1.0 });
+          this.tracks.recorder.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 9), duration: 32, velocity: 0.9 });
+        }
+      } else if (section === 'SoloLute') {
+        currentSoloDeg = this.generateSolo('lute', measureStart, chordRoot, currentSoloDeg);
+        this.generatePad('recorder', measureStart, chordRoot);
+        this.generatePad('shawm', measureStart, chordRoot);
+      } else if (section === 'SoloRecorder') {
+        currentSoloDeg = this.generateSolo('recorder', measureStart, chordRoot, currentSoloDeg);
+        this.generatePad('lute', measureStart, chordRoot);
+        this.generatePad('shawm', measureStart, chordRoot);
+      } else if (section === 'SoloShawm') {
+        currentSoloDeg = this.generateSolo('shawm', measureStart, chordRoot, currentSoloDeg);
+        this.generatePad('lute', measureStart, chordRoot);
+        this.generatePad('recorder', measureStart, chordRoot);
+      } else if (section === 'DuetLuteRecorder') {
+        currentSoloDeg = this.generateDuet('lute', 'recorder', measureStart, chordRoot, currentSoloDeg);
+        this.generatePad('shawm', measureStart, chordRoot);
+      } else if (section === 'DuetRecorderShawm') {
+        currentSoloDeg = this.generateDuet('recorder', 'shawm', measureStart, chordRoot, currentSoloDeg);
+        this.generatePad('lute', measureStart, chordRoot);
+      } else {
+        // Normal Melody (Intro, A, B)
+        const motifMeasure = m % 4;
+        const measureNotes = motif.filter(n => n.step >= motifMeasure * 16 && n.step < (motifMeasure + 1) * 16);
+        
+        for (const note of measureNotes) {
+          const localStep = note.step % 16;
+          this.tracks.lute.push({
+            step: measureStart + localStep,
+            pitch: this.getMidiNoteFromDegree(chordRoot + note.degree + 7),
+            duration: note.duration,
+            velocity: 1.0
+          });
+          this.tracks.recorder.push({
+            step: measureStart + localStep,
+            pitch: this.getMidiNoteFromDegree(chordRoot + note.degree + 9),
+            duration: note.duration,
+            velocity: 0.9
+          });
+        }
+        
+        if (!isIntro) {
+          const counterSteps = [
+            { step: 2, degree: 2 }, { step: 4, degree: 4 }, { step: 6, degree: 2 },
+            { step: 10, degree: 4 }, { step: 12, degree: 0 }, { step: 14, degree: 2 }
+          ];
+          for (const c of counterSteps) {
+            this.tracks.shawm.push({
+              step: measureStart + c.step,
+              pitch: this.getMidiNoteFromDegree(chordRoot + c.degree),
+              duration: 1.5,
+              velocity: 0.7
+            });
+          }
+        }
+      }
+    }
+  }
+
+  private generateBassLine(chordRoot: number, groove: string, isTransition: boolean) {
+    const notes = [];
+    if (isTransition) {
+      // Walking bass fill
+      const walk = [0, 2, 4, 5, 4, 2, 0, -1]; // degrees relative to root
+      for (let i = 0; i < 8; i++) {
+        notes.push({ step: i * 2, degree: chordRoot + walk[i % walk.length], duration: 1.5, velocity: 1.0 });
+      }
+    } else {
+      if (groove === 'driving') {
+        // 8th notes, alternating root and fifth/octave
+        for (let i = 0; i < 8; i++) {
+          let deg = chordRoot;
+          if (i % 4 === 2) deg = chordRoot + 4; // Fifth
+          else if (i % 4 === 3) deg = chordRoot + 7; // Octave
+          else if (i % 2 === 1) deg = chordRoot; // Root offbeat
+          notes.push({ step: i * 2, degree: deg, duration: 1.0, velocity: i % 2 === 0 ? 0.9 : 0.7 });
+        }
+      } else if (groove === 'syncopated') {
+        // Funky syncopation
+        notes.push({ step: 0, degree: chordRoot, duration: 1.5, velocity: 0.9 });
+        notes.push({ step: 3, degree: chordRoot + 4, duration: 1.0, velocity: 0.8 });
+        notes.push({ step: 6, degree: chordRoot + 7, duration: 1.0, velocity: 0.9 });
+        notes.push({ step: 9, degree: chordRoot, duration: 1.5, velocity: 0.8 });
+        notes.push({ step: 12, degree: chordRoot + 4, duration: 1.0, velocity: 0.9 });
+        notes.push({ step: 14, degree: chordRoot + 2, duration: 1.0, velocity: 0.8 });
+      } else if (groove === 'march') {
+        // Root - Fifth quarter notes
+        notes.push({ step: 0, degree: chordRoot, duration: 2.0, velocity: 1.0 });
+        notes.push({ step: 4, degree: chordRoot + 4, duration: 2.0, velocity: 0.9 });
+        notes.push({ step: 8, degree: chordRoot, duration: 2.0, velocity: 1.0 });
+        notes.push({ step: 12, degree: chordRoot - 3, duration: 2.0, velocity: 0.9 }); // lower fifth
+      } else {
+        // straight
+        notes.push({ step: 0, degree: chordRoot, duration: 2.0, velocity: 0.9 });
+        notes.push({ step: 4, degree: chordRoot + 4, duration: 1.5, velocity: 0.8 });
+        notes.push({ step: 7, degree: chordRoot + 7, duration: 1.0, velocity: 0.8 });
+        notes.push({ step: 8, degree: chordRoot, duration: 2.0, velocity: 0.9 });
+        notes.push({ step: 12, degree: chordRoot + 4, duration: 1.5, velocity: 0.8 });
+        notes.push({ step: 15, degree: chordRoot + 2, duration: 1.0, velocity: 0.7 });
+      }
+    }
+    return notes;
+  }
+
+  private generateSolo(instrument: Instrument, measureStart: number, chordRoot: number, currentDeg: number): number {
+    let s = 0;
+    while (s < 16) {
+      // Mix of 16th, 8th, and quarter notes for more lyrical solos
+      const lengths = [1, 1, 2, 2, 2, 4];
+      const len = lengths[Math.floor(Math.random() * lengths.length)];
+      
+      if (s + len > 16) {
+        s++;
+        continue;
+      }
+      
+      if (Math.random() > 0.15) { // 85% chance to play
+        currentDeg += (Math.floor(Math.random() * 5) - 2); // Move -2 to +2 steps
+        // Keep within a reasonable range
+        if (currentDeg < chordRoot - 4) currentDeg += 4;
+        if (currentDeg > chordRoot + 7) currentDeg -= 4;
+        
+        this.tracks[instrument].push({
+          step: measureStart + s,
+          pitch: this.getMidiNoteFromDegree(currentDeg + 7), // Octave up for solo
+          duration: len * 0.9, // Slightly legato
+          velocity: 1.0
+        });
+      }
+      s += len;
+    }
+    return currentDeg;
+  }
+
+  private generateDuet(inst1: Instrument, inst2: Instrument, measureStart: number, chordRoot: number, currentDeg: number): number {
+    let s = 0;
+    while (s < 16) {
+      const lengths = [2, 2, 4, 4, 8];
+      const len = lengths[Math.floor(Math.random() * lengths.length)];
+      
+      if (s + len > 16) {
+        s++;
+        continue;
+      }
+      
+      if (Math.random() > 0.1) { // 90% chance to play
+        currentDeg += (Math.floor(Math.random() * 5) - 2); // Move -2 to +2 steps
+        if (currentDeg < chordRoot - 4) currentDeg += 4;
+        if (currentDeg > chordRoot + 7) currentDeg -= 4;
+        
+        // Lead instrument
+        this.tracks[inst1].push({
+          step: measureStart + s,
+          pitch: this.getMidiNoteFromDegree(currentDeg + 7), // Octave up
+          duration: len * 0.9,
+          velocity: 1.0
+        });
+        
+        // Harmony instrument (consistently a third or sixth offset)
+        const harmonyOffset = Math.random() > 0.5 ? 2 : -2;
+        this.tracks[inst2].push({
+          step: measureStart + s,
+          pitch: this.getMidiNoteFromDegree(currentDeg + 7 + harmonyOffset),
+          duration: len * 0.9,
+          velocity: 0.9
+        });
+      }
+      s += len;
+    }
+    return currentDeg;
+  }
+
+  private generatePad(instrument: Instrument, measureStart: number, chordRoot: number) {
+    this.tracks[instrument].push({
+      step: measureStart,
+      pitch: this.getMidiNoteFromDegree(chordRoot), // Root
+      duration: 15.5,
+      velocity: 0.7
+    });
+    this.tracks[instrument].push({
+      step: measureStart,
+      pitch: this.getMidiNoteFromDegree(chordRoot + 4), // Fifth
+      duration: 15.5,
+      velocity: 0.6
+    });
+  }
+
+  private getMidiNoteFromDegree(degree: number): number {
+    const normalizedDegree = degree >= 0 ? degree : (degree % 7 + 7) % 7;
+    const octave = Math.floor(degree / 7);
+    const semitones = octave * 12 + this.mode[normalizedDegree];
+    return this.baseNote + semitones; // Dynamic base note
   }
 
   start() {
     this.init();
-    if (this.isPlaying) return;
+    if (this.synth && this.synth.audioContext && this.synth.audioContext.state === 'suspended') {
+      this.synth.audioContext.resume();
+    }
+    
+    if (this.isPlaying) {
+      if (this.synth && this.nextNoteTime < this.synth.audioContext.currentTime) {
+        this.nextNoteTime = this.synth.audioContext.currentTime + 0.05;
+      }
+      return;
+    }
+    
     this.generateSong();
     this.isPlaying = true;
-    this.playStep();
+    this.nextNoteTime = this.synth?.audioContext?.currentTime || 0;
+    this.scheduler();
   }
 
   stop() {
@@ -499,160 +471,79 @@ class MusicEngine {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    if (this.synth) {
+      for (let i = 0; i < 16; i++) {
+        this.synth.send([0xB0 + i, 120, 0]); // All sound off
+      }
+    }
   }
 
-  private playStep() {
-    if (!this.isPlaying || !this.ctx) return;
+  resume() {
+    if (this.synth && this.synth.audioContext && this.synth.audioContext.state === 'suspended') {
+      this.synth.audioContext.resume();
+    }
+  }
 
-    const section = this.songStructure[this.currentSectionIndex];
-    const stepDuration = (60 / this.tempo) / 4; 
+  private scheduler() {
+    if (!this.isPlaying || !this.synth || !this.synth.audioContext) return;
 
-    const progressions: Record<SectionType, number[]> = {
-      'Intro': [1, 1, 1, 1],
-      'A': [1, 1, 1.2, 0.9], 
-      'B': [1, 1.33, 1.5, 1.2], 
-      'C': [0.8, 0.9, 1, 1],
-      'Outro': [1, 1, 0.8, 0.5]
+    if (this.nextNoteTime < this.synth.audioContext.currentTime) {
+      this.nextNoteTime = this.synth.audioContext.currentTime + 0.05;
+    }
+
+    let count = 0;
+    while (this.nextNoteTime < this.synth.audioContext.currentTime + this.lookAhead && count < 32) {
+      try {
+        this.playGlobalStep(this.currentGlobalStep, this.nextNoteTime);
+      } catch (e) {
+        console.error("MusicEngine playback error:", e);
+      }
+      
+      this.currentGlobalStep++;
+      if (this.currentGlobalStep >= this.totalSteps) {
+        this.currentGlobalStep = 0;
+        this.generateSong(); // Loop with new song
+      }
+      
+      this.nextNoteTime += this.stepDuration;
+      count++;
+    }
+    this.timer = setTimeout(() => this.scheduler(), this.scheduleInterval);
+  }
+
+  private playGlobalStep(step: number, time: number) {
+    const channels: Record<Instrument, number> = {
+      lute: 0, recorder: 1, viol: 2, shawm: 3, hurdyGurdy: 4, talharpa: 5, perc: 9
     };
-
-    const currentProg = progressions[section];
-    const progIndex = Math.floor(this.currentStep / 16) % currentProg.length;
-    const sectionRoot = this.rootFreq * currentProg[progIndex];
-    const stepsUntilChange = 16 - (this.currentStep % 16);
-
-    // 1. Percussion Patterns
-    const isHalfTime = this.style === 'dubstep' || this.style === 'trap' || this.style === 'riddim';
-    const isFourOnFloor = this.style === 'techno' || this.style === 'house';
     
-    if (section !== 'Outro' || this.currentStep < 16) {
-      // Kick
-      if (isFourOnFloor) {
-        if (this.currentStep % 4 === 0) this.createPercussion('kick', 0.7);
-      } else if (isHalfTime) {
-        if (this.currentStep % 16 === 0 || this.currentStep % 16 === 10) this.createPercussion('kick', 0.8);
-      } else {
-        // Rock
-        if (this.currentStep % 8 === 0 || this.currentStep % 8 === 6) this.createPercussion('kick', 0.6);
-      }
-
-      // Snare
-      if (isHalfTime) {
-        if (this.currentStep % 16 === 8) this.createPercussion('snare', 0.6);
-      } else {
-        if (this.currentStep % 8 === 4) this.createPercussion('snare', 0.5);
-      }
-
-      // Hi-hat
-      if (this.style === 'trap') {
-        // Fast trap hats
-        if (this.currentStep % 2 === 0 || (this.currentStep % 16 > 12)) this.createPercussion('hihat', 0.2);
-      } else if (isFourOnFloor) {
-        // Off-beat house hats
-        if (this.currentStep % 4 === 2) this.createPercussion('hihat', 0.3);
-      } else {
-        if (this.currentStep % 2 === 1) this.createPercussion('hihat', 0.2);
-      }
-      
-      // Variety
-      if (this.currentSoloist === 'drums' || section === 'C') {
-        if (this.currentStep % 16 === 8) this.createPercussion('tympani', 0.5);
-        if (this.currentStep % 8 === 2) this.createPercussion('woodblock', 0.3);
+    for (const [inst, track] of Object.entries(this.tracks)) {
+      const channel = channels[inst as Instrument];
+      const notes = track.filter(n => n.step === step);
+      for (const note of notes) {
+        this.playMidiNote(channel, note.pitch, note.velocity, note.duration * this.stepDuration, time);
       }
     }
-
-    // 2. Bassline with blending
-    const isBassSolo = this.currentSoloist === 'bass';
-    if (section !== 'Outro' || this.currentStep < 32) {
-      const bassInterval = isHalfTime ? 8 : 4;
-      if (this.currentStep % bassInterval === 0) {
-        const freq = sectionRoot / 2;
-        // Blend if same freq and previous note is still "active"
-        if (freq !== this.lastBassFreq || this.currentStep >= this.bassNoteEnd) {
-          const bassDurationSteps = isBassSolo ? (1 + Math.floor(Math.random() * 3)) : stepsUntilChange;
-          const bassDuration = stepDuration * bassDurationSteps;
-          this.createBassVoice(freq, bassDuration, isBassSolo ? 0.6 : 0.4, isBassSolo);
-          this.lastBassFreq = freq;
-          this.bassNoteEnd = this.currentStep + bassDurationSteps;
-        }
-      }
-    }
-
-    // 3. Lead / Guitar Solo with blending
-    const isGuitarSolo = this.currentSoloist === 'guitar';
-    if (section !== 'Intro' && (section !== 'Outro' || this.currentStep < 32)) {
-      if (isGuitarSolo) {
-        if (this.currentStep % 2 === 0 || Math.random() > 0.6) {
-          const soloScale = [1, 1.2, 1.33, 1.5, 1.8, 2];
-          const freq = sectionRoot * 2 * soloScale[Math.floor(Math.random() * soloScale.length)];
-          // Solos don't blend as much to keep them "shreddy"
-          const leadDuration = stepDuration * (1 + Math.floor(Math.random() * 4));
-          this.createLeadVoice(freq, leadDuration, 0.4, 1.8);
-          this.lastGuitarFreq = freq;
-          this.guitarNoteEnd = this.currentStep + (1 + Math.floor(Math.random() * 4));
-        }
-      } else {
-        if (this.currentStep % 8 === 0 || (section === 'B' && this.currentStep % 4 === 0)) {
-          const freq = sectionRoot * 2;
-          if (freq !== this.lastGuitarFreq || this.currentStep >= this.guitarNoteEnd) {
-            // Anticipate next note: check if the next 16-step block has the same root
-            let leadDurationSteps = stepsUntilChange;
-            const nextProgIndex = (progIndex + 1) % currentProg.length;
-            if (currentProg[progIndex] === currentProg[nextProgIndex]) {
-              leadDurationSteps += 16; // Combine with next block
-            }
-            
-            const leadDuration = stepDuration * leadDurationSteps;
-            this.createLeadVoice(freq, leadDuration, 0.3, 1.2);
-            this.lastGuitarFreq = freq;
-            this.guitarNoteEnd = this.currentStep + leadDurationSteps;
-          }
-        }
-      }
-    }
-
-    // 4. Synth Quartet with blending
-    if (this.currentStep % 16 === 0) {
-      const freq1 = sectionRoot * 2;
-      const freq2 = sectionRoot * 2 * 1.2;
-      if (freq1 !== this.lastSynthFreq || this.currentStep >= this.synthNoteEnd) {
-        // Increased synth volume by 75% (0.15 * 1.75 = 0.2625, 0.12 * 1.75 = 0.21)
-        this.createSynthVoice(freq1, stepDuration * 16, 0.26);
-        this.createSynthVoice(freq2, stepDuration * 16, 0.21);
-        this.lastSynthFreq = freq1;
-        this.synthNoteEnd = this.currentStep + 16;
-      }
-    }
-
-    // Advance Logic
-    this.currentStep++;
-    if (this.currentStep >= this.stepsPerSection) {
-      this.currentStep = 0;
-      this.currentSectionIndex++;
-      
-      if (this.currentSectionIndex >= this.songStructure.length) {
-        this.generateSong(); 
-      } else {
-        if (this.currentSectionIndex % 2 === 0) {
-          const soloists: Soloist[] = ['none', 'guitar', 'bass', 'drums'];
-          this.currentSoloist = soloists[Math.floor(Math.random() * soloists.length)];
-        }
-      }
-    }
-
-    this.timer = setTimeout(() => this.playStep(), stepDuration * 1000);
   }
 
-  toggle() {
-    if (this.isPlaying) this.stop();
-    else this.start();
-    return this.isPlaying;
+  private playMidiNote(channel: number, note: number, volume: number, duration: number, startTime: number) {
+    if (!this.synth) return;
+    
+    // Ensure values are finite and within valid MIDI ranges
+    if (!Number.isFinite(note) || !Number.isFinite(volume) || !Number.isFinite(duration) || !Number.isFinite(startTime)) return;
+    
+    const safeNote = Math.max(0, Math.min(127, Math.floor(note)));
+    const velocity = Math.max(0, Math.min(127, Math.floor(volume * 127)));
+    
+    this.synth.send([0x90 + channel, safeNote, velocity], startTime);
+    this.synth.send([0x80 + channel, safeNote, 0], startTime + Math.max(0, duration));
   }
 
   setVolume(vol: number) {
-    if (this.masterGain) {
-      this.masterGain.gain.value = vol * 0.24;
+    if (this.synth) {
+      this.synth.setMasterVol(vol * 0.5);
     }
   }
 }
 
 export const musicEngine = new MusicEngine();
+;

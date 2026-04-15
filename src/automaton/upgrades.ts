@@ -36,7 +36,8 @@ import {
   VILLAGE_FOREST_RESOURCE_BONUS,
   VILLAGE_WATER_RESOURCE_PENALTY,
   VILLAGE_MAP_EDGE_PENALTY,
-  VILLAGE_MIN_SCORE_THRESHOLD
+  VILLAGE_MIN_SCORE_THRESHOLD,
+  STRATEGIC_FORTIFICATION_BONUS
 } from './constants';
 import { LoopSafety } from '../utils';
 
@@ -107,6 +108,11 @@ export function getUpgradeAction(
         // Defensive structures are great on the frontline, but also serve as massive economic boosts in the backline.
         if (distToEnemy <= FORTRESS_FRONTLINE_DISTANCE) {
           score += BASE_REWARD * FORTRESS_FRONTLINE_BONUS; // Frontline defense!
+          
+          // Strategic Fortification: Normal AI prioritizes Fortress if enemies are within 3 tiles
+          if (!isBarbarian && distToEnemy <= 3 && cost === UPGRADE_COSTS[TerrainType.FORTRESS]) {
+            score += BASE_REWARD * STRATEGIC_FORTIFICATION_BONUS;
+          }
         } else {
           score += BASE_REWARD * FORTRESS_BACKLINE_BONUS; // Backline economic investment
         }

@@ -11,7 +11,8 @@ import {
   assessThreats, 
   identifyThreatenedSettlements, 
   getEmpireCenter, 
-  getHVT
+  getHVT,
+  calculateHeatMap
 } from './threatAnalysis';
 import { getUpgradeAction } from './upgrades';
 import { getRecruitmentAction } from './recruitment';
@@ -24,6 +25,7 @@ export function getBarbarianAction(
     threatAssessment: any,
     threatMatrix: any,
     influenceMap: any,
+    heatMap: any,
     mySettlements: any,
     empireCenter: any,
     hvt: any
@@ -35,6 +37,7 @@ export function getBarbarianAction(
 
   const threatMatrix = cachedData?.threatMatrix || calculateThreatMatrix(state, currentPlayer.id);
   const influenceMap = cachedData?.influenceMap || calculateInfluenceMap(state, currentPlayer.id);
+  const heatMap = cachedData?.heatMap || calculateHeatMap(state, currentPlayer.id);
   const mySettlements = cachedData?.mySettlements || identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix).mySettlements;
   const { eminentThreatBases, possibleThreatBases, isUnderThreat } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
 
@@ -105,6 +108,7 @@ export function getBarbarianAction(
     savingForVillage,
     isLaggingStrength,
     isLaggingIncome,
+    heatMap,
     true
   );
   if (recruitmentAction) return recruitmentAction;

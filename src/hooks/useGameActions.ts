@@ -15,6 +15,7 @@ export interface GameActions {
   finalizeAttack: (attackerId: string, targetCoord: HexCoord) => void;
   recruitUnit: (type: UnitType, coord: HexCoord) => void;
   upgradeSettlement: (coord: HexCoord) => void;
+  updateAIMatrix: (matrix: GameState['opportunityPerilMatrix']) => void;
   endTurn: () => void;
   undoMove: () => void;
   clearAnimation: (animId: string) => void;
@@ -46,7 +47,7 @@ export function useGameActions(
       if (!prev) return prev;
       
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
-      const newHistory = [...history, stateWithoutHistory].slice(-50);
+      const newHistory = [...history, stateWithoutHistory];
       return {
         ...prev,
         history: newHistory,
@@ -118,7 +119,7 @@ export function useGameActions(
       if (!prev) return prev;
 
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
-      const newHistory = [...history, stateWithoutHistory].slice(-50);
+      const newHistory = [...history, stateWithoutHistory];
       return {
         ...prev,
         history: newHistory,
@@ -214,7 +215,7 @@ export function useGameActions(
       );
 
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
-      const newHistory = [...history, stateWithoutHistory].slice(-50);
+      const newHistory = [...history, stateWithoutHistory];
 
       return {
         ...prev,
@@ -242,6 +243,13 @@ export function useGameActions(
     setGameState(prev => prev ? upgradeSettlement(prev, coord) : prev);
   }, [setGameState, gameState]);
 
+  const updateAIMatrix = useCallback((matrix: GameState['opportunityPerilMatrix']) => {
+    setGameState(prev => {
+      if (!prev) return prev;
+      return { ...prev, opportunityPerilMatrix: matrix };
+    });
+  }, [setGameState]);
+
   const endTurn = useCallback(() => {
     triggerEffect('click');
     setGameState(prev => prev ? processTurnTransition(prev) : prev);
@@ -252,10 +260,17 @@ export function useGameActions(
       if (!prev || !prev.history || prev.history.length === 0) return prev;
       const lastState = prev.history[prev.history.length - 1];
       
+      // Ensure we restore the movesLeft and hasActed from the history
+      // The history state already contains the correct unit values from before the action
       return {
         ...lastState,
         history: prev.history.slice(0, -1),
-        animations: []
+        animations: [],
+        selectedUnitId: null,
+        selectedHex: null,
+        possibleMoves: [],
+        possibleAttacks: [],
+        attackRange: []
       };
     });
   }, [setGameState]);
@@ -370,6 +385,7 @@ export function useGameActions(
     finalizeAttack,
     recruitUnit,
     upgradeSettlement: handleUpgradeSettlement,
+    updateAIMatrix,
     endTurn,
     undoMove,
     clearAnimation,

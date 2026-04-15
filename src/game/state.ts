@@ -84,6 +84,7 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     winnerId: null,
     history: [],
     animations: [],
+    opportunityPerilMatrix: []
   };
 }
 
@@ -196,11 +197,11 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
   
   const unitOnTile = state.units.find(u => u.coord.q === coord.q && u.coord.r === coord.r && u.ownerId === player.id);
 
-  if (tile.terrain === TerrainType.PLAINS && tile.ownerId !== player.id) {
+  if (tile.terrain === TerrainType.PLAINS) {
     if (!unitOnTile || unitOnTile.hasActed) return state;
     cost = UPGRADE_COSTS[TerrainType.VILLAGE];
     nextTerrain = TerrainType.VILLAGE;
-  } else if (tile.terrain === TerrainType.MOUNTAIN && tile.ownerId !== player.id) {
+  } else if (tile.terrain === TerrainType.MOUNTAIN) {
     if (!unitOnTile || unitOnTile.hasActed) return state;
     cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
     nextTerrain = TerrainType.GOLD_MINE;

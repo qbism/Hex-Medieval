@@ -12,6 +12,7 @@ import {
   UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../types';
+import { getUnitRange } from '../game/units';
 import { calculateKingdomStrength } from './utils';
 import { 
   BASE_REWARD,
@@ -82,6 +83,8 @@ export interface ThreatInfo {
   minTurns: number;
   totalThreatValue: number;
   attackerCount: number;
+  eminentThreatValue: number; // Value from 1-turn attackers only
+  eminentAttackerCount: number; // Count of 1-turn attackers only
 }
 
 export function calculateThreatMatrix(state: GameState, currentPlayerId: number): Map<string, ThreatInfo> {
@@ -94,9 +97,10 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
     if (u.ownerId !== currentPlayerId) {
       const stats = UNIT_STATS[u.type];
       const threatValue = stats.cost;
+      const range = getUnitRange(u, state.board);
       
-      // Optimization: only check tiles within threat range (max 3 turns)
-      const maxThreatDist = 2 * stats.moves + stats.range;
+      // Only check tiles within attack range (peril)
+      const maxThreatDist = range;
       
       for (let dq = -maxThreatDist; dq <= maxThreatDist; dq++) {
         for (let dr = Math.max(-maxThreatDist, -dq - maxThreatDist); dr <= Math.min(maxThreatDist, -dq + maxThreatDist); dr++) {
@@ -110,19 +114,22 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
           }
 
           const dist = getDistance(u.coord, t.coord);
-          let turns = Infinity;
-          if (dist <= stats.range) turns = 1;
-          else if (dist <= stats.moves + stats.range) turns = 2;
-          else if (dist <= 2 * stats.moves + stats.range) turns = 3;
-          
-          if (turns <= 3) {
+          if (dist <= range) {
             const key = `${t.coord.q},${t.coord.r}`;
-            const current = threatMatrix.get(key) || { minTurns: Infinity, totalThreatValue: 0, attackerCount: 0 };
+            const current = threatMatrix.get(key) || { 
+              minTurns: 1, 
+              totalThreatValue: 0, 
+              attackerCount: 0,
+              eminentThreatValue: 0,
+              eminentAttackerCount: 0
+            };
             
             threatMatrix.set(key, {
-              minTurns: Math.min(current.minTurns, turns),
-              totalThreatValue: current.totalThreatValue + (threatValue / turns),
-              attackerCount: current.attackerCount + 1
+              minTurns: 1,
+              totalThreatValue: current.totalThreatValue + threatValue,
+              attackerCount: current.attackerCount + 1,
+              eminentThreatValue: current.eminentThreatValue + threatValue,
+              eminentAttackerCount: current.eminentAttackerCount + 1
             });
           }
         }
@@ -130,6 +137,28 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
     }
   }
   return threatMatrix;
+}
+
+export function calculateHeatMap(state: GameState, currentPlayerId: number): Map<string, number> {
+  const heatMap = new Map<string, number>();
+  const safety = new LoopSafety('calculateHeatMap', 50000);
+  
+  for (const tile of state.board) {
+    if (safety.tick()) break;
+    let heat = 0;
+    const key = `${tile.coord.q},${tile.coord.r}`;
+
+    for (const unit of state.units) {
+      if (unit.ownerId !== currentPlayerId) {
+        const dist = getDistance(unit.coord, tile.coord);
+        // Heat decays with distance: Strength / (dist + 1)
+        const stats = UNIT_STATS[unit.type];
+        heat += stats.cost / (dist + 1);
+      }
+    }
+    heatMap.set(key, heat);
+  }
+  return heatMap;
 }
 
 export function assessThreats(state: GameState, currentPlayer: Player) {
@@ -190,12 +219,9 @@ export function identifyThreatenedSettlements(state: GameState, currentPlayerId:
     return threat !== undefined && threat.minTurns <= 1;
   });
 
-  const possibleThreatBases = mySettlements.filter(s => {
-    const threat = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
-    return threat !== undefined && threat.minTurns === 2;
-  });
+  const possibleThreatBases: any[] = []; // Deprecated, kept for API compatibility
 
-  const isUnderThreat = eminentThreatBases.length > 0 || possibleThreatBases.length > 0;
+  const isUnderThreat = eminentThreatBases.length > 0;
 
   return { mySettlements, eminentThreatBases, possibleThreatBases, isUnderThreat };
 }
@@ -232,30 +258,46 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
 }
 
 export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean): boolean {
-  if (currentPlayer.gold >= UPGRADE_COSTS[TerrainType.GOLD_MINE]) return false;
+  const cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
+  if (currentPlayer.gold >= cost) return false;
   
-  const boardMap = getBoardMap(state.board);
+  const neutralMountains = state.board.filter(t => t.terrain === TerrainType.MOUNTAIN && t.ownerId === null).length;
+  const isCrowded = neutralMountains < 5;
 
-  // If lagging income, we are almost always saving for a mine if we have any mountain potential
-  const hasMountainPotential = state.units.some(u => {
+  // Only "save" if we can afford it within a reasonable timeframe (e.g. 5 turns)
+  const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
+  const turnsToAfford = (cost - currentPlayer.gold) / income;
+  const turnsThreshold = isCrowded ? 8 : 5;
+  if (turnsToAfford > turnsThreshold && !isLaggingIncome) return false;
+
+  const boardMap = getBoardMap(state.board);
+  
+  // Check if we have any units on or near mountains that we own or are neutral
+  return state.units.some(u => {
     if (u.ownerId !== currentPlayer.id) return false;
     const tile = boardMap.get(`${u.coord.q},${u.coord.r}`);
-    if (tile?.terrain === TerrainType.MOUNTAIN) return true;
+    if (tile?.terrain === TerrainType.MOUNTAIN && (tile.ownerId === null || tile.ownerId === currentPlayer.id)) return true;
+    
     const neighbors = getNeighbors(u.coord);
     return neighbors.some(n => {
       const nTile = boardMap.get(`${n.q},${n.r}`);
       return nTile?.terrain === TerrainType.MOUNTAIN && (nTile.ownerId === null || nTile.ownerId === currentPlayer.id);
     });
-  }) ||
-  state.board.some(t => t.ownerId === currentPlayer.id && t.terrain === TerrainType.MOUNTAIN);
-
-  if (isLaggingIncome && hasMountainPotential) return true;
-  
-  return hasMountainPotential;
+  });
 }
 
 export function isSavingForVillage(state: GameState, currentPlayer: Player): boolean {
-  if (currentPlayer.gold >= UPGRADE_COSTS[TerrainType.VILLAGE]) return false;
+  const cost = UPGRADE_COSTS[TerrainType.VILLAGE];
+  if (currentPlayer.gold >= cost) return false;
+
+  const neutralPlains = state.board.filter(t => t.terrain === TerrainType.PLAINS && t.ownerId === null).length;
+  const isCrowded = neutralPlains < 10;
+
+  // Only "save" if we can afford it soon (e.g. 3 turns)
+  const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
+  const turnsToAfford = (cost - currentPlayer.gold) / income;
+  const turnsThreshold = isCrowded ? 6 : 3;
+  if (turnsToAfford > turnsThreshold) return false;
 
   const boardMap = getBoardMap(state.board);
   const safety = new LoopSafety('isSavingForVillage', 1000);
@@ -264,12 +306,10 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player): boo
     if (u.ownerId !== currentPlayer.id) return false;
     const tile = boardMap.get(`${u.coord.q},${u.coord.r}`);
     
-    let canCatapultBuild = false;
+    let canCatapultBuild = true;
     if (u.type === UnitType.CATAPULT) {
         let nearestFriendlySettlementDist = Infinity;
-        const settlementSafety = new LoopSafety('isSavingForVillage-catapult', 1000);
         for (const t of state.board) {
-          if (settlementSafety.tick()) break;
           if (t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
             const d = getDistance(t.coord, u.coord);
             if (d < nearestFriendlySettlementDist) nearestFriendlySettlementDist = d;
@@ -279,7 +319,7 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player): boo
     }
 
     if (tile?.terrain !== TerrainType.PLAINS || (tile.ownerId !== null && tile.ownerId !== currentPlayer.id)) return false;
-    if (u.type === UnitType.CATAPULT && !canCatapultBuild) return false;
+    if (!canCatapultBuild) return false;
 
     let score = BASE_REWARD * SAVING_VILLAGE_BASE_SCORE;
     const nearbyFriendlySettlements = state.board.filter(t => 

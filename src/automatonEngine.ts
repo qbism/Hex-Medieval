@@ -1,6 +1,7 @@
 import { 
   GameState, 
-  TerrainType
+  TerrainType,
+  TileEvaluation
 } from './types';
 import { getBarbarianAction } from './automaton/barbarianAI';
 import { 
@@ -12,8 +13,10 @@ import {
   getHVT,
   isSavingForMine,
   isSavingForVillage,
+  calculateHeatMap,
   ThreatInfo as _ThreatInfo
 } from './automaton/threatAnalysis';
+import { calculateOpportunityPerilMatrix } from './automaton/opportunityPeril';
 import { getUpgradeAction } from './automaton/upgrades';
 import { getRecruitmentAction } from './automaton/recruitment';
 import { getUnitAction } from './automaton/unitActions';
@@ -23,13 +26,13 @@ export { findNearestTarget, calculateKingdomStrength, getChokepointScore } from 
 // Cache for expensive calculations within the same GameState
 const actionCache = new WeakMap<GameState, any>();
 
-export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'attack' | 'move' | 'endTurn' | 'skipUnit' | 'upgrade' | 'surrender' | 'goRogue' | 'barbarianSurrender'; payload?: any } {
-  // Check cache first
-  if (actionCache.has(state)) {
-    // We can't cache the action itself because it might depend on which unit we pick to act next,
-    // but we can cache the expensive pre-calculations.
-  }
+export interface AutomatonAction {
+  type: 'recruit' | 'attack' | 'move' | 'endTurn' | 'skipUnit' | 'upgrade' | 'surrender' | 'goRogue' | 'barbarianSurrender';
+  payload?: any;
+  matrix?: TileEvaluation[];
+}
 
+export function getAutomatonBestAction(state: GameState): AutomatonAction {
   const currentPlayer = state.players[state.currentPlayerIndex];
   
   if (currentPlayer.isEliminated) {
@@ -43,6 +46,8 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
     const threatAssessment = assessThreats(state, currentPlayer);
     const threatMatrix = calculateThreatMatrix(state, currentPlayer.id);
     const influenceMap = calculateInfluenceMap(state, currentPlayer.id);
+    const heatMap = calculateHeatMap(state, currentPlayer.id);
+    const opportunityPerilMatrix = calculateOpportunityPerilMatrix(state, currentPlayer.id, threatMatrix);
     const mySettlements = state.board.filter(t => 
       t.ownerId === currentPlayer.id && 
       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
@@ -54,6 +59,8 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
       threatAssessment,
       threatMatrix,
       influenceMap,
+      heatMap,
+      opportunityPerilMatrix,
       mySettlements,
       empireCenter,
       hvt
@@ -61,14 +68,17 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
     actionCache.set(state, cachedData);
   }
 
+  const { opportunityPerilMatrix } = cachedData;
+
   // --- Barbarian AI Behavior ---
   if (currentPlayer.name === 'Barbarians') {
-    return getBarbarianAction(state, currentPlayer, cachedData);
+    return { ...getBarbarianAction(state, currentPlayer, cachedData), matrix: opportunityPerilMatrix };
   }
 
   const { playerStrengths, myStrength, focusOnLeader, leaderId, isLaggingStrength, isLaggingIncome, isLagging } = cachedData.threatAssessment;
   const threatMatrix = cachedData.threatMatrix;
   const influenceMap = cachedData.influenceMap;
+  const heatMap = cachedData.heatMap;
   const mySettlements = cachedData.mySettlements;
   const empireCenter = cachedData.empireCenter;
   const hvt = cachedData.hvt;
@@ -93,7 +103,7 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
       const isWeakAndStagnant = lowest.strength < secondLowest.strength * 0.6 && isIncomeStagnant;
       
       if (isCriticallyWeak || isWeakAndStagnant) {
-        return { type: 'goRogue' as const };
+        return { type: 'goRogue' as const, matrix: opportunityPerilMatrix };
       }
     }
   }
@@ -109,7 +119,7 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
 
   // 1. Try to upgrade settlements
   const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome);
-  if (upgradeAction) return upgradeAction;
+  if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
 
   // 2. Try to recruit
   const recruitmentAction = getRecruitmentAction(
@@ -124,9 +134,10 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
     savingForMine, 
     savingForVillage,
     isLaggingStrength,
-    isLaggingIncome
+    isLaggingIncome,
+    heatMap
   );
-  if (recruitmentAction) return recruitmentAction;
+  if (recruitmentAction) return { ...recruitmentAction, matrix: opportunityPerilMatrix };
 
   // 3. Move/Attack with units
   const unitAction = getUnitAction(
@@ -146,7 +157,7 @@ export function getAutomatonBestAction(state: GameState): { type: 'recruit' | 'a
     savingForVillage,
     isLagging
   );
-  if (unitAction) return unitAction;
+  if (unitAction) return { ...unitAction, matrix: opportunityPerilMatrix };
 
-  return { type: 'endTurn' as const };
+  return { type: 'endTurn' as const, matrix: opportunityPerilMatrix };
 }

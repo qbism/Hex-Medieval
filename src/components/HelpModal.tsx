@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GameButton } from './GameButton';
-import { Play, Coins, HelpCircle, RotateCcw, Sword, Shield, X, PlusCircle, Music } from 'lucide-react';
+import { Play, Coins, HelpCircle, RotateCcw, Sword, Shield, X, PlusCircle, Music, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TerrainType, UnitType, UNIT_ICONS, UNIT_STATS, SETTLEMENT_INCOME, UPGRADE_COSTS } from '../types';
+import { AutomatonHelpModal } from './AutomatonHelpModal';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -10,39 +11,42 @@ interface HelpModalProps {
 }
 
 export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center p-4 overflow-y-auto"
-        >
-          <motion.div 
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            className="bg-parchment border-2 border-black p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto"
-          >
-            <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-6 gap-1">
-              <div className="grayscale opacity-40 pointer-events-none select-none">
-                <span className="text-[60px]">🏰</span>
-              </div>
-              <div className="relative flex justify-between items-center px-4 w-full">
-                <div className="w-10" /> {/* Spacer for centering */}
-                <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-center">Game Rules</h2>
-                <GameButton 
-                  onClick={onClose} 
-                  variant="ghost"
-                  size="icon"
-                  className="p-2 bg-white/20 backdrop-blur-sm border border-black/10"
-                >
-                  <X size={24} />
-                </GameButton>
-              </div>
-            </div>
+  const [isAutomatonModalOpen, setIsAutomatonModalOpen] = useState(false);
 
-            <div className="space-y-8">
+  return (
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center p-4 overflow-y-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-parchment border-2 border-black p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto"
+            >
+              <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-6 gap-1">
+                <div className="grayscale opacity-40 pointer-events-none select-none">
+                  <span className="text-[60px]">🏰</span>
+                </div>
+                <div className="relative flex justify-between items-center px-4 w-full">
+                  <div className="w-10" /> {/* Spacer for centering */}
+                  <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-center">Game Rules</h2>
+                  <GameButton 
+                    onClick={onClose} 
+                    variant="ghost"
+                    size="icon"
+                    className="p-2 bg-white/20 backdrop-blur-sm border border-black/10"
+                  >
+                    <X size={24} />
+                  </GameButton>
+                </div>
+              </div>
+
+              <div className="space-y-8">
               <section>
                 <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                   <Play size={18} fill="black" /> Victory Conditions
@@ -127,7 +131,7 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                   </li>
                   <li className="flex gap-2">
                     <span className="font-bold">6.</span>
-                    <span><span className="font-bold text-amber-700">High Ground:</span> Archers and Catapults gain <span className="font-bold text-amber-900">+1 Range</span> when attacking from Mountain tiles. Archers lose <span className="font-bold text-red-700">-1 Range</span> when attacking from Forest tiles.</span>
+                    <span><span className="font-bold text-amber-700">Terrain Modifiers:</span> Archers lose <span className="font-bold text-red-700">-1 Range</span> when attacking from Forest tiles.</span>
                   </li>
                 </ul>
               </section>
@@ -137,12 +141,16 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                   <Music size={18} /> Music & Atmosphere
                 </h3>
                 <p className="text-sm text-purple-800 leading-relaxed mb-3">
-                  The game features a <span className="font-bold">SID-inspired procedural music engine</span> that generates infinite "Metal" compositions in a vast cathedral space.
+                  The game features a <span className="font-bold">procedural music engine</span> that simulates a full medieval quartet playing authentic historical melodies.
                 </p>
                 <ul className="space-y-2 text-sm text-purple-800">
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-400" />
-                    <span><span className="font-bold">Dynamic Performance:</span> The guitar and synth react to the song's length, adding more distortion and vibrato to sustained notes.</span>
+                    <span><span className="font-bold">4-Part Polyphony:</span> Listen for the distinct roles of the Lute or Shawm (Lead), Recorders (Counter/Harmony), and Viol or Hurdy-Gurdy (Bass/Drone).</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-400" />
+                    <span><span className="font-bold">Historical Playlist:</span> The soundtrack features real melodies from the 12th to 16th centuries, such as "L'homme armé" and "Sumer Is Icumen In."</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-400" />
@@ -200,19 +208,36 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                 </div>
               </section>
 
-              <GameButton 
-                onClick={onClose}
-                variant="primary"
-                size="lg"
-                fullWidth
-                className="py-4"
-              >
-                Got it!
-              </GameButton>
+              <div className="flex flex-col gap-3">
+                <GameButton 
+                  onClick={() => setIsAutomatonModalOpen(true)}
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className="py-4 flex items-center justify-center gap-2"
+                >
+                  <Cpu size={20} /> How Automatons Play
+                </GameButton>
+                <GameButton 
+                  onClick={onClose}
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  className="py-4"
+                >
+                  Got it!
+                </GameButton>
+              </div>
             </div>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
-  );
+
+    <AutomatonHelpModal 
+      isOpen={isAutomatonModalOpen} 
+      onClose={() => setIsAutomatonModalOpen(false)} 
+    />
+  </>
+);
 };
