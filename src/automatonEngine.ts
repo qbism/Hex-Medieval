@@ -118,7 +118,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
   const savingForVillage = isSavingForVillage(state, currentPlayer);
 
   // 1. Try to upgrade settlements
-  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome);
+  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, threatMatrix);
   if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
 
   // 2. Try to recruit

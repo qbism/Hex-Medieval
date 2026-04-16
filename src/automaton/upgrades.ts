@@ -8,6 +8,7 @@ import {
   getNeighbors 
 } from '../types';
 import { findNearestTarget } from './utils';
+import { ThreatInfo } from './threatAnalysis';
 import { 
   BASE_REWARD,
   UPGRADE_GOLD_MINE_BONUS,
@@ -37,7 +38,8 @@ import {
   VILLAGE_WATER_RESOURCE_PENALTY,
   VILLAGE_MAP_EDGE_PENALTY,
   VILLAGE_MIN_SCORE_THRESHOLD,
-  STRATEGIC_FORTIFICATION_BONUS
+  STRATEGIC_FORTIFICATION_BONUS,
+  EDGE_OF_PERIL_BONUS
 } from './constants';
 import { LoopSafety } from '../utils';
 
@@ -48,6 +50,7 @@ export function getUpgradeAction(
   isEarlyGame: boolean, 
   numSettlements: number,
   isLaggingIncome: boolean,
+  threatMatrix: Map<string, ThreatInfo>,
   isBarbarian: boolean = false
 ) {
   // Barbarians only build villages if they have enough gold
@@ -166,6 +169,23 @@ export function getUpgradeAction(
              }
            }
            score += resourceBonus;
+           
+           // Edge of peril bonus
+           const tileThreat = threatMatrix.get(`${tile.coord.q},${tile.coord.r}`);
+           const isTileInPeril = tileThreat && tileThreat.eminentAttackerCount > 0;
+           if (!isTileInPeril) {
+             let isAdjacentToPeril = false;
+             for (const n of neighbors) {
+               const nThreat = threatMatrix.get(`${n.q},${n.r}`);
+               if (nThreat && nThreat.eminentAttackerCount > 0) {
+                 isAdjacentToPeril = true;
+                 break;
+               }
+             }
+             if (isAdjacentToPeril) {
+               score += BASE_REWARD * EDGE_OF_PERIL_BONUS;
+             }
+           }
 
            // If the village is in a bad location (score <= 0), don't build it!
            // But be more lenient as we expand

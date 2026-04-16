@@ -5,7 +5,8 @@ import {
   getDistance, 
   UnitType,
   HexCoord,
-  TileEvaluation
+  TileEvaluation,
+  getNeighbors
 } from '../types';
 import { ThreatInfo } from './threatAnalysis';
 import { 
@@ -15,7 +16,8 @@ import {
   TERRAIN_FOREST_PENALTY,
   TERRAIN_MOUNTAIN_BONUS,
   TERRAIN_PLAINS_NEUTRAL_BONUS,
-  TERRAIN_PLAINS_OWNED_BONUS
+  TERRAIN_PLAINS_OWNED_BONUS,
+  EDGE_OF_PERIL_BONUS
 } from './constants';
 
 /**
@@ -99,6 +101,24 @@ export function calculateOpportunityPerilMatrix(
       const bonus = tile.ownerId === null ? TERRAIN_PLAINS_NEUTRAL_BONUS : TERRAIN_PLAINS_OWNED_BONUS;
       opportunity += bonus;
       reasons.push("Strategic Plains (Development Potential)");
+      
+      // AI edge of peril bonus: moving to/building on plains tiles not in peril, but adjacent to a peril tile
+      if (peril === 0) {
+        const neighbors = getNeighbors(tile.coord);
+        let isAdjacentToPeril = false;
+        for (const n of neighbors) {
+          const nKey = `${n.q},${n.r}`;
+          const nThreat = threatMatrix.get(nKey);
+          if (nThreat && nThreat.eminentAttackerCount > 0) {
+            isAdjacentToPeril = true;
+            break;
+          }
+        }
+        if (isAdjacentToPeril) {
+          opportunity += EDGE_OF_PERIL_BONUS;
+          reasons.push("Edge of Peril Bonus (Kingdom Expansion)");
+        }
+      }
     }
 
     // D. Proximity to friendly settlements (Consolidation)

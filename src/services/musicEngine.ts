@@ -77,22 +77,17 @@ class MusicEngine {
     const keyType = isMajor ? 'Major' : 'Minor';
     console.log(`Generated Song: ${style.name} | ${this.bpm} BPM | Key: ${this.baseNote} (${keyType})`);
     
-    let progressions = [];
-    if (isMajor) {
-      progressions = [
-        [0, 3, 4, 0], // I - IV - V - I
-        [0, 5, 3, 4], // I - vi - IV - V
-        [0, 4, 5, 3], // I - V - vi - IV
-        [0, 1, 4, 0], // I - ii - V - I
-      ];
-    } else {
-      progressions = [
-        [0, 5, 6, 0], // i - VI - VII - i
-        [0, 3, 4, 0], // i - iv - v - i
-        [0, 6, 5, 4], // i - VII - VI - V
-        [0, 2, 6, 0], // i - III - VII - i
-      ];
-    }
+    const progressions = isMajor ? [
+      [0, 3, 4, 0], // I - IV - V - I
+      [0, 5, 3, 4], // I - vi - IV - V
+      [0, 4, 5, 3], // I - V - vi - IV
+      [0, 1, 4, 0], // I - ii - V - I
+    ] : [
+      [0, 5, 6, 0], // i - VI - VII - i
+      [0, 3, 4, 0], // i - iv - v - i
+      [0, 6, 5, 4], // i - VII - VI - V
+      [0, 2, 6, 0], // i - III - VII - i
+    ];
     const progA = progressions[Math.floor(Math.random() * progressions.length)];
     const progB = progressions[Math.floor(Math.random() * progressions.length)];
     
@@ -117,7 +112,6 @@ class MusicEngine {
 
   private generateMotif() {
     const notes = [];
-    let currentDeg = 0;
     
     // Generate a 4-measure (64 step) motif for longer, more lyrical phrasing
     for (let m = 0; m < 4; m++) {
@@ -137,6 +131,7 @@ class MusicEngine {
         const passingTones = [-1, 1, 3, 5];
         
         if (Math.random() > 0.1) { // 90% chance to play a note
+          let currentDeg: number;
           // Move smoothly
           if (isStrong) {
             currentDeg = chordTones[Math.floor(Math.random() * chordTones.length)];

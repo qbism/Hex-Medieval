@@ -52,6 +52,7 @@ export const UNCLAIMED_VILLAGE_PRIORITY_BONUS = 10.0;
 export const PUT_ENEMY_IN_PERIL_BONUS = 2.5;
 export const EXPANSION_DISTANCE_BONUS = 1.5;
 export const PLAINS_PRIORITY_BONUS = 0.5;
+export const EDGE_OF_PERIL_BONUS = 25.0;
 export const INFILLING_BONUS = 10.0;
 export const PATHING_CONSISTENCY_BONUS = 0.2;
 export const KNIGHT_HARASSMENT_BONUS = 2.0;

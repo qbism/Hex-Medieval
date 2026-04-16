@@ -114,7 +114,7 @@ export function getBarbarianAction(
   if (recruitmentAction) return recruitmentAction;
 
   // 2. Try to upgrade settlements (Barbarians never upgrade, only build new villages)
-  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, true);
+  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, threatMatrix, true);
   if (upgradeAction) return upgradeAction;
 
   // 3. Move/Attack with units (Barbarians ignore safety)

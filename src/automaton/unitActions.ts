@@ -23,6 +23,7 @@ import {
   PUT_ENEMY_IN_PERIL_BONUS,
   EXPANSION_DISTANCE_BONUS,
   PLAINS_PRIORITY_BONUS,
+  EDGE_OF_PERIL_BONUS,
   INFILLING_BONUS,
   PATHING_CONSISTENCY_BONUS,
   KNIGHT_HARASSMENT_BONUS,
@@ -324,6 +325,22 @@ export function getUnitAction(
         
         if (tile.terrain === TerrainType.PLAINS && (tile.ownerId === null || tile.ownerId === currentPlayer.id)) {
           score += BASE_REWARD * PLAINS_PRIORITY_BONUS; // Prioritize plains for building villages
+          
+          if (!isMoveInPeril) {
+            const neighbors = _getNeighbors(m);
+            let isAdjacentToPeril = false;
+            for (const n of neighbors) {
+              const nKey = `${n.q},${n.r}`;
+              const nThreat = threatMatrix.get(nKey);
+              if (nThreat && nThreat.eminentAttackerCount > 0) {
+                isAdjacentToPeril = true;
+                break;
+              }
+            }
+            if (isAdjacentToPeril) {
+              score += BASE_REWARD * EDGE_OF_PERIL_BONUS;
+            }
+          }
         }
       }
 
