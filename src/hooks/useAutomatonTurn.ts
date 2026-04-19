@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { GameState } from '../types';
-import { getAutomatonBestAction } from '../automatonEngine';
+import { getAutomatonBestAction } from '../automaton-library';
 import { GameActions } from './useGameActions';
 
 interface UseAutomatonTurnProps {

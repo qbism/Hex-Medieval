@@ -274,7 +274,14 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
               <meshBasicMaterial color="#ef4444" transparent opacity={0.7} />
             </mesh>
           )}
-          {isHovered && (evaluation.opportunity !== 0 || evaluation.peril > 0) && (
+          {evaluation.isAvailableTarget && (
+            <Billboard position={[0, 0.6, 0]}>
+              <Text fontSize={0.8} color="#eab308" outlineWidth={0.06} outlineColor="black" fontWeight="bold">
+                +
+              </Text>
+            </Billboard>
+          )}
+          {isHovered && (evaluation.opportunity !== 0 || evaluation.peril > 0 || evaluation.isAvailableTarget) && (
             <Billboard position={[0, 1.5, 0]}>
               <Text 
                 fontSize={0.25} 

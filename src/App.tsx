@@ -22,8 +22,7 @@ import { musicEngine } from './services/musicEngine';
 import { triggerEffect } from './services/effectEngine';
 import { saveGame, loadGame } from './services/saveLoadService';
 import { saveDemo, loadDemo } from './services/demoService';
-import { calculateOpportunityPerilMatrix } from './automaton/opportunityPeril';
-import { calculateThreatMatrix } from './automaton/threatAnalysis';
+import { calculateOpportunityPerilMatrix, calculateThreatMatrix } from './automaton-library';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
 

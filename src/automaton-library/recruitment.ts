@@ -96,8 +96,10 @@ export function getRecruitmentAction(
     currentGold = currentPlayer.gold - expansionBudget;
   }
   
-  // If we are under threat, defense is priority 1, skip savings
-  const effectiveSavingsTarget = isUnderThreat ? 0 : savingsTarget;
+  // If we are under imminent threat (units next to bases), defense becomes priority 1.
+  // Otherwise, we stick to our savings target for income expansion.
+  const hasEminentThreat = eminentThreatBases.length > 0;
+  const effectiveSavingsTarget = hasEminentThreat ? 0 : savingsTarget;
   
   // Potential targets for evaluation
   const targets = [
@@ -295,27 +297,12 @@ export function getRecruitmentAction(
       const isTileInEminentPeril = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
       
       if (isTileInEminentPeril) {
-        // User's rule: Only sacrifice if reinforcements can arrive within 3 turns.
-        // Otherwise, it's a "remote settlement" and we shouldn't waste units.
-        const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
-        const canReinforce = otherFriendlyUnits.some(u => {
-            const stats = UNIT_STATS[u.type];
-            const dist = getDistance(u.coord, t.coord);
-            // Can reach within 3 turns? (3 * moves + range)
-            return dist <= 3 * stats.moves + stats.range;
-        });
-
-        if (canReinforce) {
-          // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
-          bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS;
-          
-          // Favor cheaper units for "sacrificial" defense to buy time
-          if (stats.cost <= 100) {
-            bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS;
-          }
-        } else {
-          // Remote settlement - don't waste units on a lost cause
-          bestUnitScore -= BASE_REWARD * 10.0;
+        // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
+        bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS;
+        
+        // Favor cheaper units for "sacrificial" defense to buy time
+        if (stats.cost <= 100) {
+          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS;
         }
       }
 

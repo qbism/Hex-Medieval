@@ -94,6 +94,7 @@ export interface TileEvaluation {
   opportunity: number;
   score: number;
   reasons: string[];
+  isAvailableTarget?: boolean;
 }
 
 export interface GameState {

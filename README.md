@@ -43,7 +43,7 @@ The core game logic is built around a deterministic, immutable state machine.
 
 ---
 
-## Technical Notes: AI Strategy & Mathematical Foundations (`src/automatonEngine.ts`)
+## Technical Notes: AI Strategy & Mathematical Foundations (`src/automaton-library/`)
 
 The AI ("Automaton") has been upgraded from simple heuristics to a sophisticated decision-making engine based on established game theory and mathematical principles.
 

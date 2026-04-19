@@ -1,9 +1,9 @@
 import { 
   GameState, 
   TerrainType,
-  TileEvaluation
-} from './types';
-import { getBarbarianAction } from './automaton/barbarianAI';
+} from '../types';
+import { AutomatonAction } from './types';
+import { getBarbarianAction } from './barbarianAI';
 import { 
   calculateThreatMatrix, 
   calculateInfluenceMap,
@@ -13,24 +13,15 @@ import {
   getHVT,
   isSavingForMine,
   isSavingForVillage,
-  calculateHeatMap,
-  ThreatInfo as _ThreatInfo
-} from './automaton/threatAnalysis';
-import { calculateOpportunityPerilMatrix } from './automaton/opportunityPeril';
-import { getUpgradeAction } from './automaton/upgrades';
-import { getRecruitmentAction } from './automaton/recruitment';
-import { getUnitAction } from './automaton/unitActions';
-
-export { findNearestTarget, calculateKingdomStrength, getChokepointScore } from './automaton/utils';
+  calculateHeatMap
+} from './threatAnalysis';
+import { calculateOpportunityPerilMatrix } from './opportunityPeril';
+import { getUpgradeAction } from './upgrades';
+import { getRecruitmentAction } from './recruitment';
+import { getUnitAction } from './unitActions';
 
 // Cache for expensive calculations within the same GameState
 const actionCache = new WeakMap<GameState, any>();
-
-export interface AutomatonAction {
-  type: 'recruit' | 'attack' | 'move' | 'endTurn' | 'skipUnit' | 'upgrade' | 'surrender' | 'goRogue' | 'barbarianSurrender';
-  payload?: any;
-  matrix?: TileEvaluation[];
-}
 
 export function getAutomatonBestAction(state: GameState): AutomatonAction {
   const currentPlayer = state.players[state.currentPlayerIndex];
@@ -88,23 +79,24 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
   const len = incomeHistory.length;
   const isIncomeStagnant = len >= 4 && incomeHistory[len - 1] <= incomeHistory[len - 4];
   
-  const activeNonBarbarianStrengths = playerStrengths
-    .filter(ps => ps.strength > 0 && state.players[ps.id].name !== 'Barbarians')
-    .sort((a, b) => a.strength - b.strength);
-
-  if (state.turnNumber > 10 && activeNonBarbarianStrengths.length >= 2) {
-    const lowest = activeNonBarbarianStrengths[0];
-    const secondLowest = activeNonBarbarianStrengths[1];
+  const activeStats = playerStrengths
+    .filter(ps => ps.id !== currentPlayer.id && state.players[ps.id].name !== 'Barbarians' && !state.players[ps.id].isEliminated);
+  
+  if (state.turnNumber > 10 && activeStats.length >= 1) {
+    const maxCompetitorStrength = Math.max(...activeStats.map(s => s.strength));
+    const maxCompetitorIncome = Math.max(...cachedData.threatAssessment.playerIncomes.map((inc: any, id: number) => id === currentPlayer.id || state.players[id].name === 'Barbarians' ? 0 : inc));
     
-    if (lowest.id === currentPlayer.id) {
-      // If critically weak (less than 40% of second lowest), go rogue regardless of income
-      const isCriticallyWeak = lowest.strength < secondLowest.strength * 0.4;
-      // If weak (less than 60% of second lowest) and not growing, go rogue
-      const isWeakAndStagnant = lowest.strength < secondLowest.strength * 0.6 && isIncomeStagnant;
-      
-      if (isCriticallyWeak || isWeakAndStagnant) {
-        return { type: 'goRogue' as const, matrix: opportunityPerilMatrix };
-      }
+    const myIncome = cachedData.threatAssessment.playerIncomes[currentPlayer.id];
+    
+    // User's New Rule: Convert to Barbarian if < 25% of top player's strength AND < 25% of top player's income
+    const isCriticallyWeak = myStrength < maxCompetitorStrength * 0.25;
+    const isCriticallyPoor = myIncome < maxCompetitorIncome * 0.25;
+
+    // Legacy stagnant logic as a secondary fallback
+    const isWeakAndStagnant = myStrength < maxCompetitorStrength * 0.6 && isIncomeStagnant;
+    
+    if ((isCriticallyWeak && isCriticallyPoor) || isWeakAndStagnant) {
+      return { type: 'goRogue' as const, matrix: opportunityPerilMatrix };
     }
   }
 

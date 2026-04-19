@@ -44,10 +44,11 @@ import {
   FRONT_LINE_BONUS,
   COUNTER_ATTACK_BONUS,
   FOCUS_FIRE_BONUS,
+  PREEMPTIVE_DEFENSE_BONUS,
+  DRIVE_OUT_BONUS,
   LETHAL_THREAT_PENALTY_MULT,
   MUTUAL_SUPPORT_BONUS,
   KILL_PRIORITY_BONUS,
-  ATTACK_OVER_MOVE_THRESHOLD,
   THREAT_PENALTY_SACRIFICE_MULT,
   THREAT_PENALTY_L1_MULT,
   SUPPORT_SCORE_MULT,
@@ -57,6 +58,9 @@ import {
   KNIGHT_FIRST_IN_PENALTY,
   CATAPULT_MEAT_SHIELD_BONUS,
   SETTLEMENT_DEGRADATION_PRIORITY_BONUS,
+  COMBO_FOLLOW_UP_CLAIMER_BONUS,
+  COMBO_FOLLOW_UP_NEUTRALIZER_BONUS,
+  COMBO_SEQUENCING_STAY_PUT_PENALTY,
   UPGRADE_SAVING_MINE_BONUS,
   UPGRADE_SAVING_MINE_STAY_PUT_BONUS,
   UPGRADE_SAVING_VILLAGE_BONUS,
@@ -110,6 +114,17 @@ export function getUnitAction(
 
   const myCatapults = state.units.filter(u => u.ownerId === currentPlayer.id && u.type === UnitType.CATAPULT);
   const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
+  const otherFriendlyUnitsThatHaventActed = otherFriendlyUnits.filter(u => !u.hasActed);
+
+  // Pre-calculate which hexes other units can reach or attack this turn
+  const friendlyFollowUpPotential = otherFriendlyUnitsThatHaventActed.map(u => {
+    return {
+      id: u.id,
+      type: u.type,
+      moves: getValidMoves(u, state.board, state.units),
+      attacks: getValidAttacks(u, state.board, state.units, true)
+    };
+  });
 
   const stats = UNIT_STATS[unitToAct.type];
   const myValue = stats.cost;
@@ -135,10 +150,8 @@ export function getUnitAction(
 
       if (targetUnit) {
         const targetValue = UNIT_STATS[targetUnit.type].cost;
-        // If we are already in peril, "risk" is lower because we are likely to die anyway
-        const risk = (isUnitInPeril || isBarbarian) ? 0 : myValue;
         
-        priority = targetValue - risk;
+        priority = targetValue;
         
         // Focus Fire Bonus: If other friendly units can also attack this target
         const potentialAttackers = otherFriendlyUnits.filter(u => {
@@ -175,16 +188,29 @@ export function getUnitAction(
         // Strategic Bonuses
         if (targetUnit.type === UnitType.CATAPULT) priority += BASE_REWARD * 1.0;
         if (focusOnLeader && targetUnit.ownerId === leaderId) priority += BASE_REWARD * 0.5;
+
+        // Combination Move Setup: Clearing unit on settlement
+        const isOnSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+        if (isOnSettlement) {
+          const canBuddiesNeutralize = friendlyFollowUpPotential.some(f => f.attacks.some(at => at.q === targetTile.coord.q && at.r === targetTile.coord.r));
+          const canBuddiesClaim = friendlyFollowUpPotential.some(f => f.moves.some(m => m.q === targetTile.coord.q && m.r === targetTile.coord.r));
+          if (canBuddiesNeutralize && canBuddiesClaim) {
+            priority += BASE_REWARD * COMBO_FOLLOW_UP_NEUTRALIZER_BONUS;
+          }
+        }
         
         // Infantry Vanguard Bonus: Extra bonus for attacking units on settlements
-        const isOnSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
         if (unitToAct.type === UnitType.INFANTRY && isOnSettlement) {
            priority += BASE_REWARD * INFANTRY_VANGUARD_SETTLEMENT_BONUS;
         }
 
         // Defense Bonus
         const isThreateningBase = eminentThreatBases.some(b => getDistance(a, b.coord) <= 3);
-        if (isThreateningBase) priority += BASE_REWARD * 1.5;
+        if (isThreateningBase) priority += BASE_REWARD * PREEMPTIVE_DEFENSE_BONUS;
+
+        // Drive Out Bonus: Specifically target units that are near our settlements
+        const isNearOurSettlement = mySettlements.some(s => getDistance(a, s.coord) <= 2);
+        if (isNearOurSettlement) priority += BASE_REWARD * DRIVE_OUT_BONUS;
 
         // Counterattack Bonus
         const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
@@ -199,6 +225,12 @@ export function getUnitAction(
         const enemyUnitsNearThisSettlement = state.units.filter(u => u.ownerId === targetTile.ownerId && getDistance(u.coord, targetTile.coord) <= UNIT_STATS[u.type].moves);
         if (enemyUnitsNearThisSettlement.length > 0) {
           priority += BASE_REWARD * SETTLEMENT_DEGRADATION_PRIORITY_BONUS;
+        }
+
+        // Combination Move Setup: Neutralizing village for a buddy to claim
+        const canBuddiesClaim = friendlyFollowUpPotential.some(f => f.moves.some(m => m.q === targetTile.coord.q && m.r === targetTile.coord.r));
+        if (canBuddiesClaim) {
+          priority += BASE_REWARD * COMBO_FOLLOW_UP_CLAIMER_BONUS;
         }
 
         // Barbarian Pillage Logic: Prioritize attacking structures over units to disrupt income
@@ -220,33 +252,59 @@ export function getUnitAction(
       }
     }
 
-    // Only attack if it's not a suicidal bad trade (unless defending or barbarian)
-    // Threshold lowered significantly to prefer attacking even if risky.
-    // We use a very low threshold to ensure we almost always take the shot if it's in range.
-    if (maxPriority > myValue * ATTACK_OVER_MOVE_THRESHOLD || eminentThreatBases.length > 0 || isBarbarian) {
+    // Always attack if there is a valid profitable target
+    if (maxPriority > 0 || eminentThreatBases.length > 0 || isBarbarian) {
       return { type: 'attack' as const, payload: { unitId: unitToAct.id, target: bestAttack } };
     }
   }
 
-  // 2. Evaluate Moves
-  const moves = getValidMoves(unitToAct, state.board, state.units);
-  moves.push(unitToAct.coord); // Staying put is an option
-  
-  if (moves.length > 0) {
-    let bestMove = moves[0];
-    let maxScore = -Infinity;
-
-    const moveSafety = new LoopSafety('getAutomatonBestAction-moves-economic', 5000);
+    // 2. Evaluate Moves
+    const moves = getValidMoves(unitToAct, state.board, state.units);
+    moves.push(unitToAct.coord); // Staying put is an option
     
-    // Potential move targets - limit to top 8 nearest to avoid additive score bloat
-    const moveTargets = [
-      ...state.board.filter(t => 
+    if (moves.length > 0) {
+      let bestMove = moves[0];
+      let maxScore = -Infinity;
+  
+      const moveSafety = new LoopSafety('getAutomatonBestAction-moves-economic', 5000);
+      
+      // Potential move targets
+      // 1. Settlements (Neutral or Enemy)
+      const settlementTargets = state.board.filter(t => 
         (t.ownerId === null || t.ownerId !== currentPlayer.id) && 
         (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
-      ).map(t => ({ coord: t.coord, value: SETTLEMENT_INCOME[t.terrain] * HORIZON, isSettlement: true, ownerId: t.ownerId, unitType: undefined })),
-      ...state.units.filter(u => u.ownerId !== currentPlayer.id).map(u => ({ coord: u.coord, value: UNIT_STATS[u.type].cost, isSettlement: false, ownerId: u.ownerId, unitType: u.type }))
-    ].sort((a, b) => getDistance(unitToAct.coord, a.coord) - getDistance(unitToAct.coord, b.coord))
-     .slice(0, 8);
+      ).map(t => ({ coord: t.coord, value: SETTLEMENT_INCOME[t.terrain] * HORIZON, isExpansionHub: false, isSettlement: true, ownerId: t.ownerId, unitType: undefined }));
+  
+      // 2. Enemy Units
+      const enemyUnitTargets = state.units.filter(u => u.ownerId !== currentPlayer.id)
+        .map(u => ({ coord: u.coord, value: UNIT_STATS[u.type].cost, isExpansionHub: false, isSettlement: false, ownerId: u.ownerId, unitType: u.type }));
+  
+      // 3. Expansion Hubs: Unclaimed plains that are far from existing friendly units/settlements
+      // Only pick a few "Ideal" hubs to avoid performance hits
+      const expansionHubs = state.board.filter(t => 
+        t.terrain === TerrainType.PLAINS && t.ownerId === null &&
+        !state.units.some(u => u.ownerId === currentPlayer.id && getDistance(u.coord, t.coord) <= 3) &&
+        !mySettlements.some(s => getDistance(s.coord, t.coord) <= 4)
+      )
+      .map(t => {
+        // Evaluate hub quality
+        const neighbors = _getNeighbors(t.coord);
+        let quality = 1;
+        neighbors.forEach(n => {
+          const nt = boardMap.get(`${n.q},${n.r}`);
+          if (nt && nt.ownerId === null) quality++;
+        });
+        return { coord: t.coord, value: quality * 20, isExpansionHub: true, isSettlement: false, ownerId: null, unitType: undefined };
+      })
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5); // Take top 5 expansion hubs
+  
+      const moveTargets = [
+        ...settlementTargets,
+        ...enemyUnitTargets,
+        ...expansionHubs
+      ].sort((a, b) => getDistance(unitToAct.coord, a.coord) - getDistance(unitToAct.coord, b.coord))
+       .slice(0, 10); // Limit to top 10
 
     for (const m of moves) {
       if (moveSafety.tick()) break;
@@ -262,6 +320,15 @@ export function getUnitAction(
       // Stay Put Bias: Avoid jittery movement if there's no clear benefit to moving
       if (isStayPut) {
         score += BASE_REWARD * STAY_PUT_BIAS;
+
+        // Combo Sequencing: If we stay put while buddies are ready to sweep an enemy settlement, penalize to encourage moving up
+        const targetSettlementBeingNetted = moveTargets.some(t => 
+          t.isSettlement && t.ownerId !== null && t.ownerId !== currentPlayer.id &&
+          friendlyFollowUpPotential.some(f => f.attacks.some(at => at.q === t.coord.q && at.r === t.coord.r))
+        );
+        if (targetSettlementBeingNetted) {
+          score -= BASE_REWARD * COMBO_SEQUENCING_STAY_PUT_PENALTY;
+        }
       }
 
       // Immediate Capture Bonus
@@ -326,6 +393,11 @@ export function getUnitAction(
         if (tile.terrain === TerrainType.PLAINS && (tile.ownerId === null || tile.ownerId === currentPlayer.id)) {
           score += BASE_REWARD * PLAINS_PRIORITY_BONUS; // Prioritize plains for building villages
           
+          // Extra push for plains if we are specifically saving for a village
+          if (isSavingForVillage) {
+            score += BASE_REWARD * 10.0;
+          }
+
           if (!isMoveInPeril) {
             const neighbors = _getNeighbors(m);
             let isAdjacentToPeril = false;
@@ -360,10 +432,27 @@ export function getUnitAction(
           const turnsToReach = Math.ceil((dist - (target.isSettlement ? 0 : potentialRange)) / stats.moves) + 1;
           let targetScore = target.value / (turnsToReach + 1);
 
+          // Combination Move Setup: Rush towards settlements that buddies are about to neutralize
+          if (target.isSettlement && target.ownerId !== null && target.ownerId !== currentPlayer.id) {
+            const buddiesWhoCanNeutralize = friendlyFollowUpPotential.some(f => f.attacks.some(at => at.q === target.coord.q && at.r === target.coord.r));
+            if (buddiesWhoCanNeutralize) {
+              targetScore += BASE_REWARD * COMBO_FOLLOW_UP_CLAIMER_BONUS;
+            }
+          }
+
           // Pathing Consistency: If we're already moving towards this target, give a bonus
           // This helps units stick to a path rather than deviating for minor terrain bonuses
           if (currentDist > dist) {
             targetScore += BASE_REWARD * PATHING_CONSISTENCY_BONUS;
+          }
+
+          // Target Saturation Penalty: If multiple friendly units are already closer to this target, 
+          // reduce the score to encourage this unit to find its own front.
+          const friendlyCloserToTarget = otherFriendlyUnits.filter(u => getDistance(u.coord, target.coord) < dist).length;
+          if (friendlyCloserToTarget >= 2) {
+            targetScore *= 0.6; // Heavy penalty for dogpiling
+          } else if (friendlyCloserToTarget === 1) {
+            targetScore *= 0.9;
           }
 
           // Knight Harassment Bonus: Knights love picking off distant, undefended settlements
@@ -434,8 +523,16 @@ export function getUnitAction(
       }
 
       // Defense Scoring
-      const isDefendingBase = eminentThreatBases.some(b => getDistance(m, b.coord) <= 2) || possibleThreatBases.some(b => getDistance(m, b.coord) <= 2);
-      if (isDefendingBase) score += BASE_REWARD * DEFENSE_SCORING_BONUS; 
+      const isDefendingBase = eminentThreatBases.some(b => getDistance(m, b.coord) <= 2) || mySettlements.some(s => getDistance(m, s.coord) <= 2);
+      if (isDefendingBase) {
+        // Boost score if there's actually an enemy nearby that we're reacting to
+        const nearestEnemy = state.units.find(u => u.ownerId !== currentPlayer.id && getDistance(m, u.coord) <= 3);
+        if (nearestEnemy) {
+          score += BASE_REWARD * DRIVE_OUT_BONUS;
+        } else {
+          score += BASE_REWARD * DEFENSE_SCORING_BONUS;
+        }
+      }
 
       // Sacrifice Logic: If a village is in peril, a unit should move to a position that either blocks the enemy 
       // or puts the enemy in peril, even if the unit itself enters peril.
@@ -671,6 +768,22 @@ export function getUnitAction(
         if (tile.terrain === TerrainType.PLAINS) {
           score += (tile.ownerId === null) ? TERRAIN_PLAINS_NEUTRAL_BONUS : TERRAIN_PLAINS_OWNED_BONUS; // Preference for developable plains
           if (tile.ownerId === currentPlayer.id) score += INFILLING_BONUS;
+        }
+      }
+
+      // Edge of Peril Bonus: Pushes AI to expand on plains tiles right up to the enemy border
+      if (tile.terrain === TerrainType.PLAINS && moveThreatLevel > 1) {
+        const neighbors = _getNeighbors(m);
+        let isEdgeOfPeril = false;
+        for (const n of neighbors) {
+          const t = threatMatrix.get(`${n.q},${n.r}`);
+          if (t && t.minTurns === 1) {
+            isEdgeOfPeril = true;
+            break;
+          }
+        }
+        if (isEdgeOfPeril) {
+          score += BASE_REWARD * EDGE_OF_PERIL_BONUS;
         }
       }
 

@@ -39,6 +39,7 @@ import {
   VILLAGE_MAP_EDGE_PENALTY,
   VILLAGE_MIN_SCORE_THRESHOLD,
   STRATEGIC_FORTIFICATION_BONUS,
+  DEFENSIVE_SUPPORT_VILLAGE_BONUS,
   EDGE_OF_PERIL_BONUS
 } from './constants';
 import { LoopSafety } from '../utils';
@@ -169,10 +170,22 @@ export function getUpgradeAction(
              }
            }
            score += resourceBonus;
-           
+            
+           // Defensive Support: Bonus for building villages near threatened settlements
+           const neighborTilesForDefense = neighbors.map(n => state.board.find(t => t.coord.q === n.q && t.coord.r === n.r)).filter(Boolean);
+           const isHelpingThreatenedBase = neighborTilesForDefense.some(nt => {
+              if (!nt || nt.ownerId !== currentPlayer.id) return false;
+              if (nt.terrain !== TerrainType.VILLAGE && nt.terrain !== TerrainType.FORTRESS && nt.terrain !== TerrainType.CASTLE && nt.terrain !== TerrainType.GOLD_MINE) return false;
+              const ntThreat = threatMatrix.get(`${nt.coord.q},${nt.coord.r}`);
+              return ntThreat && ntThreat.eminentAttackerCount > 0;
+           });
+           if (isHelpingThreatenedBase) {
+              score += BASE_REWARD * DEFENSIVE_SUPPORT_VILLAGE_BONUS;
+           }
+
            // Edge of peril bonus
-           const tileThreat = threatMatrix.get(`${tile.coord.q},${tile.coord.r}`);
-           const isTileInPeril = tileThreat && tileThreat.eminentAttackerCount > 0;
+           const tileThreatVal = threatMatrix.get(`${tile.coord.q},${tile.coord.r}`);
+           const isTileInPeril = tileThreatVal && tileThreatVal.eminentAttackerCount > 0;
            if (!isTileInPeril) {
              let isAdjacentToPeril = false;
              for (const n of neighbors) {
@@ -188,8 +201,9 @@ export function getUpgradeAction(
            }
 
            // If the village is in a bad location (score <= 0), don't build it!
-           // But be more lenient as we expand
-           const minScore = numSettlements >= 10 ? -BASE_REWARD * VILLAGE_MIN_SCORE_THRESHOLD : 0;
+           // But be more lenient as we expand - the priority is INCOME.
+           const minScoreThreshold = numSettlements >= 10 ? VILLAGE_MIN_SCORE_THRESHOLD : -10.0;
+           const minScore = BASE_REWARD * minScoreThreshold;
            if (score <= minScore) {
              score = -Infinity;
            }

@@ -99,8 +99,8 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
       const threatValue = stats.cost;
       const range = getUnitRange(u, state.board);
       
-      // Only check tiles within attack range (peril)
-      const maxThreatDist = range;
+      // Check tiles within attack range + movement range (Potential Peril)
+      const maxThreatDist = range + stats.moves;
       
       for (let dq = -maxThreatDist; dq <= maxThreatDist; dq++) {
         for (let dr = Math.max(-maxThreatDist, -dq - maxThreatDist); dr <= Math.min(maxThreatDist, -dq + maxThreatDist); dr++) {
@@ -114,22 +114,25 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
           }
 
           const dist = getDistance(u.coord, t.coord);
-          if (dist <= range) {
+          if (dist <= maxThreatDist) {
             const key = `${t.coord.q},${t.coord.r}`;
+            const turnsToHit = dist <= range ? 1 : 2;
             const current = threatMatrix.get(key) || { 
-              minTurns: 1, 
+              minTurns: turnsToHit, 
               totalThreatValue: 0, 
               attackerCount: 0,
               eminentThreatValue: 0,
               eminentAttackerCount: 0
             };
             
+            const isEminent = turnsToHit === 1;
+            
             threatMatrix.set(key, {
-              minTurns: 1,
+              minTurns: Math.min(current.minTurns, turnsToHit),
               totalThreatValue: current.totalThreatValue + threatValue,
               attackerCount: current.attackerCount + 1,
-              eminentThreatValue: current.eminentThreatValue + threatValue,
-              eminentAttackerCount: current.eminentAttackerCount + 1
+              eminentThreatValue: current.eminentThreatValue + (isEminent ? threatValue : 0),
+              eminentAttackerCount: current.eminentAttackerCount + (isEminent ? 1 : 0)
             });
           }
         }
@@ -199,6 +202,7 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
 
   return { 
     playerStrengths: playerStats.map(p => ({ id: p.id, strength: p.strength })), 
+    playerIncomes: playerStats.map(p => p.income),
     myStrength: myStats.strength, 
     focusOnLeader, 
     leaderId,
@@ -262,12 +266,11 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   if (currentPlayer.gold >= cost) return false;
   
   const neutralMountains = state.board.filter(t => t.terrain === TerrainType.MOUNTAIN && t.ownerId === null).length;
-  const isCrowded = neutralMountains < 5;
 
-  // Only "save" if we can afford it within a reasonable timeframe (e.g. 5 turns)
+  // Only "save" if we can afford it within a reasonable timeframe (e.g. 10 turns - income priority!)
   const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
   const turnsToAfford = (cost - currentPlayer.gold) / income;
-  const turnsThreshold = isCrowded ? 8 : 5;
+  const turnsThreshold = 10;
   if (turnsToAfford > turnsThreshold && !isLaggingIncome) return false;
 
   const boardMap = getBoardMap(state.board);
@@ -291,12 +294,11 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player): boo
   if (currentPlayer.gold >= cost) return false;
 
   const neutralPlains = state.board.filter(t => t.terrain === TerrainType.PLAINS && t.ownerId === null).length;
-  const isCrowded = neutralPlains < 10;
 
-  // Only "save" if we can afford it soon (e.g. 3 turns)
+  // Only "save" if we can afford it soon (e.g. 8 turns - income priority!)
   const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
   const turnsToAfford = (cost - currentPlayer.gold) / income;
-  const turnsThreshold = isCrowded ? 6 : 3;
+  const turnsThreshold = 8;
   if (turnsToAfford > turnsThreshold) return false;
 
   const boardMap = getBoardMap(state.board);

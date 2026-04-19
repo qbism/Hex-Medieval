@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Settings, Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music } from 'lucide-react';
 import { GameButton } from './GameButton';
+import { musicEngine, MusicalPart } from '../services/musicEngine';
 
 interface GameMenuProps {
   isOpen: boolean;
@@ -32,6 +33,9 @@ export const GameMenu = ({
   effectsVolume,
   setEffectsVolume
 }: GameMenuProps) => {
+  const [showInstruments, setShowInstruments] = useState(false);
+  const [_, setTrigger] = useState(0);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -59,11 +63,18 @@ export const GameMenu = ({
               {/* Volume Sliders */}
               <div className="bg-stone-100 border-2 border-black p-4 space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest">
+                  <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest gap-2">
                     <div className="flex items-center gap-2">
                       <Music size={14} />
                       <span>Music Volume</span>
                     </div>
+                    <div className="flex-1" />
+                    <button 
+                      onClick={() => setShowInstruments(!showInstruments)}
+                      className="border border-black px-2 py-0.5 bg-stone-200 hover:bg-stone-300 transition-colors text-[10px]"
+                    >
+                      Instruments
+                    </button>
                     <span>{Math.round(musicVolume * 100)}%</span>
                   </div>
                   <input 
@@ -75,6 +86,27 @@ export const GameMenu = ({
                     onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
                     className="w-full h-2 bg-stone-300 rounded-none appearance-none cursor-pointer accent-black border border-black"
                   />
+                  {showInstruments && (
+                    <div className="pt-2 pb-1 space-y-2 border-t border-stone-300 mt-2">
+                      {(Object.entries(musicEngine.instrumentChoices) as [MusicalPart, any][]).map(([part, choices]) => (
+                         <div key={part} className="flex justify-between items-center text-[10px] uppercase font-bold text-stone-600">
+                           <span>{part}</span>
+                           <select 
+                             className="bg-transparent border border-stone-400 p-0.5 outline-none cursor-pointer w-28 text-right"
+                             value={musicEngine.currentInstruments[part]}
+                             onChange={(e) => {
+                               musicEngine.setInstrumentChoice(part, parseInt(e.target.value));
+                               setTrigger(t => t + 1);
+                             }}
+                           >
+                             {choices.map((c: any, i: number) => (
+                               <option key={i} value={i}>{c.name}</option>
+                             ))}
+                           </select>
+                         </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
