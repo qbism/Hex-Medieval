@@ -40,8 +40,28 @@ export const DEFAULT_INSTRUMENT_CHOICES: Record<MusicalPart, InstrumentChoice[]>
     { name: 'Warm Pad', program: 89 }
   ],
   bass: [
-    { name: 'Cello / Smooth', program: 42 },
+    { name: 'Deep Contrabass', program: 43 },
     { name: 'Acoustic Bass', program: 32 },
     { name: 'Tuba / Brass', program: 58 }
+  ],
+  percussion: [
+    { name: 'Standard Kit', program: 0 },
+    { name: 'Room Kit', program: 8 },
+    { name: 'Orchard / Concert', program: 48 }
+  ],
+  strings: [
+    { name: 'Orchestral Harp', program: 46 },
+    { name: 'Pizzicato Strings', program: 45 },
+    { name: 'Synth Strings', program: 50 }
+  ],
+  organ: [
+    { name: 'Church Organ', program: 19 },
+    { name: 'Reed Organ', program: 20 },
+    { name: 'Rock Organ', program: 18 }
+  ],
+  bells: [
+    { name: 'Tubular Bells', program: 14 },
+    { name: 'Celesta', program: 8 },
+    { name: 'Music Box', program: 10 }
   ]
 };

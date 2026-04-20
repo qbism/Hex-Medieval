@@ -76,7 +76,7 @@ export function getRecruitmentAction(
 ) {
   const recruitmentTiles = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
-    (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE) &&
+    (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS) &&
     !state.units.some(u => u.coord.q === t.coord.q && u.coord.r === t.coord.r)
   );
 
@@ -173,83 +173,58 @@ export function getRecruitmentAction(
         // Economic Value of Action
         // ROI = (Target Value - Unit Cost) / turnsToAct
         let actionValue = target.value;
+
+        // Supply Line Check: Actual game rule says you can't move further than 'moves' distance from a base.
+        // If a target requires walking beyond 'moves', it's unreachable without building new villages.
+        const isBeyondSupply = dist > stats.moves;
+        if (isBeyondSupply && !isBarbarian) {
+           // Heavier penalty for slow units targeting distant objectives they will never reach alone
+           actionValue *= 0.3;
+           turnsToAct += (dist - stats.moves); // Simulate "Leapfrog" delay
+        }
         
         // Bonus for defending own territory
         const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord) <= DEFENSE_DISTANCE_THRESHOLD);
 
-        // Knight Specific Logic
-        if (unitType === UnitType.KNIGHT) {
-          // Knights are great at sniping squishy targets
-          if (!target.isSettlement && (target.unitType === UnitType.ARCHER || target.unitType === UnitType.CATAPULT)) {
-            actionValue += BASE_REWARD * KNIGHT_SNIPE_BONUS;
-          }
-          // Knights are great at rapid expansion/harassment
-          // Bonus only if the settlement is unclaimed, within one move (turnsToAct <= 2), and unthreatened
-          const threat = threatMatrix.get(`${target.coord.q},${target.coord.r}`);
-          const targetThreatLevel = threat ? threat.minTurns : Infinity;
-          if (target.isSettlement && target.ownerId === null && turnsToAct <= 2 && targetThreatLevel > 2) {
-            actionValue += BASE_REWARD * KNIGHT_EXPANSION_BONUS;
-          }
-          // Knights are expensive; ensure we have decent income to sustain them
-          if (income < KNIGHT_INCOME_THRESHOLD && !isUnderThreat) {
-            actionValue -= BASE_REWARD * KNIGHT_INCOME_PENALTY;
-          }
-          
-          // General Knight appeal boost
-          actionValue += BASE_REWARD * KNIGHT_APPEAL_BOOST;
-        }
+        // Strict Recruitment Constraints Based on Unit Type
+        let isValidImmediateNeed = false;
+        const isEdgeSpawn = distToNearestEnemy !== Infinity && distToNearestEnemy <= 4;
 
-        // Catapult Specific Logic
-        if (unitType === UnitType.CATAPULT) {
-          // Catapults are siege engines
-          if (target.isSettlement && target.ownerId !== null) {
-            // High bonus for attacking enemy settlements
-            actionValue += BASE_REWARD * CATAPULT_SIEGE_BONUS;
-            if (target.value > 400) { // High value settlements (Castles)
-              actionValue += BASE_REWARD * CATAPULT_CASTLE_BONUS;
+        if (unitType === UnitType.INFANTRY) {
+          // Infantry: Valid anywhere (infilling safe inside kingdom).
+          isValidImmediateNeed = true;
+        } 
+        else if (unitType === UnitType.ARCHER) {
+          // Archers: Should spawn near edges/frontlines
+          if (isEdgeSpawn) {
+            isValidImmediateNeed = true;
+          }
+        } 
+        else if (unitType === UnitType.KNIGHT) {
+          // Knights: Traversing long distances to claim a neutral village
+          const isFarNeutralClaim = target.isSettlement && target.ownerId === null && dist >= 3 && dist <= 7;
+          // Or explicitly threatening if it's right on the front edge
+          const isFrontlineSnipe = isEdgeSpawn && !target.isSettlement && (target.unitType === UnitType.ARCHER || target.unitType === UnitType.CATAPULT) && dist <= range;
+          
+          if (isFarNeutralClaim || isFrontlineSnipe) {
+            isValidImmediateNeed = true;
+            if (isFarNeutralClaim) actionValue += target.value * 2.0;
+          }
+        } 
+        else if (unitType === UnitType.CATAPULT) {
+          // Catapults: Threats or enemy villages exactly 3 to 4 units away
+          const isEnemyThreat = target.ownerId !== null && target.ownerId !== currentPlayer.id;
+          if (isEnemyThreat && (dist === 3 || dist === 4)) {
+            isValidImmediateNeed = true;
+            if (target.isSettlement) {
+                actionValue += BASE_REWARD * 10.0; // Huge bonus for targeted sieges
             }
           }
-          
-          // Catapults are great for defense if placed correctly
-          if (isNearMyBase && turnsToAct <= 2) {
-            actionValue += BASE_REWARD * CATAPULT_DEFENSE_BONUS;
-          }
+        }
 
-          // Catapults are very expensive and slow
-          // Penalty if income is low
-          if (income < CATAPULT_INCOME_THRESHOLD && !isUnderThreat) {
-            actionValue -= BASE_REWARD * CATAPULT_INCOME_PENALTY;
-          }
-
-          // Mobility penalty: Catapults are useless if the front line is too far
-          if (turnsToAct > 5 && !isNearMyBase) {
-            actionValue -= BASE_REWARD * CATAPULT_MOBILITY_PENALTY_FAR;
-          } else if (turnsToAct > 6) {
-            actionValue -= BASE_REWARD * CATAPULT_MOBILITY_PENALTY_VERY_FAR;
-          }
-
-          // General Catapult appeal boost
-          actionValue += BASE_REWARD * CATAPULT_APPEAL_BOOST;
-
-          // Proximity Bonus: Encourage catapults if enemies are close to the spawning settlement
-          if (distToNearestEnemy <= 3) {
-            actionValue += BASE_REWARD * CATAPULT_PROXIMITY_BONUS_L1;
-          } else if (distToNearestEnemy <= 4) {
-            actionValue += BASE_REWARD * CATAPULT_PROXIMITY_BONUS_L2;
-          }
-
-          // Meat Shield Check: Catapults need protection
-          const hasMeatShieldNearby = state.units.some(u => 
-            u.ownerId === currentPlayer.id && 
-            (u.type === UnitType.INFANTRY || u.type === UnitType.KNIGHT) &&
-            getDistance(t.coord, u.coord) <= 1
-          );
-          
-          if (!hasMeatShieldNearby) {
-            actionValue -= BASE_REWARD * CATAPULT_MEAT_SHIELD_RECRUIT_PENALTY; // Strong penalty if no meat shield
-          } else {
-            actionValue += BASE_REWARD * CATAPULT_MEAT_SHIELD_RECRUIT_BONUS; // Bonus if meat shield is present
-          }
+        // Apply severe penalty if the specific deployment rules are not met
+        if (!isValidImmediateNeed && !isBarbarian) {
+           continue; // Disqualify this target for this unit type
         }
         
         // Bonus for capturing neutral settlements

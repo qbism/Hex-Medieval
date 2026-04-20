@@ -44,19 +44,27 @@ The AI operates on a **Heuristic Scoring System**. Every possible action is assi
 ### Unit Action Scoring
 \`FinalScore = (AttackScore * 1.2) + (DefenseScore * 1.5) + (MoveScore * 1.0)\`
 - **Stay Put Bias:** +0.5 to prevent jitter.
-- **Lethal Threat Penalty:** -2.5x multiplier if moving into a tile where an enemy can kill the unit next turn.
+- **Eminent Threat Penalty:** -10.0x multiplier if a high-value unit (Catapult/Knight) moves into an enemy's strike zone without capturing a settlement.
+- **Numerical Safety (N+1 Rule):** AI will "Hold the Line" if local numerical support is < 1.0 (even trades are rejected).
 
-## 5. Advanced Tactical Heuristics
+## 5. Strategic Stances (Dynamic Aggression)
+The AI shifts its core personality based on the global state of the game:
+- **STANCE: STEAMROLLER (Advantage):** Triggered when unit ratio is > 2:1 and gold is high. Reduces threat penalties; the AI becomes aggressive to finish the game.
+- **STANCE: ELITE CHESS (Parity):** Default mode. High risk aversion; treats battles like a high-stakes chess match.
+- **STANCE: SURVIVAL PACT (Struggling):** Triggered if strength is < 35% of the leader. Identifies another underdog for a "Secret Pact" (90% threat reduction from them) and focuses all aggression on the Leader.
+
+## 6. Advanced Tactical Heuristics
+- **Opportunistic Retreat:** When fleeing, units prefer neutral settlements or empty plains over forests to facilitate recovery.
+- **Leapfrog Expansion:** Units prioritize plains at the edge of the supply line to safely and quickly build new villages.
 - **Local Superiority Check:** Units calculate a "Support Score" (Allies - Enemies covering a tile). If deeply negative, the unit holds the line instead of pushing.
-- **Rally Point Logic:** Units receive a MoveScore bonus for clumping with allies in safe zones adjacent to front lines.
 - **Bait & Trade:** The AI will ignore Lethal Threat Penalties if the "Trade Value" (Target Cost - Unit Cost) exceeds 150g (e.g., Infantry for Catapult).
 - **Unit Specialization:**
   - **Infantry:** Bonus for attacking units on settlements (Vanguard role).
   - **Knights:** Penalty for being the first to enter a Kill Zone (Sweeper role).
-  - **Catapults:** Extreme "Stay Put" bias if no meat shield (Infantry/Knight) is adjacent. Strong recruitment penalty if no meat shield is nearby to protect the spawn point.
+  - **Catapults:** Extreme "Stay Put" bias if no meat shield (Infantry/Knight) is adjacent. 
 - **Settlement Degradation:** Prioritizes attacking settlements that anchor enemy supply lines to restrict enemy movement.
 
-## 6. AI Personalities: Normal vs. Barbarian
+## 7. AI Personalities: Normal vs. Barbarian
 
 ### Normal AI (Strategic)
 - **Safety First:** Avoids moving high-value units into "Kill Zones".

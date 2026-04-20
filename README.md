@@ -61,18 +61,25 @@ Every potential action is evaluated through an Economic Horizon. The AI calculat
 `Score = (TargetValue - UnitCost) / (TurnsToReach + 1)`
 This allows the AI to mathematically decide if a distant settlement is worth the opportunity cost of the turns spent traveling, or if it should focus on immediate local threats.
 
-### 4. Dynamic Threat Matrix
-The AI maintains a real-time "Lethality Map" of the board. It calculates the maximum potential damage any enemy unit can deal to any given hex within a 3-turn horizon.
-*   **Fear Factor**: Units will hold position or retreat if the local threat level exceeds their survival threshold.
-*   **Priority Targeting**: The AI identifies "High Value Targets" (HVTs) by combining their unit cost with their proximity to the AI's "Empire Center."
+### 4. Dynamic Threat Matrix & Numerical Safety
+The AI maintains a real-time "Lethality Map" of the board and evaluates engagements through the lens of **Numerical Safety**:
+*   **Numerical Safety (The N+1 Rule)**: In this one-hit-kill environment, a 1:1 engagement is considered suicide. The AI will often refuse to move into an enemy's range unless it has strict local superiority (outnumbering the enemy by at least one unit).
+*   **Support Parity**: Units evaluate the number of allies vs. enemies covering a target tile. If the AI doesn't have at least support parity, it will "Hold the Line" rather than risk a squad wipeout.
+*   **HVT Guard (Queen vs. Pawn)**: High-value units like Catapults and Knights treat enemy ranges with extreme caution. They are essentially forbidden from entering an enemy's strike zone unless a settlement capture on that spot is guaranteed this turn. This mimics high-level chess play where a Queen refuses to trade for a minor piece.
 
-### 5. Tactical Heuristics
+### 5. Dynamic Strategic Aggression (Stance Shifting)
+The AI is not static; it adjusts its risk tolerance based on the global state of the game:
+*   **Stance: Steamroller**: If the AI outnumbers its enemies by 2:1 and has high gold reserves, it adopts an aggressive "Siege" stance. It relaxes unit risk aversion to apply overwhelming pressure and finish the match.
+*   **Stance: Survival (Secret Pact)**: If an AI is failing (strength < 35% of the leader), it enters a "Survival Mode." It will identify another underdog as a "Secret Partner," forming an invisible non-aggression pact to focus all remaining strength on the game leader (the "King-Slayer Directive").
+
+### 6. Tactical Heuristics
 In addition to the mathematical core, the AI uses several tuned heuristics:
+*   **Opportunistic Retreats**: When fleeing to safety, units prioritize neutral settlements or empty plains that allow them to continue expanding or building on the next turn, rather than just hiding in forests.
+*   **Leapfrog Expansion**: Units are incentivized to move to plains at the very edge of their supply line, facilitating efficient "Leapfrog" village building to grow the empire quickly.
 *   **Targeted Upgrades**: Gold Mines are prioritized in safe backlines (>= 6 hexes away), while Fortresses/Castles are prioritized on the frontline (<= 4 hexes away).
 *   **Combined Arms**: Army composition is adjusted based on local needs (e.g., spawning Infantry for static brawls, Knights for open-field flanking).
 *   **Body-Blocking**: Infantry and Knights receive a "Screening Bonus" for positioning themselves between valuable Catapults and approaching enemies.
 *   **Tactical Focus Fire**: The AI prioritizes targets that multiple units can hit, ensuring lethal engagements rather than spreading damage.
-*   **Strategic Siege Deployment**: Catapults are prioritized when enemies are within a 3-4 hex radius of a recruitment center, ensuring they are deployed as effective defensive or siege assets rather than slow-moving liabilities.
 
 ---
 
@@ -85,16 +92,12 @@ The game features a custom-built, real-time procedural music engine that simulat
 *   **Altus (Counter):** Mid-high Recorder, providing flowing counter-melodies.
 *   **Tenor (Harmonic):** Mid-low Recorder, supporting the harmony with sustained tones.
 *   **Bassus (Foundation):** Low-register Viol or Hurdy-Gurdy, providing the rhythmic and tonal anchor.
+*   **Percussion:** Background frame drums or tambourines that join during intense sections.
 
-### 2. Structured Composition & Motifs
+### 2. Structured Composition & Dynamic Shuffling
 *   **Song Structure:** Songs are generated with a clear architectural structure (e.g., A-B-A-C-A).
-*   **Motif System:** Each section has its own unique "motif" (a short melodic fragment). The voices reference these motifs throughout the section.
-*   **Dynamic Sectional Roles:** Each section assigns different roles to the quartet (e.g., Intro is sparse, A Section is full polyphony, B Section features duets).
-
-### 3. Historical Music Integration
-*   **Authentic Melodies:** The engine includes a library of public domain medieval and Renaissance melodies (e.g., "Sumer Is Icumen In," "Palästinalied," "L'homme armé").
-*   **Playlist System:** At the start of each game, a shuffled playlist of these historical pieces is generated and played sequentially.
-*   **Advanced Counterpoint:** The engine uses rules for contrary motion and authentic cadences to generate historically plausible harmonies around the core melodies.
+*   **Musical Variety:** Instruments are dynamically shuffled and structural parameters (tempo, density, reverb) are randomized for every song, ensuring the soundtrack never sounds repetitive.
+*   **Historical Pieces:** The engine includes a library of public domain medieval melodies (e.g., "Palästinalied," "L'homme armé") which are served through a shuffled playlist system.
 
 ---
 

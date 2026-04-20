@@ -80,6 +80,8 @@ export const MUTUAL_SUPPORT_BONUS = 0.8;
 export const KILL_PRIORITY_BONUS = 8.0;
 export const THREAT_PENALTY_SACRIFICE_MULT = 0.2;
 export const THREAT_PENALTY_L1_MULT = 15.0;
+export const OPPORTUNISTIC_RETREAT_SETTLEMENT_BONUS = 15.0;
+export const OPPORTUNISTIC_RETREAT_PLAINS_BONUS = 8.0;
 
 // Advanced Tactics
 export const SUPPORT_SCORE_MULT = 50;

@@ -2,6 +2,8 @@ import {
   GameState, 
   Player, 
   TerrainType, 
+  UnitType, 
+  UNIT_STATS, 
   UPGRADE_COSTS, 
   HexCoord, 
   getDistance, 
@@ -142,6 +144,20 @@ export function getUpgradeAction(
              getDistance(t.coord, tile.coord) <= 2 &&
              !(t.coord.q === tile.coord.q && t.coord.r === tile.coord.r) // exclude self
            ).length;
+
+           // Supply Edge Leapfrog Bonus:
+           // If we are building this village exactly at our current supply limit, it's a critical expansion anchor.
+           let nearestSettlementDist = Infinity;
+           for (const s of state.board.filter(t => t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE))) {
+             const d = getDistance(tile.coord, s.coord);
+             if (d < nearestSettlementDist) nearestSettlementDist = d;
+           }
+           
+           // We find the unit on this tile to check its specific movespeed
+           const unitOnTile = state.units.find(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r);
+           if (unitOnTile && nearestSettlementDist >= UNIT_STATS[unitOnTile.type].moves) {
+             score += BASE_REWARD * 15.0; // Huge bonus to leapfrog
+           }
 
            if (nearbyFriendlySettlements === 0) {
              score += BASE_REWARD * VILLAGE_ISOLATION_BONUS; // Priority 1: Huge bonus for expanding into isolated areas

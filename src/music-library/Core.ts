@@ -33,10 +33,14 @@ export class MusicEngine {
   
   public instrumentChoices = DEFAULT_INSTRUMENT_CHOICES;
   public currentInstruments: Record<MusicalPart, number> = {
-    lead: 1,
+    lead: 0,
     counter: 0,
     pad: 0,
-    bass: 1
+    bass: 0,
+    percussion: 0,
+    strings: 0,
+    organ: 0,
+    bells: 0
   };
   
   private tracks: Record<Instrument, NoteEvent[]> = {
@@ -56,6 +60,16 @@ export class MusicEngine {
     if (this.synth) return;
     try {
       this.synth = new WebAudioTinySynth({ quality: 1, useReverb: 1 });
+      
+      // Reset all channels and controllers to ensure clean tuning state
+      for (let i = 0; i < 16; i++) {
+        this.synth.send([0xB0 + i, 121, 0]); // Reset All Controllers
+        this.synth.send([0xB0 + i, 101, 127]); // RPN null
+        this.synth.send([0xB0 + i, 100, 127]);
+        this.synth.send([0xB0 + i, 6, 0]);   // Data Entry reset
+        this.synth.send([0xB0 + i, 10, 64]);  // Center pan
+      }
+
       this.applyInstrumentChoices();
       
       // Global FX setup for thematic consistency
@@ -63,10 +77,7 @@ export class MusicEngine {
       this.synth.send([0xB1, 73, 20]);  // Ch 1: Clean Counter Attack
       this.synth.send([0xB2, 73, 110]); // CC 73: Attack Time (soft choir)
       this.synth.send([0xB2, 72, 110]); // CC 72: Release Time
-      this.synth.send([0xC3, 44]);      // Ch 3: Tremolo Strings
-      this.synth.send([0xC4, 19]);      // Ch 4: Church Organ
       this.synth.send([0xB4, 73, 40]);  // Organ faster attack
-      this.synth.send([0xC6, 14]);      // Ch 6: Tubular Bells
       this.synth.send([0xB6, 73, 90]);  // Bells softer attack
       this.synth.send([0xB6, 72, 127]); // Bells extreme release
       this.synth.send([0xB6, 91, 127]); // Bells max reverb
@@ -84,17 +95,44 @@ export class MusicEngine {
 
   private applyInstrumentChoices() {
     if (!this.synth) return;
-    const parts: MusicalPart[] = ['lead', 'counter', 'pad', 'bass'];
-    const channels = [0, 1, 2, 5];
+    const parts: MusicalPart[] = ['lead', 'counter', 'pad', 'bass', 'percussion', 'strings', 'organ', 'bells'];
+    const channels = [0, 1, 2, 5, 9, 3, 4, 6];
     parts.forEach((part, i) => {
-      const prog = this.instrumentChoices[part][this.currentInstruments[part]].program;
-      this.synth.send([0xC0 + channels[i], prog]);
+      const selection = this.currentInstruments[part];
+      const inst = this.instrumentChoices[part][selection];
+      const prog = inst.program;
+      const chan = channels[i];
+
+      this.synth!.send([0xC0 + chan, prog]);
+
+      // Handle special volume/reverb for Wooden Flute (Program 73)
+      // Standard values: Volume 100, Reverb 44
+      let vol = 100;
+      let rev = 44;
+
+      if (inst.name === 'Wooden Flute' || prog === 73) {
+        vol = 60; // 60% of normal
+        rev = 88; // Double normal reverb
+      }
+
+      this.synth!.send([0xB0 + chan, 7, vol]);   // CC 7: Channel Volume
+      this.synth!.send([0xB0 + chan, 91, rev]);  // CC 91: Reverb Level
+
+      // Reset pitch bend and modulation on instrument change
+      this.synth!.send([0xE0 + chan, 0, 64]); // Pitch Bend Center
+      this.synth!.send([0xB0 + chan, 1, 0]);  // Modulation off
     });
   }
 
   public generateSong() {
     this.tracks = { harpsichord: [], oboe: [], choir: [], strings: [], organ: [], bass: [], perc: [], bells: [] };
     
+    // Shuffle instruments for each part to ensure variety
+    (Object.keys(this.instrumentChoices) as MusicalPart[]).forEach(part => {
+      this.currentInstruments[part] = Math.floor(Math.random() * this.instrumentChoices[part].length);
+    });
+    this.applyInstrumentChoices();
+
     const style = MUSIC_STYLES[Math.floor(Math.random() * MUSIC_STYLES.length)];
     this.bpm = Math.floor(Math.random() * (style.bpm[1] - style.bpm[0])) + style.bpm[0];
     this.stepDuration = 60 / this.bpm / 4;
@@ -110,7 +148,13 @@ export class MusicEngine {
     const motifA = this.generateMotif();
     const motifB = this.generateMotif();
     
-    const structure: SectionType[] = ['Intro', 'A', 'B', 'SoloHarpsi', 'A', 'DuetHarpsiOboe', 'B', 'Outro'];
+    // Shuffled song varieties: Randomize the middle solos and duets
+    const soloPool: SectionType[] = ['SoloHarpsi', 'SoloOboe', 'SoloStrings'];
+    const duetPool: SectionType[] = ['DuetHarpsiOboe', 'DuetOboeStrings'];
+    const middleSolo = soloPool[Math.floor(Math.random() * soloPool.length)];
+    const middleDuet = duetPool[Math.floor(Math.random() * duetPool.length)];
+    
+    const structure: SectionType[] = ['Intro', 'A', 'B', middleSolo, 'A', middleDuet, 'B', 'Outro'];
     
     let currentStep = 0;
     for (const section of structure) {
@@ -151,11 +195,13 @@ export class MusicEngine {
         if (s + len > 16) { s++; continue; }
         
         const isStrong = s % 4 === 0;
+        // Tighter chordal anchors to avoid discordance
         const chordTones = [0, 2, 4, 7, -3];
-        const passingTones = [-1, 1, 3, 5, 6]; 
+        const passingTones = [1, 3, 5]; // Removed 6 (7th) and -1 from standard passes for stability
         
         if (Math.random() > 0.05) {
-          const deg = isStrong 
+          // Significant bias towards chord tones on any note longer than a 16th
+          const deg = (isStrong || len > 2)
             ? chordTones[Math.floor(Math.random() * chordTones.length)]
             : passingTones[Math.floor(Math.random() * passingTones.length)];
           notes.push({ step: m * 16 + s, degree: deg, duration: len * 0.9 });
@@ -314,12 +360,14 @@ export class MusicEngine {
       const notes = motif.filter(n => n.step >= motifMeasure * 16 && n.step < (motifMeasure + 1) * 16);
       notes.forEach(note => {
         const step = measureStart + (note.step % 16);
-        this.tracks.harpsichord.push({ step, pitch: this.getMidiNoteFromDegree(chordRoot + note.degree + 7), duration: note.duration, velocity: 1 });
-        this.tracks.oboe.push({ step, pitch: this.getMidiNoteFromDegree(chordRoot + note.degree), duration: note.duration, velocity: 0.9 });
+        // Reduce unison doubling clash by shifting the Oboe accompaniment 
+        // to a more supportive role if it's not the primary focused section
+        this.tracks.harpsichord.push({ step, pitch: this.getMidiNoteFromDegree(chordRoot + note.degree + 7), duration: note.duration, velocity: 0.95 });
+        this.tracks.oboe.push({ step, pitch: this.getMidiNoteFromDegree(chordRoot + note.degree - 7), duration: note.duration, velocity: 0.7 });
       });
       if (!isIntro) {
         [{ s: 0, d: 4 }, { s: 4, d: 7 }, { s: 8, d: 4 }, { s: 12, d: 2 }].forEach(c => {
-          this.tracks.strings.push({ step: measureStart + c.s, pitch: this.getMidiNoteFromDegree(chordRoot + c.d), duration: 3.5, velocity: 0.7 });
+          this.tracks.strings.push({ step: measureStart + c.s, pitch: this.getMidiNoteFromDegree(chordRoot + c.d), duration: 3.5, velocity: 0.65 });
         });
       }
     }
@@ -331,14 +379,28 @@ export class MusicEngine {
     while (s < 16) {
       const len = instrument === 'harpsichord' ? [0.5, 0.5, 1, 1, 2, 4][Math.floor(Math.random() * 6)] : [1, 1, 2, 2, 2, 4][Math.floor(Math.random() * 6)];
       if (s + len > 16) { s += 0.5; continue; }
+      
+      const isStrong = s % 4 === 0;
+      
       if (Math.random() > 0.15) {
-        if (instrument === 'harpsichord' && Math.random() > 0.3) {
-          currentDeg = chordRoot + [0, 2, 4, 7][Math.floor(Math.random() * 4)] + (Math.random() > 0.5 ? 7 : 0);
+        // High likelihood of resetting to a chord tone on strong beats
+        if (isStrong && Math.random() > 0.4) {
+          currentDeg = chordRoot + [0, 2, 4, 7][Math.floor(Math.random() * 4)];
         } else {
-          currentDeg += (Math.floor(Math.random() * 5) - 2);
+          // Guided random walk
+          const move = (Math.floor(Math.random() * 3) - 1); // -1, 0, or 1 for smoother transitions
+          currentDeg += move;
+          
+          // High-pressure correction: if we land on a very discordant interval (like degree 1 or 3 in some modes)
+          // on a long note, push it towards a chordal neighbor
+          if (len > 2 && Math.abs(currentDeg - chordRoot) % 2 !== 0) {
+            currentDeg += (Math.random() > 0.5 ? 1 : -1);
+          }
         }
+
         if (currentDeg < chordRoot - 7) currentDeg += 7;
         if (currentDeg > chordRoot + 14) currentDeg -= 7;
+        
         this.tracks[instrument].push({
           step: measureStart + s,
           pitch: this.getMidiNoteFromDegree(currentDeg + 7),
@@ -374,9 +436,9 @@ export class MusicEngine {
   }
 
   private getMidiNoteFromDegree(degree: number): number {
-    const norm = ((degree % 7) + 7) % 7;
+    const norm = Math.round(((degree % 7) + 7) % 7);
     const pitch = this.baseNote + Math.floor(degree / 7) * 12 + this.mode[norm];
-    return isNaN(pitch) ? this.baseNote : pitch;
+    return isNaN(pitch) ? Math.round(this.baseNote) : Math.round(pitch);
   }
 
   public start() {

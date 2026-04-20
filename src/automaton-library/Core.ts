@@ -61,10 +61,8 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
 
   const { opportunityPerilMatrix } = cachedData;
 
-  // --- Barbarian AI Behavior ---
-  if (currentPlayer.name === 'Barbarians') {
-    return { ...getBarbarianAction(state, currentPlayer, cachedData), matrix: opportunityPerilMatrix };
-  }
+  // --- Barbarian AI Movement Behavior moved to unit action phase ---
+  const isBarbarian = currentPlayer.name === 'Barbarians';
 
   const { playerStrengths, myStrength, focusOnLeader, leaderId, isLaggingStrength, isLaggingIncome, isLagging } = cachedData.threatAssessment;
   const threatMatrix = cachedData.threatMatrix;
@@ -109,8 +107,8 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
   const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome);
   const savingForVillage = isSavingForVillage(state, currentPlayer);
 
-  // 1. Try to upgrade settlements
-  const upgradeAction = getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, threatMatrix);
+  // 1. Try to upgrade settlements (Civilized players only)
+  const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, threatMatrix) : null;
   if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
 
   // 2. Try to recruit
@@ -127,11 +125,16 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     savingForVillage,
     isLaggingStrength,
     isLaggingIncome,
-    heatMap
+    heatMap,
+    isBarbarian
   );
   if (recruitmentAction) return { ...recruitmentAction, matrix: opportunityPerilMatrix };
 
   // 3. Move/Attack with units
+  if (isBarbarian) {
+    return { ...getBarbarianAction(state, currentPlayer, cachedData), matrix: opportunityPerilMatrix };
+  }
+
   const unitAction = getUnitAction(
     state,
     currentPlayer,
@@ -147,7 +150,9 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     hvt,
     savingForMine,
     savingForVillage,
-    isLagging
+    isLagging,
+    false,
+    cachedData
   );
   if (unitAction) return { ...unitAction, matrix: opportunityPerilMatrix };
 

@@ -8,7 +8,7 @@ export interface NoteEvent {
   velocity: number;
 }
 
-export type MusicalPart = 'lead' | 'counter' | 'pad' | 'bass';
+export type MusicalPart = 'lead' | 'counter' | 'pad' | 'bass' | 'percussion' | 'strings' | 'organ' | 'bells';
 
 export interface InstrumentChoice {
   name: string;
