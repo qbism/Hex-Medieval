@@ -256,7 +256,7 @@ export default function App() {
   useEffect(() => {
     if (musicVolume > 0 && !isMuted) {
       musicEngine.start();
-      musicEngine.setVolume(musicVolume);
+      musicEngine.setVolume(musicVolume * 0.5);
     } else {
       musicEngine.stop();
     }
@@ -479,7 +479,7 @@ export default function App() {
 
   useAutomatonTurn({ gameState, setupMode, actions, setAutomatonStatus });
 
-  const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
+  const currentPlayer = gameState ? gameState.players[gameState.currentPlayerIndex] : null;
 
   const handleStartGame = (configs: any) => {
     musicEngine.resume();

@@ -76,8 +76,8 @@ const getWaterGeometry = (radius: number) => {
 const sharedWaterMaterial = new WaterSurfaceMaterial();
 
 export const WaterSurfaceEffect = ({ radius }: { radius: number }) => {
-  useFrame((state) => {
-    sharedWaterMaterial.time = state.clock.elapsedTime;
+  useFrame(() => {
+    sharedWaterMaterial.time = performance.now() / 1000;
   });
 
   return (

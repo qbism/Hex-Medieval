@@ -59,6 +59,8 @@ import {
   INFANTRY_VANGUARD_SETTLEMENT_BONUS,
   KNIGHT_FIRST_IN_PENALTY,
   CATAPULT_MEAT_SHIELD_BONUS,
+  FORMATION_ANCHOR_BONUS,
+  SQUAD_INTEGRITY_BONUS,
   SETTLEMENT_DEGRADATION_PRIORITY_BONUS,
   COMBO_FOLLOW_UP_CLAIMER_BONUS,
   COMBO_FOLLOW_UP_NEUTRALIZER_BONUS,
@@ -107,6 +109,7 @@ export function getUnitAction(
   isSavingForMine: boolean,
   isSavingForVillage: boolean,
   isLagging: boolean,
+  isCriticallyLaggingLargeEconomy: boolean,
   isBarbarian: boolean = false,
   cachedData: any = {}
 ) {
@@ -435,7 +438,27 @@ export function getUnitAction(
         }
       }
 
-      // Immediate Capture Bonus
+      // 1. NEUTRAL VILLAGE PRIORITY: Always prioritize moving toward safe neutral villages for instant gain.
+      if (!isMoveInPeril && tile.ownerId === null && 
+         (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+        score += (BASE_REWARD * 30.0); // Extreme priority for both advancing and retreating units
+      }
+
+      // 2. MOUNTAIN PARKING logic: Don't park on a mountain until the turn before planning to build.
+      if (tile.terrain === TerrainType.MOUNTAIN && isSavingForMine) {
+        const myIncome = mySettlements.reduce((sum, s) => sum + SETTLEMENT_INCOME[s.terrain as TerrainType], 0);
+        const goldNextTurn = currentPlayer.gold + myIncome;
+        const mineCost = _UPGRADE_COSTS[TerrainType.GOLD_MINE];
+        if (goldNextTurn < mineCost) {
+          // It's too early to park here. Stay 1 hex away if possible or just avoid the tile.
+          score -= (BASE_REWARD * 15.0); 
+        } else if (goldNextTurn >= mineCost) {
+          // We can build next turn! Park now to be ready.
+          score += (BASE_REWARD * 20.0);
+        }
+      }
+
+      // Immediate Capture Bonus (kept as well for redundancy/legacy weighting)
       if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
         score += (SETTLEMENT_INCOME[tile.terrain] * HORIZON) + BASE_REWARD * IMMEDIATE_CAPTURE_BONUS; 
       }
@@ -648,8 +671,14 @@ export function getUnitAction(
         const nearestEnemy = state.units.find(u => u.ownerId !== currentPlayer.id && getDistance(m, u.coord) <= 3);
         if (nearestEnemy) {
           score += BASE_REWARD * DRIVE_OUT_BONUS;
+          if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * DRIVE_OUT_BONUS * 2;
         } else {
           score += BASE_REWARD * DEFENSE_SCORING_BONUS;
+        }
+        
+        // Critical Income Rule: If we have a big economy but are lagging, protect villages at all costs
+        if (isCriticallyLaggingLargeEconomy) {
+          score += BASE_REWARD * DEFENSE_SCORING_BONUS * 4;
         }
       }
 
@@ -668,6 +697,11 @@ export function getUnitAction(
             const isEnemyThreateningVillage = threatenedVillages.some(v => getDistance(target.coord, v.coord) <= getUnitRange({ type: target.unitType, coord: target.coord } as any, state.board));
             if (isEnemyThreateningVillage) {
               score += BASE_REWARD * SACRIFICE_BONUS; // Huge sacrifice bonus!
+              
+              // Extreme concern for income protection
+              if (isCriticallyLaggingLargeEconomy) {
+                score += BASE_REWARD * SACRIFICE_BONUS * 3;
+              }
             }
           }
         }
@@ -724,13 +758,25 @@ export function getUnitAction(
       }
       
       // Mutual Support Bonus: AI likes to stay near other friendly units
-      const isNearFriend = otherFriendlyUnits.some(u => getDistance(m, u.coord) === 1);
-      if (isNearFriend) {
-        score += BASE_REWARD * MUTUAL_SUPPORT_BONUS;
+      const nearFriendCount = otherFriendlyUnits.filter(u => getDistance(m, u.coord) === 1).length;
+      if (nearFriendCount > 0) {
+        score += BASE_REWARD * MUTUAL_SUPPORT_BONUS * nearFriendCount;
       }
 
+      // Formation Anchor Logic: Squad units want to protect/stay near Catapults (Our "Queens")
+      const catAnchors = myCatapults.filter(u => u.id !== unitToAct.id);
+      for (const cat of catAnchors) {
+        const distToCat = getDistance(m, cat.coord);
+        if (distToCat === 1) score += BASE_REWARD * FORMATION_ANCHOR_BONUS;
+        else if (distToCat === 2) score += BASE_REWARD * FORMATION_ANCHOR_BONUS * 0.5;
+      }
+
+      // Squad Integrity Logic: Units want to stay in a tight cluster for mutual coverage
+      const clusterSize = otherFriendlyUnits.filter(u => getDistance(m, u.coord) <= 2).length;
+      score += clusterSize * SQUAD_INTEGRITY_BONUS * 10; 
+
       // Rally Point Heuristic: Clumping in safe zones
-      if (moveThreatLevel > 1 && isNearFriend) {
+      if (moveThreatLevel > 1 && nearFriendCount > 0) {
         score += RALLY_POINT_ADJACENCY_BONUS;
       }
 

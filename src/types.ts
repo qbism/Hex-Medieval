@@ -34,15 +34,15 @@ export const SETTLEMENT_INCOME: Record<TerrainType, number> = {
   [TerrainType.WATER]: 0,
   [TerrainType.VILLAGE]: 20,
   [TerrainType.FORTRESS]: 40,
-  [TerrainType.CASTLE]: 70,
+  [TerrainType.CASTLE]: 80,
   [TerrainType.GOLD_MINE]: 100,
 };
 
 export const UPGRADE_COSTS: Record<string, number> = {
   [TerrainType.VILLAGE]: 100,
-  [TerrainType.GOLD_MINE]: 500,
+  [TerrainType.GOLD_MINE]: 400,
   [TerrainType.FORTRESS]: 150,
-  [TerrainType.CASTLE]: 300,
+  [TerrainType.CASTLE]: 200,
 };
 
 export enum UnitType {

@@ -14,54 +14,45 @@ export const MINOR_PROGRESSIONS = [
   [0, 3, 4, 0], // i - iv - V - i (Classic Minor)
   [0, 5, 2, 4], // i - VI - III - V (Dark Fantasy)
   [0, 1, 0, 4], // i - bII - i - V (Phrygian/Vampiric flavor)
+  [1, 4, 0, 0], // ii - V - i (Jazz Minor Turnaround)
 ];
 
 export const MAJOR_PROGRESSIONS = [
   [0, 3, 4, 0], // I - IV - V - I
-  [0, 5, 3, 4], // I - vi - IV - V
-  [0, 4, 5, 3], // I - V - vi - IV
+  [0, 5, 3, 4], // I - vi - IV - V ('50s Pop Progression)
+  [0, 4, 5, 3], // I - V - vi - IV (The "Axis" Progression)
   [0, 4, 0, 4], // I - V - I - V (Fanfare)
+  [1, 4, 0, 0], // ii - V - I (Jazz ii-V-I Standard)
+  [0, 6, 3, 0], // I - bVII - IV - I (Rock Mixolydian Vamp)
+  [0, 4, 5, 2, 3, 0, 3, 4], // I - V - vi - iii - IV - I - IV - V (Pachelbel's Canon)
 ];
 
 export const DEFAULT_INSTRUMENT_CHOICES: Record<MusicalPart, InstrumentChoice[]> = {
   lead: [
-    { name: 'Harpsichord', program: 6 },
     { name: 'Plucked Lute', program: 104 },
-    { name: 'Wooden Flute', program: 73 }
+    { name: 'Oboe', program: 68 },
+    { name: 'Wooden Flute', program: 73 },
+    { name: 'Harpsichord', program: 6 }
   ],
   counter: [
-    { name: 'Oboe', program: 68 },
-    { name: 'Recorder', program: 79 },
     { name: 'Fiddle', program: 110 }
   ],
   pad: [
-    { name: 'Gothic Choir', program: 52 }, 
-    { name: 'String Ensemble', program: 48 },
-    { name: 'Warm Pad', program: 89 }
+    { name: 'Gothic Choir', program: 52 }
   ],
   bass: [
-    { name: 'Deep Contrabass', program: 43 },
-    { name: 'Acoustic Bass', program: 32 },
-    { name: 'Tuba / Brass', program: 58 }
+    { name: 'Acoustic Bass', program: 32 }
   ],
   percussion: [
-    { name: 'Standard Kit', program: 0 },
-    { name: 'Room Kit', program: 8 },
     { name: 'Orchard / Concert', program: 48 }
   ],
   strings: [
-    { name: 'Orchestral Harp', program: 46 },
-    { name: 'Pizzicato Strings', program: 45 },
-    { name: 'Synth Strings', program: 50 }
+    { name: 'Orchestral Harp', program: 46 }
   ],
   organ: [
-    { name: 'Church Organ', program: 19 },
-    { name: 'Reed Organ', program: 20 },
     { name: 'Rock Organ', program: 18 }
   ],
   bells: [
-    { name: 'Tubular Bells', program: 14 },
-    { name: 'Celesta', program: 8 },
-    { name: 'Music Box', program: 10 }
+    { name: 'Tubular Bells', program: 14 }
   ]
 };

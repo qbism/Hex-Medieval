@@ -64,7 +64,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
   // --- Barbarian AI Movement Behavior moved to unit action phase ---
   const isBarbarian = currentPlayer.name === 'Barbarians';
 
-  const { playerStrengths, myStrength, focusOnLeader, leaderId, isLaggingStrength, isLaggingIncome, isLagging } = cachedData.threatAssessment;
+  const { playerStrengths, myStrength, focusOnLeader, leaderId, isLaggingStrength, isLaggingIncome, isCriticallyLaggingLargeEconomy, isLagging } = cachedData.threatAssessment;
   const threatMatrix = cachedData.threatMatrix;
   const influenceMap = cachedData.influenceMap;
   const heatMap = cachedData.heatMap;
@@ -86,6 +86,10 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     
     const myIncome = cachedData.threatAssessment.playerIncomes[currentPlayer.id];
     
+    // Barbarian Team only considers surrender when only one other player remains.
+    // If there are 2 or more other players, it will never surrender.
+    const isBarbarianWaitRuleMet = !isBarbarian || activeStats.length === 1;
+
     // User's New Rule: Convert to Barbarian if < 25% of top player's strength AND < 25% of top player's income
     const isCriticallyWeak = myStrength < maxCompetitorStrength * 0.25;
     const isCriticallyPoor = myIncome < maxCompetitorIncome * 0.25;
@@ -93,7 +97,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     // Legacy stagnant logic as a secondary fallback
     const isWeakAndStagnant = myStrength < maxCompetitorStrength * 0.6 && isIncomeStagnant;
     
-    if ((isCriticallyWeak && isCriticallyPoor) || isWeakAndStagnant) {
+    if (isBarbarianWaitRuleMet && ((isCriticallyWeak && isCriticallyPoor) || isWeakAndStagnant)) {
       return { type: 'goRogue' as const, matrix: opportunityPerilMatrix };
     }
   }
@@ -105,10 +109,10 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
   const numSettlements = mySettlements.length;
 
   const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome);
-  const savingForVillage = isSavingForVillage(state, currentPlayer);
+  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy);
 
   // 1. Try to upgrade settlements (Civilized players only)
-  const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, threatMatrix) : null;
+  const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix) : null;
   if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
 
   // 2. Try to recruit
@@ -125,6 +129,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     savingForVillage,
     isLaggingStrength,
     isLaggingIncome,
+    isCriticallyLaggingLargeEconomy,
     heatMap,
     isBarbarian
   );
@@ -151,6 +156,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     savingForMine,
     savingForVillage,
     isLagging,
+    isCriticallyLaggingLargeEconomy,
     false,
     cachedData
   );

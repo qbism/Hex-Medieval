@@ -1,4 +1,4 @@
-export type SectionType = 'Intro' | 'A' | 'B' | 'SoloHarpsi' | 'SoloOboe' | 'SoloStrings' | 'DuetHarpsiOboe' | 'DuetOboeStrings' | 'Outro';
+export type SectionType = 'Intro' | 'A' | 'B' | 'C' | 'SoloFiddle' | 'SoloBass' | 'SoloOrgan' | 'SoloPerc' | 'SoloLead' | 'SoloOboe' | 'SoloStrings' | 'DuetHarpsiOboe' | 'DuetOboeStrings' | 'Outro';
 export type Instrument = 'harpsichord' | 'oboe' | 'choir' | 'strings' | 'organ' | 'bass' | 'perc' | 'bells';
 
 export interface NoteEvent {

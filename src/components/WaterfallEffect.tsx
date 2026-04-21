@@ -65,8 +65,8 @@ const sharedWaterfallMaterial = new WaterfallMaterial();
 sharedWaterfallMaterial.side = THREE.DoubleSide;
 
 export const WaterfallEffect = ({ topHeight, depth }: { topHeight: number, depth: number }) => {
-  useFrame((state) => {
-    sharedWaterfallMaterial.time = state.clock.elapsedTime;
+  useFrame(() => {
+    sharedWaterfallMaterial.time = performance.now() / 1000;
   });
 
   return (

@@ -71,6 +71,7 @@ export function getRecruitmentAction(
   isSavingForVillage: boolean,
   isLaggingStrength: boolean,
   isLaggingIncome: boolean,
+  isCriticallyLaggingLargeEconomy: boolean,
   heatMap: Map<string, number>,
   isBarbarian: boolean = false
 ) {
@@ -88,6 +89,12 @@ export function getRecruitmentAction(
   // Savings Account Logic: If we are saving for a high-reward item, we might skip recruitment
   const savingsTarget = isSavingForMine ? UPGRADE_COSTS[TerrainType.GOLD_MINE] : (isSavingForVillage ? UPGRADE_COSTS[TerrainType.VILLAGE] : 0);
   let currentGold = currentPlayer.gold;
+
+  // Fraction-based planning (Task 1): Put aside 1/3 of income if saving for a mine
+  if (isSavingForMine && !isUnderThreat) {
+    const savingsCut = Math.floor(income * 0.33);
+    currentGold = Math.max(0, currentGold - savingsCut);
+  }
   
   // Barbarians spend roughly 1/3 on expansion and 2/3 on infantry
   // We implement this by making them "save" 1/3 of their gold during recruitment

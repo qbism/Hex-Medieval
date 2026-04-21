@@ -74,9 +74,13 @@ The AI is not static; it adjusts its risk tolerance based on the global state of
 
 ### 6. Tactical Heuristics
 In addition to the mathematical core, the AI uses several tuned heuristics:
+*   **Formation-Based Thinking**: The AI treats the Catapult as its "Queen" and uses Infantry/Knights as "Pawns" to screen it. Units are heavily incentivized to maintain **Squad Integrity**, staying in a tight 1-2 hex cluster to provide mutual support and block flanking maneuvers.
+*   **Infinite Mitigation (Sniper Logic)**: The AI understands that striking from Range 3 provides "Infinite Mitigation" because most enemies cannot return fire in a single move. It will aggressively prioritize protecting any unit that achieves this overmatch capability.
 *   **Opportunistic Retreats**: When fleeing to safety, units prioritize neutral settlements or empty plains that allow them to continue expanding or building on the next turn, rather than just hiding in forests.
 *   **Leapfrog Expansion**: Units are incentivized to move to plains at the very edge of their supply line, facilitating efficient "Leapfrog" village building to grow the empire quickly.
 *   **Targeted Upgrades**: Gold Mines are prioritized in safe backlines (>= 6 hexes away), while Fortresses/Castles are prioritized on the frontline (<= 4 hexes away).
+*   **Economic Urgency**: If a wealthy AI (>1000 income) lags significantly behind the leader (>15% gap), it enters "Economic Urgency" mode—doubling down on Gold Mine construction and assigning higher defensive priority to its economic heartland.
+*   **Barbarian Resilience**: The Barbarian team is exceptionally stubborn. They will only consider surrendering if only a single non-barbarian competitor remains; otherwise, they remain a persistent world threat.
 *   **Combined Arms**: Army composition is adjusted based on local needs (e.g., spawning Infantry for static brawls, Knights for open-field flanking).
 *   **Body-Blocking**: Infantry and Knights receive a "Screening Bonus" for positioning themselves between valuable Catapults and approaching enemies.
 *   **Tactical Focus Fire**: The AI prioritizes targets that multiple units can hit, ensuring lethal engagements rather than spreading damage.

@@ -125,9 +125,9 @@ const attackTargetGeo = new THREE.SphereGeometry(0.8, 16, 16);
 const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { height: number, geometry: THREE.BufferGeometry, active: boolean }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   
-  useFrame(({ clock }) => {
+  useFrame(({ performance: _perf }) => {
     if (!meshRef.current) return;
-    const t = clock.getElapsedTime();
+    const t = performance.now() / 1000;
     // Pulsate between 0.25 and 0.75
     const opacity = 0.25 + 0.5 * (Math.sin(t * 3) * 0.5 + 0.5);
     (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;

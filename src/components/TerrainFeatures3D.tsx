@@ -93,10 +93,11 @@ export const MountainFeature = ({ position }: { position: [number, number, numbe
 
 export const CastleFeature = ({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
   const flagRef = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
+  useFrame(() => {
     if (flagRef.current) {
-      flagRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 3) * 0.2;
-      flagRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 5) * 0.1;
+      const time = performance.now() / 1000;
+      flagRef.current.rotation.y = Math.sin(time * 3) * 0.2;
+      flagRef.current.rotation.z = Math.sin(time * 5) * 0.1;
     }
   });
 
@@ -136,10 +137,11 @@ export const CastleFeature = ({ position, playerColor }: { position: [number, nu
 
 export const FortressFeature = ({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
   const flagRef = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
+  useFrame(() => {
     if (flagRef.current) {
-      flagRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 3) * 0.2;
-      flagRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 5) * 0.1;
+      const time = performance.now() / 1000;
+      flagRef.current.rotation.y = Math.sin(time * 3) * 0.2;
+      flagRef.current.rotation.z = Math.sin(time * 5) * 0.1;
     }
   });
 
@@ -176,10 +178,11 @@ export const FortressFeature = ({ position, playerColor }: { position: [number, 
 
 export const VillageFeature = ({ position, playerColor, isClaimed }: { position: [number, number, number], playerColor: string, isClaimed: boolean }) => {
   const flagRef = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
+  useFrame(() => {
     if (flagRef.current) {
-      flagRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 3) * 0.2;
-      flagRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 5) * 0.1;
+      const time = performance.now() / 1000;
+      flagRef.current.rotation.y = Math.sin(time * 3) * 0.2;
+      flagRef.current.rotation.z = Math.sin(time * 5) * 0.1;
     }
   });
 

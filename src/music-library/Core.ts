@@ -127,9 +127,13 @@ export class MusicEngine {
   public generateSong() {
     this.tracks = { harpsichord: [], oboe: [], choir: [], strings: [], organ: [], bass: [], perc: [], bells: [] };
     
-    // Shuffle instruments for each part to ensure variety
+    // Fix instruments for most parts, randomize lead
     (Object.keys(this.instrumentChoices) as MusicalPart[]).forEach(part => {
-      this.currentInstruments[part] = Math.floor(Math.random() * this.instrumentChoices[part].length);
+      if (part === 'lead') {
+        this.currentInstruments[part] = Math.floor(Math.random() * this.instrumentChoices[part].length);
+      } else {
+        this.currentInstruments[part] = 0; // Fixed standard instrument
+      }
     });
     this.applyInstrumentChoices();
 
@@ -147,22 +151,33 @@ export class MusicEngine {
     
     const motifA = this.generateMotif();
     const motifB = this.generateMotif();
+    const motifC = this.generateMotif();
     
-    // Shuffled song varieties: Randomize the middle solos and duets
-    const soloPool: SectionType[] = ['SoloHarpsi', 'SoloOboe', 'SoloStrings'];
-    const duetPool: SectionType[] = ['DuetHarpsiOboe', 'DuetOboeStrings'];
-    const middleSolo = soloPool[Math.floor(Math.random() * soloPool.length)];
-    const middleDuet = duetPool[Math.floor(Math.random() * duetPool.length)];
-    
-    const structure: SectionType[] = ['Intro', 'A', 'B', middleSolo, 'A', middleDuet, 'B', 'Outro'];
+    // Support diverse structural codes with variety in soloists
+    const possibleSolos: SectionType[] = ['SoloLead', 'SoloFiddle', 'SoloBass', 'SoloOrgan', 'SoloPerc', 'SoloStrings'];
+    const s1 = possibleSolos[Math.floor(Math.random() * possibleSolos.length)];
+    const s2 = possibleSolos[Math.floor(Math.random() * possibleSolos.length)];
+
+    const structures: SectionType[][] = [
+      ['Intro', 'A', 'B', 'A', s1, 'A', 'B', 'Outro'], 
+      ['Intro', 'A', 'B', s1, 'B', 'C', 'B', 'Outro'], 
+      ['Intro', 'A', 'B', 'C', s1, s2, 'Outro']      
+    ];
+    const structure = structures[Math.floor(Math.random() * structures.length)];
     
     let currentStep = 0;
-    for (const section of structure) {
+    for (let i = 0; i < structure.length; i++) {
+      const section = structure[i];
       let numMeasures = 16;
       if (section === 'Intro' || section === 'Outro') numMeasures = 8;
-      else if (section.startsWith('Solo') || section.startsWith('Duet')) numMeasures = 24;
       
-      this.generateSection(section, progA, progB, motifA, motifB, currentStep, numMeasures);
+      // Production Dynamics: Detect "Builds" and "Drops"
+      // A "Drop" usually happens when a sparse section (like C or high-tension B) returns to a dense A or B.
+      const isDrop = i > 0 && (structure[i-1] === 'C' || structure[i-1] === 'Intro') && (section === 'A' || section === 'B');
+      // A "Build" happens in the section preceding a drop.
+      const isBuild = i < structure.length - 1 && (structure[i+1] === 'A' || structure[i+1] === 'B') && section === 'C';
+
+      this.generateSection(section, progA, progB, motifA, motifB, motifC, currentStep, numMeasures, isDrop, isBuild);
       currentStep += numMeasures * 16;
     }
     this.totalSteps = currentStep;
@@ -186,35 +201,90 @@ export class MusicEngine {
   }
 
   private generateMotif() {
-    const notes = [];
+    const notes: any[] = [];
+    // Generate a consistent rhythmic hook for the motif
+    const rhythm: { step: number, duration: number }[] = [];
+    let s = 0;
+    while (s < 16) {
+      const lengths = [2, 2, 4, 4, 8]; 
+      const len = lengths[Math.floor(Math.random() * lengths.length)];
+      if (s + len > 16) { s++; continue; }
+      rhythm.push({ step: s, duration: len * 0.95 });
+      s += len;
+    }
+
+    let lastDegree = 0;
+    
+    // Phrasing: Measures 1-2 (Question), Measures 3-4 (Answer)
     for (let m = 0; m < 4; m++) {
-      let s = 0;
-      while (s < 16) {
-        const lengths = [1, 2, 2, 2, 4, 4, 8]; 
-        const len = lengths[Math.floor(Math.random() * lengths.length)];
-        if (s + len > 16) { s++; continue; }
-        
-        const isStrong = s % 4 === 0;
-        // Tighter chordal anchors to avoid discordance
-        const chordTones = [0, 2, 4, 7, -3];
-        const passingTones = [1, 3, 5]; // Removed 6 (7th) and -1 from standard passes for stability
-        
-        if (Math.random() > 0.05) {
-          // Significant bias towards chord tones on any note longer than a 16th
-          const deg = (isStrong || len > 2)
-            ? chordTones[Math.floor(Math.random() * chordTones.length)]
-            : passingTones[Math.floor(Math.random() * passingTones.length)];
-          notes.push({ step: m * 16 + s, degree: deg, duration: len * 0.9 });
+      const isAnswerPhase = m >= 2;
+      
+      rhythm.forEach((beat, i) => {
+        const isPhaseEnd = i === rhythm.length - 1;
+        let degree: number;
+
+        if (isPhaseEnd) {
+          // Resolution: Consequent phrase (Answer) ends on tonic, Antecedent (Question) ends on dominant or median
+          degree = isAnswerPhase ? 0 : [2, 4, 7][Math.floor(Math.random() * 3)];
+        } else {
+          // Step-wise motion or small skips for "hum-along" feel
+          // Proportion adjustment: prioritize harmonal notes (chord tones), reserve dissonance for question ends
+          const chordTones = [0, 2, 4, 7, -3];
+          const isStrongBeat = beat.step % 8 === 0;
+          const isStrictConsonance = m === 0 || m >= 2; // Meas 1, 3, 4 are strictly harmonic
+          
+          if (isStrictConsonance || isStrongBeat) {
+            // Anchor to chord tones
+            const interval = [0, 1, -1, 2, -2][Math.floor(Math.random() * 5)];
+            const target = lastDegree + interval;
+            degree = chordTones.reduce((prev, curr) => 
+              Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev
+            );
+          } else {
+            // Measure 2 (End of Question) or weak beats allow non-harmonal "human" passing tones
+            const interval = [0, 1, 1, -1, -1, 2, -2][Math.floor(Math.random() * 7)];
+            degree = lastDegree + interval;
+          }
+
+          // Octave range management
+          if (degree > 10) degree -= 2;
+          if (degree < -3) degree += 2;
         }
-        s += len;
-      }
+        
+        // Melodic Breaks: Introduce rests (approx 35% of the time, except at phase ends)
+        // High likelihood of rests at the end of a question (Measures 2 and 4)
+        const isEndPhrasing = m === 1 || m === 3;
+        const restProb = isEndPhrasing ? 0.5 : 0.25;
+        const isRest = Math.random() < restProb && !isPhaseEnd;
+        
+        if (!isRest) {
+          notes.push({ 
+            step: m * 16 + beat.step, 
+            degree, 
+            duration: beat.duration 
+          });
+        }
+        lastDegree = degree;
+      });
     }
     return notes;
   }
 
-  private generateSection(section: SectionType, progA: number[], progB: number[], motifA: any[], motifB: any[], startStep: number, numMeasures: number) {
-    const prog = (section === 'B' || section === 'SoloOboe') ? progB : progA;
-    const motif = (section === 'B' || section === 'SoloOboe') ? motifB : motifA;
+  private generateSection(
+    section: SectionType, 
+    progA: number[], 
+    progB: number[], 
+    motifA: any[], 
+    motifB: any[], 
+    motifC: any[],
+    startStep: number, 
+    numMeasures: number,
+    isDrop: boolean = false,
+    isBuild: boolean = false
+  ) {
+    // Structural Maps: Decide progression based on section label
+    const prog = section === 'B' ? progB : (section === 'C' ? [5, 3, 4, 0] : progA);
+    const motif = section === 'B' ? motifB : (section === 'C' ? motifC : motifA);
     let currentSoloDeg = prog[0];
     
     for (let m = 0; m < numMeasures; m++) {
@@ -224,52 +294,61 @@ export class MusicEngine {
       const isOutro = section === 'Outro';
       const isIntro = section === 'Intro';
       
-      // 0. Bells
+      // Production Dynamics: Layering and Stacking
+      // "The Drop": Start with a crash and full instrumentation.
+      if (isDrop && m === 0) {
+        this.tracks.perc.push({ step: measureStart, pitch: 49, duration: 8, velocity: 1.1 }); // Heavy Crash
+      }
+
+      // 0. Bells (Hook Element)
       if (m === 0 && !isIntro) {
         this.tracks.bells.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: 24, velocity: 0.64 });
       }
       
-      // 1. Percussion
-      this.generatePercussion(measureStart, isIntro, isOutro, isTransition, m, numMeasures);
+      // 1. Percussion (Rhythmic Foundation)
+      // "The Build": Percussion intensity increases towards the end of the section.
+      const buildVelocityMult = isBuild ? (0.5 + (m / numMeasures) * 0.7) : 1.0;
+      this.generatePercussion(measureStart, isIntro, isOutro, isTransition, m, numMeasures, buildVelocityMult);
       
-      // 2. Bass
+      // 2. Bass (The Groove/Riff)
       if (!isIntro && !isOutro) {
+        // "Lack of Resolution": Bass riffs often loop without reaching tonic until section ends.
         const bassLine = this.generateBassLine(chordRoot, this.groove, isTransition, m);
         bassLine.forEach(note => {
           this.tracks.bass.push({
             step: measureStart + note.step,
             pitch: this.getMidiNoteFromDegree(note.degree - 7),
             duration: note.duration,
-            velocity: note.velocity
+            velocity: note.velocity * buildVelocityMult
           });
         });
       }
       
-      // 3. Pads
+      // 3. Pads (Harmonic Stacking)
       if (m % 2 === 0 || isOutro) {
         const dur = isOutro ? 64 : 31.5;
         if (!isOutro || m === 0) {
-          this.tracks.choir.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: dur, velocity: 0.6 });
-          this.tracks.choir.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot - 7), duration: dur, velocity: 0.6 });
-          this.tracks.organ.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: dur, velocity: 0.5 });
-          this.tracks.organ.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 2), duration: dur, velocity: 0.4 });
-          this.tracks.organ.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 4), duration: dur, velocity: 0.4 });
+          // Stacking multiple tones for a massive sound
+          this.tracks.choir.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: dur, velocity: 0.6 * buildVelocityMult });
+          this.tracks.choir.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot - 7), duration: dur, velocity: 0.6 * buildVelocityMult });
+          this.tracks.organ.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot), duration: dur, velocity: 0.5 * buildVelocityMult });
+          this.tracks.organ.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 4), duration: dur, velocity: 0.4 * buildVelocityMult });
         }
       }
       
-      // 4. Melody
+      // 4. Melody (Hook & Prosoody)
       currentSoloDeg = this.generateMelody(section, measureStart, chordRoot, motif, m, isIntro, isOutro, currentSoloDeg);
     }
   }
 
-  private generatePercussion(measureStart: number, isIntro: boolean, isOutro: boolean, isTransition: boolean, m: number, numMeasures: number) {
+  private generatePercussion(measureStart: number, isIntro: boolean, isOutro: boolean, isTransition: boolean, m: number, numMeasures: number, velocityMult: number = 1.0) {
     const [kick, snare, toms, ride, crash] = [35, 38, 50, 53, 49];
     if (isOutro) {
       if (m === 0) {
-        this.tracks.perc.push({ step: measureStart, pitch: kick, duration: 4, velocity: 1 });
-        this.tracks.perc.push({ step: measureStart, pitch: crash, duration: 8, velocity: 1 });
-        this.tracks.perc.push({ step: measureStart + 8, pitch: toms, duration: 2, velocity: 0.9 });
-        this.tracks.perc.push({ step: measureStart + 12, pitch: snare, duration: 2, velocity: 1 });
+        this.tracks.perc.push({ step: measureStart, pitch: kick, duration: 4, velocity: 1 * velocityMult });
+        this.tracks.perc.push({ step: measureStart, pitch: crash, duration: 8, velocity: 1 * velocityMult });
+        this.tracks.perc.push({ step: measureStart + 8, pitch: toms, duration: 2, velocity: 0.9 * velocityMult });
+        this.tracks.perc.push({ step: measureStart + 12, pitch: snare, duration: 2, velocity: 1 * velocityMult });
       }
       return;
     }
@@ -277,35 +356,35 @@ export class MusicEngine {
 
     const isFill = isTransition || (m % 4 === 3 && Math.random() > 0.5);
     if (isFill) {
-      this.tracks.perc.push({ step: measureStart, pitch: kick, duration: 2, velocity: 1 });
-      this.tracks.perc.push({ step: measureStart + 4, pitch: snare, duration: 2, velocity: 1 });
-      this.tracks.perc.push({ step: measureStart + 4, pitch: toms, duration: 2, velocity: 0.8 });
+      this.tracks.perc.push({ step: measureStart, pitch: kick, duration: 2, velocity: 1 * velocityMult });
+      this.tracks.perc.push({ step: measureStart + 4, pitch: snare, duration: 2, velocity: 1 * velocityMult });
+      this.tracks.perc.push({ step: measureStart + 4, pitch: toms, duration: 2, velocity: 0.8 * velocityMult });
       for (let i = 8; i < 16; i++) {
         const p = i % 2 === 0 ? snare : toms;
-        this.tracks.perc.push({ step: measureStart + i, pitch: p, duration: 0.5, velocity: 0.7 + (i - 8) * 0.04 });
+        this.tracks.perc.push({ step: measureStart + i, pitch: p, duration: 0.5, velocity: (0.7 + (i - 8) * 0.04) * velocityMult });
       }
-      if (isTransition && m === numMeasures - 1) this.tracks.perc.push({ step: measureStart + 15, pitch: crash, duration: 4, velocity: 0.9 });
+      if (isTransition && m === numMeasures - 1) this.tracks.perc.push({ step: measureStart + 15, pitch: crash, duration: 4, velocity: 0.9 * velocityMult });
     } else {
       if (this.groove === 'driving' || this.groove === 'march') {
-        [0, 8].forEach(s => this.tracks.perc.push({ step: measureStart + s, pitch: kick, duration: 2, velocity: 1 }));
+        [0, 8].forEach(s => this.tracks.perc.push({ step: measureStart + s, pitch: kick, duration: 2, velocity: 1 * velocityMult }));
         [4, 12].forEach(s => {
-          this.tracks.perc.push({ step: measureStart + s, pitch: snare, duration: 2, velocity: 1 });
-          this.tracks.perc.push({ step: measureStart + s, pitch: toms, duration: 2, velocity: 0.7 });
+          this.tracks.perc.push({ step: measureStart + s, pitch: snare, duration: 2, velocity: 1 * velocityMult });
+          this.tracks.perc.push({ step: measureStart + s, pitch: toms, duration: 2, velocity: 0.7 * velocityMult });
         });
-        if (this.groove === 'driving') this.tracks.perc.push({ step: measureStart + 10, pitch: kick, duration: 2, velocity: 0.8 });
+        if (this.groove === 'driving') this.tracks.perc.push({ step: measureStart + 10, pitch: kick, duration: 2, velocity: 0.8 * velocityMult });
         else {
-          this.tracks.perc.push({ step: measureStart + 14, pitch: toms, duration: 1, velocity: 0.7 });
-          this.tracks.perc.push({ step: measureStart + 15, pitch: snare, duration: 1, velocity: 0.7 });
+          this.tracks.perc.push({ step: measureStart + 14, pitch: toms, duration: 1, velocity: 0.7 * velocityMult });
+          this.tracks.perc.push({ step: measureStart + 15, pitch: snare, duration: 1, velocity: 0.7 * velocityMult });
         }
       } else if (this.groove === 'syncopated') {
-        [0, 8].forEach(s => this.tracks.perc.push({ step: measureStart + s, pitch: kick, duration: 2, velocity: 1 }));
-        [3, 14].forEach(s => this.tracks.perc.push({ step: measureStart + s, pitch: kick, duration: 2, velocity: 0.8 }));
-        this.tracks.perc.push({ step: measureStart + 10, pitch: snare, duration: 2, velocity: 0.8 });
-        this.tracks.perc.push({ step: measureStart + 10, pitch: toms, duration: 2, velocity: 0.7 });
+        [0, 8].forEach(s => this.tracks.perc.push({ step: measureStart + s, pitch: kick, duration: 2, velocity: 1 * velocityMult }));
+        [3, 14].forEach(s => this.tracks.perc.push({ step: measureStart + s, pitch: kick, duration: 2, velocity: 0.8 * velocityMult }));
+        this.tracks.perc.push({ step: measureStart + 10, pitch: snare, duration: 2, velocity: 0.8 * velocityMult });
+        this.tracks.perc.push({ step: measureStart + 10, pitch: toms, duration: 2, velocity: 0.7 * velocityMult });
       }
     }
     const rideStep = this.groove === 'driving' ? 2 : 4;
-    for (let i = 0; i < 16; i += rideStep) this.tracks.perc.push({ step: measureStart + i, pitch: ride, duration: 0.5, velocity: 0.6 });
+    for (let i = 0; i < 16; i += rideStep) this.tracks.perc.push({ step: measureStart + i, pitch: ride, duration: 0.5, velocity: 0.6 * velocityMult });
   }
 
   private generateBassLine(chordRoot: number, groove: string, isTransition: boolean, measureIndex: number) {
@@ -345,11 +424,19 @@ export class MusicEngine {
         this.tracks.oboe.push({ step: measureStart, pitch: this.getMidiNoteFromDegree(chordRoot + 9), duration: 32, velocity: 0.9 });
       }
     } else if (section.startsWith('Solo')) {
-      const inst = section === 'SoloHarpsi' ? 'harpsichord' : (section === 'SoloOboe' ? 'oboe' : 'strings');
+      let inst: Instrument = 'harpsichord';
+      if (section === 'SoloLead') inst = 'harpsichord';
+      else if (section === 'SoloFiddle') inst = 'oboe';
+      else if (section === 'SoloStrings') inst = 'strings';
+      else if (section === 'SoloBass') inst = 'bass';
+      else if (section === 'SoloOrgan') inst = 'organ';
+      else if (section === 'SoloPerc') inst = 'perc';
+
       currentSoloDeg = this.generateSolo(inst, measureStart, chordRoot, currentSoloDeg);
+      
+      // Auto-pads for remaining lead/counter tracks if they aren't soloing
       if (inst !== 'harpsichord') this.generatePad('harpsichord', measureStart, chordRoot);
       if (inst !== 'oboe') this.generatePad('oboe', measureStart, chordRoot);
-      if (inst !== 'strings') this.generatePad('strings', measureStart, chordRoot);
     } else if (section.startsWith('Duet')) {
       const [i1, i2] = section === 'DuetHarpsiOboe' ? ['harpsichord', 'oboe'] : ['oboe', 'strings'];
       currentSoloDeg = this.generateDuet(i1 as Instrument, i2 as Instrument, measureStart, chordRoot, currentSoloDeg);
@@ -377,36 +464,45 @@ export class MusicEngine {
   private generateSolo(instrument: Instrument, measureStart: number, chordRoot: number, currentDeg: number) {
     let s = 0;
     while (s < 16) {
-      const len = instrument === 'harpsichord' ? [0.5, 0.5, 1, 1, 2, 4][Math.floor(Math.random() * 6)] : [1, 1, 2, 2, 2, 4][Math.floor(Math.random() * 6)];
+      const lenOptions = instrument === 'harpsichord' || instrument === 'perc' ? [0.5, 0.5, 1, 1, 2, 4] : [1, 1, 2, 2, 2, 4];
+      const len = lenOptions[Math.floor(Math.random() * lenOptions.length)];
       if (s + len > 16) { s += 0.5; continue; }
       
       const isStrong = s % 4 === 0;
-      
-      if (Math.random() > 0.15) {
-        // High likelihood of resetting to a chord tone on strong beats
-        if (isStrong && Math.random() > 0.4) {
-          currentDeg = chordRoot + [0, 2, 4, 7][Math.floor(Math.random() * 4)];
-        } else {
-          // Guided random walk
-          const move = (Math.floor(Math.random() * 3) - 1); // -1, 0, or 1 for smoother transitions
-          currentDeg += move;
-          
-          // High-pressure correction: if we land on a very discordant interval (like degree 1 or 3 in some modes)
-          // on a long note, push it towards a chordal neighbor
-          if (len > 2 && Math.abs(currentDeg - chordRoot) % 2 !== 0) {
-            currentDeg += (Math.random() > 0.5 ? 1 : -1);
-          }
-        }
 
-        if (currentDeg < chordRoot - 7) currentDeg += 7;
-        if (currentDeg > chordRoot + 14) currentDeg -= 7;
-        
-        this.tracks[instrument].push({
-          step: measureStart + s,
-          pitch: this.getMidiNoteFromDegree(currentDeg + 7),
-          duration: Math.max(0.2, len * 0.9),
-          velocity: 1
-        });
+      if (instrument === 'perc') {
+        const drumPitches = [35, 38, 41, 43, 45, 47, 48, 50]; // Random drum selection for variety
+        const p = drumPitches[Math.floor(Math.random() * drumPitches.length)];
+        this.tracks.perc.push({ step: measureStart + s, pitch: p, duration: len, velocity: (isStrong ? 1.05 : 0.85) });
+      } else {
+        // Natural Breathing Logic for Solos
+        const restProbability = s < 4 || s > 12 ? 0.1 : 0.35; // More notes at phrase starts, more "breaths" in middle
+        if (Math.random() > restProbability) {
+          // High likelihood of resetting to a chord tone on strong beats
+          if (isStrong && Math.random() > 0.6) {
+            currentDeg = chordRoot + [0, 2, 4, 7][Math.floor(Math.random() * 4)];
+          } else {
+            // Guided random walk: mostly steps, occasional small skips
+            const move = [0, 1, -1, 1, -1, 2, -2][Math.floor(Math.random() * 7)];
+            currentDeg += move;
+            
+            // High-pressure correction: if we land on a very discordant interval
+            // on a long note, push it towards a chordal neighbor
+            if (len > 2 && Math.abs(currentDeg - chordRoot) % 2 !== 0) {
+              currentDeg += (Math.random() > 0.5 ? 1 : -1);
+            }
+          }
+
+          // Bass instrument handles a lower range
+          const pitchOffset = instrument === 'bass' ? -7 : 7;
+          
+          this.tracks[instrument].push({
+            step: measureStart + s,
+            pitch: this.getMidiNoteFromDegree(currentDeg + pitchOffset),
+            duration: Math.max(0.2, len * 0.9),
+            velocity: isStrong ? 0.95 : 0.8
+          });
+        }
       }
       s += len;
     }
@@ -499,6 +595,6 @@ export class MusicEngine {
   }
 
   public setVolume(vol: number) {
-    if (this.synth) this.synth.setMasterVol(vol * 0.3);
+    if (this.synth) this.synth.setMasterVol(vol * 0.15);
   }
 }

@@ -303,6 +303,7 @@ export function processTurnTransition(state: GameState): GameState {
 
   // 5. Income phase
   const income = nextTurnNumber === 1 ? 0 : calculateIncome(nextPlayer, state.board);
+  
   const nextPlayerStrength = state.units
     .filter(u => u.ownerId === nextPlayer.id)
     .reduce((acc, u) => acc + UNIT_STATS[u.type].cost, 0);

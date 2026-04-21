@@ -186,6 +186,9 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
   const isLaggingIncome = myStats.income < maxCompetitorIncome * LAGGING_THRESHOLD;
   const isLagging = isLaggingStrength || isLaggingIncome;
 
+  // New Rule: AI detects if it has a large economy (> 1000 income) but is still lagging significantly behind the leader.
+  const isCriticallyLaggingLargeEconomy = myStats.income >= 1000 && myStats.income < maxCompetitorIncome * 0.85;
+
   const activeStrengths = playerStats.filter(ps => ps.strength > 0).sort((a, b) => b.strength - a.strength);
   let leaderId = -1;
   let isLeaderDominating = false;
@@ -208,6 +211,7 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
     leaderId,
     isLaggingStrength,
     isLaggingIncome,
+    isCriticallyLaggingLargeEconomy,
     isLagging
   };
 }
@@ -265,13 +269,15 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   const cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
   if (currentPlayer.gold >= cost) return false;
   
-  const neutralMountains = state.board.filter(t => t.terrain === TerrainType.MOUNTAIN && t.ownerId === null).length;
-
-  // Only "save" if we can afford it within a reasonable timeframe (e.g. 10 turns - income priority!)
-  const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
-  const turnsToAfford = (cost - currentPlayer.gold) / income;
-  const turnsThreshold = 10;
-  if (turnsToAfford > turnsThreshold && !isLaggingIncome) return false;
+  // Only "save" if we can afford it within a reasonable timeframe
+  // NEW: Up to 1/3 of income over a max of 3 turns planning
+  const income = calculateIncome(currentPlayer, state.board);
+  const turnsToAffordFull = (cost - currentPlayer.gold) / income;
+  
+  // If we can reach the goal in 3 turns by saving 1/3 income, or we are generally lagging income
+  const canAffordSoonWithSaving = (currentPlayer.gold + (income * 0.33 * 3)) >= cost;
+  
+  if (!canAffordSoonWithSaving && !isLaggingIncome && turnsToAffordFull > 10) return false;
 
   const boardMap = getBoardMap(state.board);
   
@@ -289,16 +295,17 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   });
 }
 
-export function isSavingForVillage(state: GameState, currentPlayer: Player): boolean {
+export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean): boolean {
   const cost = UPGRADE_COSTS[TerrainType.VILLAGE];
   if (currentPlayer.gold >= cost) return false;
-
-  const neutralPlains = state.board.filter(t => t.terrain === TerrainType.PLAINS && t.ownerId === null).length;
 
   // Only "save" if we can afford it soon (e.g. 8 turns - income priority!)
   const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
   const turnsToAfford = (cost - currentPlayer.gold) / income;
-  const turnsThreshold = 8;
+  
+  let turnsThreshold = 8;
+  if (isCriticallyLaggingLargeEconomy) turnsThreshold = 15; // Be more patient to grow large economies
+
   if (turnsToAfford > turnsThreshold) return false;
 
   const boardMap = getBoardMap(state.board);

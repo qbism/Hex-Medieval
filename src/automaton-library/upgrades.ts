@@ -53,6 +53,7 @@ export function getUpgradeAction(
   isEarlyGame: boolean, 
   numSettlements: number,
   isLaggingIncome: boolean,
+  isCriticallyLaggingLargeEconomy: boolean,
   threatMatrix: Map<string, ThreatInfo>,
   isBarbarian: boolean = false
 ) {
@@ -79,10 +80,12 @@ export function getUpgradeAction(
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
       baseScore = BASE_REWARD * UPGRADE_GOLD_MINE_BONUS; // Priority 1: Maximize income (increased significantly)
       if (isLaggingIncome) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
+      if (isCriticallyLaggingLargeEconomy) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 6; // Extreme priority for large economy gaps
     } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
       baseScore = BASE_REWARD * UPGRADE_VILLAGE_BONUS; // Same priority for barbarians
       if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
+      if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 4;
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
       baseScore = BASE_REWARD * UPGRADE_FORTRESS_BONUS; // Priority 1: Defendable settlements
@@ -106,7 +109,8 @@ export function getUpgradeAction(
         }
         
         // Priority 2: In balance with expansion. Keep a buffer of 50 gold for units/villages only if very close to enemy
-        const buffer = (isUnderThreat && distToEnemy <= 4) ? GOLD_MINE_BUFFER : 0;
+        // If we are critically lagging in income despite a large economy, bypass the buffer to prioritize growth.
+        const buffer = (isUnderThreat && distToEnemy <= 4 && !isCriticallyLaggingLargeEconomy) ? GOLD_MINE_BUFFER : 0;
         if (currentPlayer.gold < cost + buffer) {
            score = -Infinity; // Can't afford the buffer
         }

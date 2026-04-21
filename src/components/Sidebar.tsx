@@ -20,6 +20,7 @@ import {
   UNIT_ICONS, 
   UNIT_STATS, 
   SETTLEMENT_INCOME, 
+  UPGRADE_COSTS,
   cn, 
 } from '../types';
 import { COLOR_NAMES, TERRAIN_COLORS } from '../constants/colors';
@@ -58,6 +59,7 @@ export const Sidebar = ({
   setShowStrategicView,
   automatonStatus
 }: SidebarProps) => {
+  if (!currentPlayer) return null;
   return (
     <div 
       className={cn(
@@ -139,7 +141,7 @@ export const Sidebar = ({
             <div className="flex items-center gap-1">
               <PlusCircle size={12} className="text-green-600" />
               <span className="text-sm font-black uppercase text-green-700">
-                +{calculateIncome(currentPlayer, gameState.board)} / turn
+                +{calculateIncome(currentPlayer, gameState.board)}
               </span>
             </div>
           </div>
@@ -341,14 +343,14 @@ export const Sidebar = ({
                           let label = "";
                           if (tile.terrain === TerrainType.PLAINS && unit && unit.ownerId === currentPlayer.id && tile.ownerId !== currentPlayer.id) {
                             if (unit.hasActed) return <p className="text-sm italic opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">Unit must have full actions to build.</p>;
-                            cost = 100; label = "Build Village";
+                            cost = UPGRADE_COSTS[TerrainType.VILLAGE]; label = "Build Village";
                           } else if (tile.terrain === TerrainType.MOUNTAIN && unit && unit.ownerId === currentPlayer.id && tile.ownerId !== currentPlayer.id) {
                             if (unit.hasActed) return <p className="text-sm italic opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">Unit must have full actions to build.</p>;
-                            cost = 500; label = "Build Gold Mine";
+                            cost = UPGRADE_COSTS[TerrainType.GOLD_MINE]; label = "Build Gold Mine";
                           } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
-                            cost = 150; label = "Upgrade to Fortress";
+                            cost = UPGRADE_COSTS[TerrainType.FORTRESS]; label = "Upgrade to Fortress";
                           } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
-                            cost = 300; label = "Upgrade to Castle";
+                            cost = UPGRADE_COSTS[TerrainType.CASTLE]; label = "Upgrade to Castle";
                           }
 
                           if (!label) return <p className="text-sm italic opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">No upgrades available here. Must own tile or occupy with unit.</p>;
