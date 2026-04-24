@@ -44,25 +44,25 @@ export const GameMenu = ({
           <motion.div 
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
-            className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] my-auto"
+            className="neo-brutalist-card-lg max-w-md w-full my-auto"
           >
-            <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-6 gap-1">
+            <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
               <div className="grayscale opacity-40 pointer-events-none select-none">
                 <Settings size={60} />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-center">
+              <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-center">
                 Game Menu
               </h2>
             </div>
             
             <div className="space-y-3">
               {/* Volume Sliders */}
-              <div className="bg-stone-100 border-2 border-black p-4 space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-4">
+              <div className="neo-brutalist-section mb-4 space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest gap-2">
+                  <div className="flex items-center justify-between text-sm font-black tracking-widest gap-2">
                     <div className="flex items-center gap-2">
                       <Music size={14} />
-                      <span>Music Volume</span>
+                      <span>Music volume</span>
                     </div>
                     <div className="flex-1" />
                     <span>{Math.round(musicVolume * 100)}%</span>
@@ -79,10 +79,10 @@ export const GameMenu = ({
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest">
+                  <div className="flex items-center justify-between text-sm font-black tracking-widest">
                     <div className="flex items-center gap-2">
                       <Volume2 size={14} />
-                      <span>Effects Volume</span>
+                      <span>Effects volume</span>
                     </div>
                     <span>{Math.round(effectsVolume * 100)}%</span>
                   </div>
@@ -105,7 +105,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<Save size={20} />}
               >
-                <span>Save Game</span>
+                <span>Save game</span>
                 <ChevronRight size={20} />
               </GameButton>
 
@@ -116,7 +116,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<Upload size={20} />}
               >
-                <span>Load Game</span>
+                <span>Load game</span>
                 <ChevronRight size={20} />
               </GameButton>
 
@@ -129,7 +129,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<Save size={20} />}
               >
-                <span>Save Demo (.hexd)</span>
+                <span>Save demo (.hexd)</span>
                 <ChevronRight size={20} />
               </GameButton>
 
@@ -140,7 +140,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<Upload size={20} />}
               >
-                <span>Load Demo (.hexd)</span>
+                <span>Load demo (.hexd)</span>
                 <ChevronRight size={20} />
               </GameButton>
 
@@ -153,7 +153,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<RotateCcw size={20} />}
               >
-                <span>Exit Current Player</span>
+                <span>Exit current player</span>
                 <ChevronRight size={20} />
               </GameButton>
               
@@ -164,7 +164,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<RotateCcw size={20} />}
               >
-                <span>Exit All (Reset Game)</span>
+                <span>Exit all (reset game)</span>
                 <ChevronRight size={20} />
               </GameButton>
               
@@ -175,7 +175,7 @@ export const GameMenu = ({
                 className="border-2 border-black justify-between"
                 icon={<Play size={20} />}
               >
-                <span>Return to Game</span>
+                <span>Return to game</span>
                 <ChevronRight size={20} />
               </GameButton>
             </div>

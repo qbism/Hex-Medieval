@@ -27,17 +27,17 @@ export const SetupScreen = ({
   COLORS,
 }: SetupScreenProps) => {
   return (
-    <div className="min-h-full bg-[#2a1a1a] flex flex-col items-center py-12 px-4 sm:p-8 font-serif">
+    <div className="min-h-full bg-[#2a1a1a] flex flex-col items-center py-12 px-4 sm:p-8 font-sans">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-2xl w-full bg-parchment border-2 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center my-auto"
+        className="max-w-2xl w-full neo-brutalist-card p-8 flex flex-col items-center my-auto"
       >
         <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-10 gap-2 w-full">
           <div className="grayscale opacity-60 pointer-events-none select-none">
             <span className="text-[100px] sm:text-[140px]">🏰</span>
           </div>
-          <h1 className="text-2xl sm:text-6xl font-black uppercase tracking-tighter text-center">
+          <h1 className="text-2xl sm:text-6xl font-serif font-black tracking-tighter text-center">
             Hex Medieval
           </h1>
         </div>
@@ -63,7 +63,7 @@ export const SetupScreen = ({
                   size="sm"
                   className="border border-black"
                 >
-                  {config.isAutomaton ? "AUTOMATON" : "HUMAN"}
+                  {config.isAutomaton ? "Automaton" : "Human"}
                 </GameButton>
               </div>
             ))}
@@ -78,7 +78,7 @@ export const SetupScreen = ({
             fullWidth
             className="text-lg py-4"
           >
-            Start Conquest
+            Start conquest
           </GameButton>
 
           <GameButton 

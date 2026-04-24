@@ -21,10 +21,10 @@ export const GameButton: React.FC<GameButtonProps> = ({
   ...props 
 }) => {
   const variants = {
-    primary: "bg-black text-white border-black hover:bg-stone-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]",
-    secondary: "bg-white text-black border-black hover:bg-stone-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
-    danger: "bg-red-600 text-white border-black hover:bg-red-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.4)]",
-    parchment: "bg-[#f4e4bc] text-stone-900 border-stone-800 hover:bg-[#ebd8a0] shadow-[4px_4px_0px_0px_rgba(68,44,20,0.4)]",
+    primary: "game-button-primary",
+    secondary: "game-button-secondary",
+    danger: "game-button-danger",
+    parchment: "game-button-parchment",
     ghost: "bg-transparent text-black border-transparent hover:bg-black/5 shadow-none"
   };
 
@@ -46,7 +46,7 @@ export const GameButton: React.FC<GameButtonProps> = ({
       } : {}}
       disabled={disabled}
       className={cn(
-        "border-2 font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 select-none",
+        "border-2 font-black tracking-widest transition-colors flex items-center justify-center gap-2 select-none",
         "relative overflow-hidden",
         fullWidth ? "w-full" : "",
         disabled ? "opacity-50 cursor-not-allowed grayscale shadow-none" : "cursor-pointer",

@@ -132,7 +132,7 @@ export default function App() {
 
   const handleExitCurrent = () => {
     confirmAction(
-      "Leave Game?",
+      "Leave game?",
       "Are you sure you want to leave? Your empire will fall and its remnants will turn into barbarians.",
       () => {
         concedeGame();
@@ -143,7 +143,7 @@ export default function App() {
 
   const handleExitAll = () => {
     confirmAction(
-      "Reset Game?",
+      "Reset game?",
       "Are you sure you want to end the current game and return to the main menu?",
       () => {
         setSetupMode(true);
@@ -156,7 +156,7 @@ export default function App() {
   const handleLoadWithConfirmation = () => {
     if (gameState) {
       confirmAction(
-        "Load Game?",
+        "Load game?",
         "Loading a game will end your current session. Are you sure?",
         handleLoadClick
       );
@@ -168,7 +168,7 @@ export default function App() {
   const handleLoadDemoWithConfirmation = () => {
     if (gameState) {
       confirmAction(
-        "Load Demo?",
+        "Load demo?",
         "Loading a demo will end your current session. Are you sure?",
         handleLoadDemoClick
       );
@@ -487,7 +487,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#2a1a1a] overflow-hidden relative font-serif">
+    <div className="h-screen w-screen bg-[#2a1a1a] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
       <AnimatePresence mode="wait">
         {setupMode ? (
           <motion.div
@@ -559,7 +559,7 @@ export default function App() {
       {/* Global Overlays */}
       {gameState?.isPlaybackMode && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-parchment border-4 border-black p-4 flex items-center gap-4 z-[100] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="text-sm font-black uppercase tracking-widest mr-4">
+          <div className="text-sm font-black tracking-widest mr-4">
             Turn {gameState.turnNumber}
           </div>
           <GameButton onClick={() => handleDemoControl('rwnd')} variant="ghost" size="sm" className="border-2 border-black" icon={<Rewind size={16} />}>
@@ -625,7 +625,7 @@ export default function App() {
                   <AlertTriangle className="text-red-600" size={32} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black uppercase tracking-tight">Error</h3>
+                  <h3 className="text-xl font-black tracking-tight">Error</h3>
                   <p className="text-stone-600 font-medium">{error}</p>
                 </div>
               </div>

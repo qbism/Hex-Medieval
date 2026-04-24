@@ -8,75 +8,75 @@ interface AutomatonHelpModalProps {
   onClose: () => void;
 }
 
-const RULES_CONTENT = `# How Automatons Play: Technical Specifications & AI Logic
+const RULES_CONTENT = `# How automatons play: Technical specifications & ai logic
 
-## 1. Unit Specifications
-| Unit Type | Cost (Gold) | Attack Range | Movement Range |
+## 1. Unit specifications
+| Unit type | Cost (gold) | Attack range | Movement range |
 | :--- | :--- | :--- | :--- |
 | **Infantry** | 50 | 1 | 2 |
 | **Archer** | 100 | 2 | 2 |
 | **Knight** | 200 | 1 | 4 |
 | **Catapult** | 300 | 3 | 1 |
 
-**Note:** All combat is lethal. 1 Hit = 1 Kill.
+**Note:** All combat is lethal. 1 hit = 1 kill.
 
-## 2. Economic Infrastructure
-| Settlement Type | Income / Turn | Upgrade Cost |
+## 2. Economic infrastructure
+| Settlement type | Income / turn | Upgrade cost |
 | :--- | :--- | :--- |
 | **Village** | 20 | 100 |
 | **Fortress** | 40 | 150 |
 | **Castle** | 70 | 300 |
-| **Gold Mine** | 100 | 500 |
+| **Gold mine** | 100 | 500 |
 
-## 3. Terrain Effects
-- **Forest:** Catapults cannot target units in forests. Archers in forests have -1 Attack Range.
+## 3. Terrain effects
+- **Forest:** Catapults cannot target units in forests. Archers in forests have -1 attack range.
 - **River:** No movement penalty. No defense modifiers.
-- **Mountains:** Impassable to all units. Gold Mines can only be built on Mountains.
+- **Mountains:** Impassable to all units. Gold mines can only be built on mountains.
 
-## 4. AI Core Logic (The "Conductor")
-The AI operates on a **Heuristic Scoring System**. Every possible action is assigned a score. The AI has **Perfect Information** (No Fog of War).
+## 4. AI core logic (the "conductor")
+The ai operates on a **heuristic scoring system**. Every possible action is assigned a score. The ai has **perfect information** (no fog of war).
 
-### Recruitment ROI Formula
+### Recruitment roi formula
 \`Score = (TargetValue - UnitCost) / TurnsToReachTarget\`
 - **TargetValue:** 500 (Base) + Modifiers (e.g., +1500 for HVT).
 - **TurnsToReach:** 1 + ceil((Distance - Range) / Moves).
 
-### Unit Action Scoring
+### Unit action scoring
 \`FinalScore = (AttackScore * 1.2) + (DefenseScore * 1.5) + (MoveScore * 1.0)\`
-- **Stay Put Bias:** +0.5 to prevent jitter.
-- **Eminent Threat Penalty:** -10.0x multiplier if a high-value unit (Catapult/Knight) moves into an enemy's strike zone without capturing a settlement.
-- **Numerical Safety (N+1 Rule):** AI will "Hold the Line" if local numerical support is < 1.0 (even trades are rejected).
+- **Stay put bias:** +0.5 to prevent jitter.
+- **Eminent threat penalty:** -10.0x multiplier if a high-value unit (catapult/knight) moves into an enemy's strike zone without capturing a settlement.
+- **Numerical safety (n+1 rule):** ai will "hold the line" if local numerical support is < 1.0 (even trades are rejected).
 
-## 5. Strategic Stances (Dynamic Aggression)
-The AI shifts its core personality based on the global state of the game:
-- **STANCE: STEAMROLLER (Advantage):** Triggered when unit ratio is > 2:1 and gold is high. Reduces threat penalties; the AI becomes aggressive to finish the game.
-- **STANCE: ELITE CHESS (Parity):** Default mode. High risk aversion; treats battles like a high-stakes chess match.
-- **STANCE: SURVIVAL PACT (Struggling):** Triggered if strength is < 35% of the leader. Identifies another underdog for a "Secret Pact" (90% threat reduction from them) and focuses all aggression on the Leader.
+## 5. Strategic stances (dynamic aggression)
+The ai shifts its core personality based on the global state of the game:
+- **Stance: Steamroller (advantage):** Triggered when unit ratio is > 2:1 and gold is high. Reduces threat penalties; the ai becomes aggressive to finish the game.
+- **Stance: Elite chess (parity):** Default mode. High risk aversion; treats battles like a high-stakes chess match.
+- **Stance: Survival pact (struggling):** Triggered if strength is < 35% of the leader. Identifies another underdog for a "secret pact" (90% threat reduction from them) and focuses all aggression on the leader.
 
-## 6. Advanced Tactical Heuristics
-- **Opportunistic Retreat:** When fleeing, units prefer neutral settlements or empty plains over forests to facilitate recovery.
-- **Leapfrog Expansion:** Units prioritize plains at the edge of the supply line to safely and quickly build new villages.
-- **Local Superiority Check:** Units calculate a "Support Score" (Allies - Enemies covering a tile). If deeply negative, the unit holds the line instead of pushing.
-- **Bait & Trade:** The AI will ignore Lethal Threat Penalties if the "Trade Value" (Target Cost - Unit Cost) exceeds 150g (e.g., Infantry for Catapult).
-- **Unit Specialization:**
-  - **Infantry:** Bonus for attacking units on settlements (Vanguard role).
-  - **Knights:** Penalty for being the first to enter a Kill Zone (Sweeper role).
-  - **Catapults:** Extreme "Stay Put" bias if no meat shield (Infantry/Knight) is adjacent. 
-- **Settlement Degradation:** Prioritizes attacking settlements that anchor enemy supply lines to restrict enemy movement.
+## 6. Advanced tactical heuristics
+- **Opportunistic retreat:** When fleeing, units prefer neutral settlements or empty plains over forests to facilitate recovery.
+- **Leapfrog expansion:** Units prioritize plains at the edge of the supply line to safely and quickly build new villages.
+- **Local superiority check:** Units calculate a "support score" (allies - enemies covering a tile). If deeply negative, the unit holds the line instead of pushing.
+- **Bait & trade:** The ai will ignore lethal threat penalties if the "trade value" (target cost - unit cost) exceeds 150g (e.g., infantry for catapult).
+- **Unit specialization:**
+  - **Infantry:** Bonus for attacking units on settlements (vanguard role).
+  - **Knights:** Penalty for being the first to enter a kill zone (sweeper role).
+  - **Catapults:** Extreme "stay put" bias if no meat shield (infantry/knight) is adjacent. 
+- **Settlement degradation:** Prioritizes attacking settlements that anchor enemy supply lines to restrict enemy movement.
 
-## 7. AI Personalities: Normal vs. Barbarian
+## 7. AI personalities: normal vs. barbarian
 
-### Normal AI (Strategic)
-- **Safety First:** Avoids moving high-value units into "Kill Zones".
-- **Dynamic Heat Map:** Calculates "Heat" based on enemy proximity. Scores recruitment higher in high-heat zones.
-- **Strategic Fortification:** Prioritizes upgrading Villages to Fortresses if enemies are within 3 tiles.
-- **Economic Balance:** Saves gold for Gold Mines in low-heat (safe) zones.
+### Normal ai (strategic)
+- **Safety first:** Avoids moving high-value units into "kill zones".
+- **Dynamic heat map:** Calculates "heat" based on enemy proximity. Scores recruitment higher in high-heat zones.
+- **Strategic fortification:** Prioritizes upgrading villages to fortresses if enemies are within 3 tiles.
+- **Economic balance:** Saves gold for gold mines in low-heat (safe) zones.
 
-### Barbarian AI (Aggressive)
-- **Zero Safety:** Ignores "Kill Zone" checks.
-- **Pillage Logic:** Prioritizes attacking enemy structures over units to disrupt income.
-- **Expansionist:** Spends 1/3 of gold strictly on new Villages.
-- **Infantry Spam:** Prioritizes Infantry to overwhelm via numbers.
+### Barbarian ai (aggressive)
+- **Zero safety:** Ignores "kill zone" checks.
+- **Pillage logic:** Prioritizes attacking enemy structures over units to disrupt income.
+- **Expansionist:** Spends 1/3 of gold strictly on new villages.
+- **Infantry spam:** Prioritizes infantry to overwhelm via numbers.
 `;
 
 export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps) => {
@@ -107,7 +107,7 @@ export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps)
             className="bg-parchment border-2 border-black p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+              <h2 className="text-2xl font-serif font-black tracking-tight flex items-center gap-2">
                 <Cpu size={28} /> Automaton Technical Specs
               </h2>
               <GameButton onClick={onClose} variant="ghost" size="icon">
@@ -118,78 +118,77 @@ export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps)
             <div className="space-y-6 text-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <section className="bg-white/50 p-4 border border-black/10 rounded-xl">
-                  <h3 className="font-bold mb-2 flex items-center gap-2 text-stone-800 uppercase text-xs tracking-wider">
+                  <h3 className="font-serif font-bold mb-2 flex items-center gap-2 text-stone-950 text-sm tracking-wider">
                     <BookOpen size={16} /> Unit Stats
                   </h3>
-                  <div className="space-y-2 font-mono text-[11px]">
+                  <div className="space-y-2 font-mono text-sm">
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>INFANTRY</span>
-                      <span>50G | R1 | M2</span>
+                      <span>Infantry</span>
+                      <span>50g | R1 | M2</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>ARCHER</span>
-                      <span>100G | R2 | M2</span>
+                      <span>Archer</span>
+                      <span>100g | R2 | M2</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>KNIGHT</span>
-                      <span>200G | R1 | M4</span>
+                      <span>Knight</span>
+                      <span>200g | R1 | M4</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>CATAPULT</span>
-                      <span>300G | R3 | M1</span>
+                      <span>Catapult</span>
+                      <span>300g | R3 | M1</span>
                     </div>
                   </div>
                 </section>
 
                 <section className="bg-white/50 p-4 border border-black/10 rounded-xl">
-                  <h3 className="font-bold mb-2 flex items-center gap-2 text-stone-800 uppercase text-xs tracking-wider">
+                  <h3 className="font-serif font-bold mb-2 flex items-center gap-2 text-stone-950 text-sm tracking-wider">
                     <Coins size={16} className="text-amber-600" /> Economy
                   </h3>
-                  <div className="space-y-2 font-mono text-[11px]">
+                  <div className="space-y-2 font-mono text-sm">
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>VILLAGE</span>
-                      <span>+20G | 100G Up</span>
+                      <span>Village</span>
+                      <span>+20g | 100g Up</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>FORTRESS</span>
-                      <span>+40G | 150G Up</span>
+                      <span>Fortress</span>
+                      <span>+40g | 150g Up</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>CASTLE</span>
-                      <span>+70G | 300G Up</span>
+                      <span>Castle</span>
+                      <span>+70g | 300g Up</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>GOLD MINE</span>
-                      <span>+100G | 500G Up</span>
+                      <span>Gold Mine</span>
+                      <span>+100g | 500g Up</span>
                     </div>
                   </div>
                 </section>
               </div>
 
               <section className="bg-stone-900 p-4 border border-black rounded-xl overflow-hidden">
-                <h3 className="font-bold mb-2 flex items-center gap-2 text-stone-300 uppercase text-xs tracking-wider">
+                <h3 className="font-serif font-bold mb-2 flex items-center gap-2 text-stone-100 text-sm tracking-wider">
                   <Code size={16} /> AI Heuristics & Formulae
                 </h3>
-                <div className="space-y-4 font-mono text-[11px] text-emerald-400">
+                <div className="space-y-4 font-mono text-sm text-emerald-400">
                   <div>
-                    <p className="text-stone-500 mb-1">// Recruitment ROI</p>
+                    <p className="text-stone-100 mb-1">// Recruitment ROI</p>
                     <code>Score = (TargetVal - Cost) / (1 + ceil((Dist - Range) / Moves))</code>
                   </div>
                   <div>
-                    <p className="text-stone-500 mb-1">// Action Priority</p>
+                    <p className="text-stone-100 mb-1">// Action Priority</p>
                     <code>Final = (Atk * 1.2) + (Def * 1.5) + (Move * 1.0)</code>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[10px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div className="space-y-1">
-                      <p className="text-white font-bold underline">NORMAL AI</p>
+                      <p className="text-white font-bold underline">Normal AI</p>
                       <p>• Safety: Enabled (Threat L1 Penalty)</p>
                       <p>• Heat Map: Dynamic Front-Line Mapping</p>
                       <p>• Tactics: Local Superiority & Bait/Trade</p>
                       <p>• Roles: Infantry Vanguard / Knight Sweeper</p>
-                      <p>• Maintenance: Cap at Income/10</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-amber-400 font-bold underline">BARBARIAN AI</p>
+                      <p className="text-amber-400 font-bold underline">Barbarian AI</p>
                       <p>• Safety: Disabled (Aggressive)</p>
                       <p>• Pillage: Target structures over units</p>
                       <p>• Expansion: 33% Gold to Villages</p>

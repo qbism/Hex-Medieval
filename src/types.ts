@@ -17,14 +17,14 @@ export interface HexCoord {
 }
 
 export enum TerrainType {
-  PLAINS = 'PLAINS',
-  FOREST = 'FOREST',
-  MOUNTAIN = 'MOUNTAIN',
-  WATER = 'WATER',
-  VILLAGE = 'VILLAGE',
-  FORTRESS = 'FORTRESS',
-  CASTLE = 'CASTLE',
-  GOLD_MINE = 'GOLD_MINE',
+  PLAINS = 'Plains',
+  FOREST = 'Forest',
+  MOUNTAIN = 'Mountain',
+  WATER = 'Water',
+  VILLAGE = 'Village',
+  FORTRESS = 'Fortress',
+  CASTLE = 'Castle',
+  GOLD_MINE = 'Gold mine',
 }
 
 export const SETTLEMENT_INCOME: Record<TerrainType, number> = {
@@ -46,10 +46,10 @@ export const UPGRADE_COSTS: Record<string, number> = {
 };
 
 export enum UnitType {
-  INFANTRY = 'INFANTRY',
-  ARCHER = 'ARCHER',
-  KNIGHT = 'KNIGHT',
-  CATAPULT = 'CATAPULT',
+  INFANTRY = 'Infantry',
+  ARCHER = 'Archer',
+  KNIGHT = 'Knight',
+  CATAPULT = 'Catapult',
 }
 
 export const UNIT_STATS: Record<UnitType, { cost: number; range: number; moves: number }> = {

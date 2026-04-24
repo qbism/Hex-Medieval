@@ -28,13 +28,13 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
               animate={{ scale: 1, y: 0 }}
               className="bg-parchment border-2 border-black p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto"
             >
-              <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-6 gap-1">
+            <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
                 <div className="grayscale opacity-40 pointer-events-none select-none">
                   <span className="text-[60px]">🏰</span>
                 </div>
                 <div className="relative flex justify-between items-center px-4 w-full">
                   <div className="w-10" /> {/* Spacer for centering */}
-                  <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-center">Game Rules</h2>
+                  <h2 className="text-2xl sm:text-4xl font-serif font-black tracking-tight text-center">Game Rules</h2>
                   <GameButton 
                     onClick={onClose} 
                     variant="ghost"
@@ -48,25 +48,25 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
 
               <div className="space-y-8">
               <section>
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2">
                   <Play size={18} fill="black" /> Victory Conditions
                 </h3>
-                <p className="text-stone-600 leading-relaxed">
+                <p className="text-stone-900 leading-relaxed font-sans">
                   Eliminate all opposing factions by turning their settlements neutral and eliminating their units. A player is eliminated when they lose all their units and settlements, or when they leave the game and their remaining units turn barbarian.
                 </p>
               </section>
 
               <section className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2 text-red-900">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2 text-red-900">
                   <Sword size={18} /> Barbarian Invasion
                 </h3>
-                <p className="text-sm text-red-800 leading-relaxed">
+                <p className="text-sm text-red-800 leading-relaxed font-sans">
                   After a faction achieves victory, a <span className="font-bold">Barbarian Invasion</span> can be triggered. A massive horde of barbarian villages and units will spawn from the edges of the map, challenging the victor to hold their empire against overwhelming odds.
                 </p>
               </section>
 
               <section className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2 text-amber-900">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2 text-amber-900">
                   <Coins size={18} /> Economy & Expansion
                 </h3>
                 <p className="text-sm text-amber-800 leading-relaxed mb-3">
@@ -89,7 +89,7 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
               </section>
 
               <section className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-900">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2 text-indigo-900">
                   <PlusCircle size={18} /> Upgrades & Construction
                 </h3>
                 <ul className="space-y-2 text-sm text-indigo-800">
@@ -105,7 +105,7 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
               </section>
 
               <section className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2 text-blue-900">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2 text-blue-900">
                   <HelpCircle size={18} /> Core Mechanics
                 </h3>
                 <ul className="space-y-3 text-sm text-blue-800">
@@ -137,63 +137,65 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
               </section>
 
               <section className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2 text-purple-900">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2 text-purple-900">
                   <Music size={18} /> Music & Atmosphere
                 </h3>
                 <p className="text-sm text-purple-800 leading-relaxed mb-3">
-                  The game features a <span className="font-bold">procedural music engine</span> that simulates a full medieval quartet playing authentic historical melodies.
+                  The game features a <span className="font-bold">procedural music engine</span> that generates a custom soundtrack for your campaign.
                 </p>
                 <ul className="space-y-2 text-sm text-purple-800">
                   <li className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-400" />
-                    <span><span className="font-bold">4-Part Polyphony:</span> Listen for the distinct roles of the Lute or Shawm (Lead), Recorders (Counter/Harmony), and Viol or Hurdy-Gurdy (Bass/Drone).</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-purple-400" />
-                    <span><span className="font-bold">Historical Playlist:</span> The soundtrack features real melodies from the 12th to 16th centuries, such as "L'homme armé" and "Sumer Is Icumen In."</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-purple-400" />
-                    <span><span className="font-bold">Volume Control:</span> Open the <span className="font-bold">Game Menu</span> (Settings icon) to adjust Music and Effects volume sliders.</span>
+                    <span><span className="font-bold">Volume Control:</span> Open the <span className="font-bold">Game Menu</span> (Settings icon) to adjust Music and Effects volume sliders individually.</span>
                   </li>
                 </ul>
               </section>
 
               <section>
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2">
                   <RotateCcw size={18} /> Controls & Actions
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div className="p-3 border border-black/5 rounded-lg">
                     <p className="font-bold mb-1">Unit Actions</p>
-                    <p className="text-stone-500">Select a unit to see move/attack ranges. Click a blue hex to move, or a red hex to attack.</p>
+                    <p className="text-stone-900">Select a unit to see move/attack ranges. Click a blue hex to move, or a red hex to attack.</p>
                   </div>
                   <div className="p-3 border border-black/5 rounded-lg">
                     <p className="font-bold mb-1">Management</p>
-                    <p className="text-stone-500">Click a friendly settlement to recruit units or upgrade the structure. Click empty hexes for terrain info.</p>
+                    <p className="text-stone-900">Click a friendly settlement to recruit units or upgrade the structure. Click empty hexes for terrain info.</p>
                   </div>
                   <div className="p-3 border border-black/5 rounded-lg">
                     <p className="font-bold mb-1">Camera</p>
-                    <p className="text-stone-500">Drag to pan. Scroll or pinch to zoom. The camera follows the active player.</p>
+                    <p className="text-stone-900">Drag to pan. Scroll or pinch to zoom. The camera follows the active player.</p>
                   </div>
                   <div className="p-3 border border-black/5 rounded-lg">
                     <p className="font-bold mb-1">Turn Flow</p>
-                    <p className="text-stone-500">Use the "End Turn" button in the sidebar to pass play to the next faction.</p>
+                    <p className="text-stone-900">Use the "End Turn" button in the sidebar to pass play to the next faction.</p>
                   </div>
                 </div>
               </section>
 
               <section>
-                <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                <h3 className="text-xl font-serif font-black mb-3 flex items-center gap-2">
                   <Sword size={18} /> Units & Combat
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                   {(Object.keys(UNIT_STATS) as UnitType[]).map(type => (
                     <div key={type} className="p-4 border border-black/10 rounded-xl bg-stone-50">
-                      <div className="text-3xl mb-2">{UNIT_ICONS[type]}</div>
-                      <p className="font-bold">{type.charAt(0) + type.slice(1).toLowerCase()}</p>
-                      <p className="text-body opacity-60">
-                        Range: {UNIT_STATS[type].range}{type === UnitType.ARCHER || type === UnitType.CATAPULT ? '*' : ''}. Moves: {UNIT_STATS[type].moves}.
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="text-3xl">{UNIT_ICONS[type]}</div>
+                        <div>
+                          <p className="font-bold text-lg">{type.charAt(0) + type.slice(1).toLowerCase()}</p>
+                          <p className="text-sm font-black tracking-wider">
+                            Range: {UNIT_STATS[type].range} | Moves: {UNIT_STATS[type].moves}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-stone-900 leading-relaxed">
+                        {type === UnitType.INFANTRY && "The backbone of the army. Cheap and reliable frontline units that must be adjacent to an enemy to strike. Ideal for holding settlements and absorbing attacks."}
+                        {type === UnitType.ARCHER && "Ranged support that can strike from 2 hexes away. Highly effective when positioned behind infantry, but suffer a -1 Range penalty when firing from forests."}
+                        {type === UnitType.KNIGHT && "Elite cavalry with superior mobility (4 moves). Excellent for seizing neutral villages and flanking, but must stay within 4 hexes of a settlement to remain supplied."}
+                        {type === UnitType.CATAPULT && "Slow but devastating siege engines with 3 range. Essential for degrading enemy Castles. Immune to forest units but cannot hit forest targets; they cannot enter forests."}
                       </p>
                     </div>
                   ))}
@@ -202,7 +204,7 @@ export const HelpModal = ({ isOpen, onClose }: HelpModalProps) => {
                   <p className="font-bold text-sm mb-1 flex items-center gap-2">
                     <Shield size={16} /> Attacking Settlements
                   </p>
-                  <p className="text-body text-stone-600 leading-relaxed">
+                  <p className="text-sm text-stone-900 leading-relaxed">
                     Units are eliminated in one hit. If you attack an undefended enemy Castle, it reverts to a Fortress. A Fortress reverts to a Village. A Village becomes neutral (unclaimed). If you attack a settlement occupied by an enemy unit, the unit is eliminated but the settlement remains under enemy control.
                   </p>
                 </div>

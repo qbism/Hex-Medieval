@@ -37,7 +37,7 @@ export const ConfirmationDialog = ({
                 <AlertTriangle className="text-amber-600" size={32} />
               </div>
               <div>
-                <h3 className="text-xl font-black uppercase tracking-tight">{title}</h3>
+                <h3 className="text-xl font-black tracking-tight">{title}</h3>
                 <p className="text-stone-600 font-medium">{message}</p>
               </div>
             </div>

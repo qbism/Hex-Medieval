@@ -40,7 +40,7 @@ export const GameHUD = ({
               </span>
             </div>
             <div>
-              <p className="text-sm font-bold uppercase tracking-widest opacity-50 leading-none mb-1">Current Turn</p>
+              <p className="text-sm font-bold tracking-widest opacity-50 leading-none mb-1">Current turn</p>
               <p className="text-lg font-black leading-none">{COLOR_NAMES[currentPlayer.color]} Empire</p>
             </div>
           </div>
@@ -53,7 +53,7 @@ export const GameHUD = ({
             className="px-6 py-3"
             icon={<ChevronRight className="ml-2" />}
           >
-            <span className="uppercase tracking-widest text-sm">
+            <span className="tracking-widest text-sm">
               {currentPlayer.isAutomaton ? "Processing..." : "End Turn"}
             </span>
           </GameButton>
@@ -78,8 +78,8 @@ export const GameHUD = ({
                 <Trophy size={48} className="text-amber-600" />
               </div>
               
-              <h2 className="text-4xl font-black mb-2 uppercase tracking-tighter italic">Victory!</h2>
-              <p className="text-xl font-bold mb-8">
+              <h2 className="text-4xl font-serif font-black mb-2 tracking-tighter">Victory!</h2>
+              <p className="text-xl font-sans font-bold mb-8">
                 The <span style={{ color: gameState.players[gameState.winnerId].color }}>{COLOR_NAMES[gameState.players[gameState.winnerId].color]} Empire</span> has unified the realm!
               </p>
 
@@ -95,7 +95,7 @@ export const GameHUD = ({
                   className="py-4"
                   icon={<RotateCcw size={20} />}
                 >
-                  PLAY AGAIN
+                  Play again
                 </GameButton>
                 <GameButton
                   onClick={() => {
@@ -108,7 +108,7 @@ export const GameHUD = ({
                   className="py-4 border-2 border-black"
                   icon={<Settings size={20} />}
                 >
-                  MAIN MENU
+                  Main menu
                 </GameButton>
               </div>
             </motion.div>

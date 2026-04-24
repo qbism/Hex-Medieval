@@ -83,7 +83,6 @@ export function getRecruitmentAction(
 
   if (recruitmentTiles.length === 0) return null;
 
-  const myUnitCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
   const income = calculateIncome(currentPlayer, state.board);
   const isRich = currentPlayer.gold > 500 || income > 200;
 

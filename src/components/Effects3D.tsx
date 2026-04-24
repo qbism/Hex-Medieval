@@ -47,7 +47,7 @@ export const MissEffect3D = ({ x, z, onComplete }: any) => {
         anchorX="center"
         anchorY="middle"
       >
-        MISS
+        Miss
       </Text>
     </group>
   );

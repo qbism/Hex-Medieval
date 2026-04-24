@@ -1,15 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@100..900&family=JetBrains+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-serif: "Georgia", serif;
-  --text-tiny: 14px;
-  --text-label: 14px;
-  --text-body: 14px;
+  --font-sans: "Grenze Gotisch", serif;
+  --font-serif: "Grenze Gotisch", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --text-tiny: 1.27rem;
+  --text-label: 1.27rem;
+  --text-xs: 1.15rem;
+  --text-sm: 1.27rem;
+  --text-base: 1.44rem;
+  --text-lg: 1.63rem;
+  --text-xl: 1.83rem;
+  --text-2xl: 2.15rem;
+  --text-3xl: 2.7rem;
+  --text-4xl: 3.25rem;
+  --text-5xl: 4rem;
+  --text-6xl: 5.1rem;
+
+  --color-parchment-base: #fdfbf7;
+  --color-parchment-dark: #f4e4bc;
+}
+
+body {
+  font-style: normal;
+  line-height: 1.2;
 }
 
 @utility bg-parchment {
-  background-color: #fdfbf7;
+  background-color: var(--color-parchment-base);
   background-image: url("https://www.transparenttextures.com/patterns/old-map.png");
   background-size: 125px;
   background-blend-mode: multiply;
+}
+
+@utility game-shadow-sm {
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.3);
+}
+
+@utility game-shadow-md {
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+}
+
+@utility game-button-primary {
+  background-color: theme('colors.black');
+  color: theme('colors.white');
+  border-color: theme('colors.black');
+  @apply hover:bg-stone-800 game-shadow-sm;
+}
+
+@utility game-button-secondary {
+  background-color: theme('colors.white');
+  color: theme('colors.black');
+  border-color: theme('colors.black');
+  @apply hover:bg-stone-50 game-shadow-md;
+}
+
+@utility game-button-danger {
+  background-color: theme('colors.red.600');
+  color: theme('colors.white');
+  border-color: theme('colors.black');
+  @apply hover:bg-red-700 game-shadow-sm;
+}
+
+@utility game-button-parchment {
+  background-color: var(--color-parchment-dark);
+  color: theme('colors.stone.900');
+  border-color: theme('colors.stone.800');
+  @apply hover:bg-[#ebd8a0] shadow-[4px_4px_0px_0px_rgba(68,44,20,0.4)];
+}
+
+@utility neo-brutalist-card {
+  @apply bg-white border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
+}
+
+@utility neo-brutalist-card-sm {
+  @apply bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)];
+}
+
+@utility neo-brutalist-card-parchment {
+  @apply bg-parchment border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)];
+}
+
+@utility neo-brutalist-card-lg {
+  @apply bg-parchment border-2 border-black p-8 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)];
+}
+
+@utility neo-brutalist-section {
+  @apply bg-stone-100 border-2 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
 }

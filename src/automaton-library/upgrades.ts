@@ -42,8 +42,7 @@ import {
   VILLAGE_MIN_SCORE_THRESHOLD,
   STRATEGIC_FORTIFICATION_BONUS,
   DEFENSIVE_SUPPORT_VILLAGE_BONUS,
-  EDGE_OF_PERIL_BONUS,
-  MIN_SETTLEMENT_GROWTH_RATIO
+  EDGE_OF_PERIL_BONUS
 } from './constants';
 import { LoopSafety } from '../utils';
 
@@ -106,7 +105,6 @@ export function getUpgradeAction(
       let score = baseScore;
 
       // Targeted Upgrades (Economy vs. Frontline)
-      const targetGrowth = Math.max(1, Math.ceil(numSettlements * MIN_SETTLEMENT_GROWTH_RATIO));
       
       if (cost === UPGRADE_COSTS[TerrainType.GOLD_MINE]) {
         // Gold Mines are an investment. They are great in the backline, terrible on the frontline.
