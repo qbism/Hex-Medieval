@@ -42,7 +42,8 @@ import {
   VILLAGE_MIN_SCORE_THRESHOLD,
   STRATEGIC_FORTIFICATION_BONUS,
   DEFENSIVE_SUPPORT_VILLAGE_BONUS,
-  EDGE_OF_PERIL_BONUS
+  EDGE_OF_PERIL_BONUS,
+  MIN_SETTLEMENT_GROWTH_RATIO
 } from './constants';
 import { LoopSafety } from '../utils';
 
@@ -81,11 +82,16 @@ export function getUpgradeAction(
       baseScore = BASE_REWARD * UPGRADE_GOLD_MINE_BONUS; // Priority 1: Maximize income (increased significantly)
       if (isLaggingIncome) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
       if (isCriticallyLaggingLargeEconomy) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 6; // Extreme priority for large economy gaps
-    } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
+       } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
       baseScore = BASE_REWARD * UPGRADE_VILLAGE_BONUS; // Same priority for barbarians
       if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
       if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 4;
+      
+      // Wealthy Expansionism: If we are rich, we have a biological imperative to expand
+      if (currentPlayer.gold > 1000 && !isBarbarian) {
+        baseScore += BASE_REWARD * 5.0;
+      }
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
       baseScore = BASE_REWARD * UPGRADE_FORTRESS_BONUS; // Priority 1: Defendable settlements
@@ -100,6 +106,8 @@ export function getUpgradeAction(
       let score = baseScore;
 
       // Targeted Upgrades (Economy vs. Frontline)
+      const targetGrowth = Math.max(1, Math.ceil(numSettlements * MIN_SETTLEMENT_GROWTH_RATIO));
+      
       if (cost === UPGRADE_COSTS[TerrainType.GOLD_MINE]) {
         // Gold Mines are an investment. They are great in the backline, terrible on the frontline.
         if (distToEnemy <= GOLD_MINE_FRONTLINE_DISTANCE) { // Reduced threshold from 3 to 2
@@ -134,12 +142,14 @@ export function getUpgradeAction(
         }
       } else if (cost === UPGRADE_COSTS[TerrainType.VILLAGE]) {
         // Villages are good everywhere for income and recruitment
-        const buffer = 0;
-        if (currentPlayer.gold < cost + buffer) {
-           score = -Infinity;
-        } else {
-           // Base score for building a village (income is always good)
+        // Wealthy Expansionism: If we are rich, we have a biological imperative to expand
+        // "Never stop" - remove satisfied state and enforce minimum growth
+        if (currentPlayer.gold >= cost) {
            score += BASE_REWARD * VILLAGE_BASE_SCORE;
+           
+           // Expansion Bonus Scaling: If we haven't reached our 15% growth target yet,
+           // give a massive boost to the best village candidate.
+           score += BASE_REWARD * 15.0; 
 
            // Expansion bonus: Reward spreading settlements thin, penalize clustering
            const nearbyFriendlySettlements = state.board.filter(t => 
@@ -225,7 +235,7 @@ export function getUpgradeAction(
            const minScoreThreshold = numSettlements >= 10 ? VILLAGE_MIN_SCORE_THRESHOLD : -10.0;
            const minScore = BASE_REWARD * minScoreThreshold;
            if (score <= minScore) {
-             score = -Infinity;
+             score = minScore + 0.1; // Barely over threshold to ensure we don't block growth
            }
         }
       }

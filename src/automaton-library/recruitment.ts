@@ -51,9 +51,7 @@ import {
   DANGER_PENALTY_RATIO,
   MIN_RECRUIT_THRESHOLD_THREAT,
   MIN_RECRUIT_THRESHOLD_NORMAL,
-  INTERIOR_PENALTY_FACTOR,
-  MAINTENANCE_RATIO,
-  MAINTENANCE_PENALTY_FACTOR
+  INTERIOR_PENALTY_FACTOR
 } from './constants';
 import { LoopSafety } from '../utils';
 import { ThreatInfo } from './threatAnalysis';
@@ -73,7 +71,9 @@ export function getRecruitmentAction(
   isLaggingIncome: boolean,
   isCriticallyLaggingLargeEconomy: boolean,
   heatMap: Map<string, number>,
-  isBarbarian: boolean = false
+  isBarbarian: boolean = false,
+  primaryAggressorId: number = -1,
+  threatenedBasesCount: number = 0
 ) {
   const recruitmentTiles = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
@@ -85,6 +85,7 @@ export function getRecruitmentAction(
 
   const myUnitCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
   const income = calculateIncome(currentPlayer, state.board);
+  const isRich = currentPlayer.gold > 500 || income > 200;
 
   // Savings Account Logic: If we are saving for a high-reward item, we might skip recruitment
   const savingsTarget = isSavingForMine ? UPGRADE_COSTS[TerrainType.GOLD_MINE] : (isSavingForVillage ? UPGRADE_COSTS[TerrainType.VILLAGE] : 0);
@@ -106,7 +107,10 @@ export function getRecruitmentAction(
   // If we are under imminent threat (units next to bases), defense becomes priority 1.
   // Otherwise, we stick to our savings target for income expansion.
   const hasEminentThreat = eminentThreatBases.length > 0;
-  const effectiveSavingsTarget = hasEminentThreat ? 0 : savingsTarget;
+  
+  // If many bases are threatened, we completely ignore savings to spam defenders
+  const isDesperateDefense = threatenedBasesCount >= 2;
+  const effectiveSavingsTarget = (hasEminentThreat || isDesperateDefense) ? 0 : savingsTarget;
   
   // Potential targets for evaluation
   const targets = [
@@ -202,8 +206,8 @@ export function getRecruitmentAction(
           isValidImmediateNeed = true;
         } 
         else if (unitType === UnitType.ARCHER) {
-          // Archers: Should spawn near edges/frontlines
-          if (isEdgeSpawn) {
+          // Archers: Should spawn near edges/frontlines or for defense
+          if (isEdgeSpawn || isUnderThreat) {
             isValidImmediateNeed = true;
           }
         } 
@@ -213,24 +217,49 @@ export function getRecruitmentAction(
           // Or explicitly threatening if it's right on the front edge
           const isFrontlineSnipe = isEdgeSpawn && !target.isSettlement && (target.unitType === UnitType.ARCHER || target.unitType === UnitType.CATAPULT) && dist <= range;
           
-          if (isFarNeutralClaim || isFrontlineSnipe) {
+          if (isFarNeutralClaim || isFrontlineSnipe || (isUnderThreat && isRich)) {
             isValidImmediateNeed = true;
             if (isFarNeutralClaim) actionValue += target.value * 2.0;
           }
         } 
         else if (unitType === UnitType.CATAPULT) {
-          // Catapults: Threats or enemy villages exactly 3 to 4 units away
-          const isEnemyThreat = target.ownerId !== null && target.ownerId !== currentPlayer.id;
-          if (isEnemyThreat && (dist === 3 || dist === 4)) {
+          // Catapults: Specifically looking for targets exactly 3 hexes away
+          const isAtExactRange = dist === 3;
+          const isEnemyTarget = target.ownerId !== null && target.ownerId !== currentPlayer.id;
+          
+          // Don't spawn a catapult in a village already in peril (use infantry instead)
+          const isTileInEminentPeril = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
+
+          if (isAtExactRange && isEnemyTarget && !isTileInEminentPeril) {
             isValidImmediateNeed = true;
+            
+            // Boost for each additional target (settlement or unit) within 2 to 4 range
+            const otherTargetsInRange = targets.filter(other => {
+               if (other.coord.q === target.coord.q && other.coord.r === target.coord.r) return false;
+               const d = getDistance(t.coord, other.coord);
+               return d >= 2 && d <= 4;
+            }).length;
+
+            actionValue += otherTargetsInRange * BASE_REWARD * 1.5;
+
             if (target.isSettlement) {
                 actionValue += BASE_REWARD * 10.0; // Huge bonus for targeted sieges
             }
           }
+          
+          // Siege Defense Rule: If we are being sieged (units at dist 1-3), catapults are the BEST counter.
+          const isDefensiveNeed = (isUnderThreat || isEdgeSpawn) && isEnemyTarget && dist <= 4 && !isTileInEminentPeril;
+          
+          if (isDefensiveNeed) {
+            isValidImmediateNeed = true;
+            actionValue += BASE_REWARD * 5.0; // Bonus for anti-siege duty
+          }
         }
 
         // Apply severe penalty if the specific deployment rules are not met
-        if (!isValidImmediateNeed && !isBarbarian) {
+        // Wealthy AIs and Barbarians are allowed to be more flexible/wasteful to project power
+        const isHighDensityExpansionism = (currentPlayer.gold > 2000 || income > 500);
+        if (!isValidImmediateNeed && !isBarbarian && !isHighDensityExpansionism) {
            continue; // Disqualify this target for this unit type
         }
         
@@ -252,10 +281,20 @@ export function getRecruitmentAction(
         // Heat Map Bonus: Recruit where the action is
         const heatBonus = heat * HEAT_MAP_RECRUIT_BONUS;
 
-        if (score + influenceBonus + heatBonus > bestUnitScore) {
-          let finalScore = score + influenceBonus + heatBonus;
+        // Front Priority Bonus: Favor tiles that are near threatened bases
+        let frontPriorityBonus = 0;
+        const isNearThreatenedFront = eminentThreatBases.some(b => getDistance(t.coord, b.coord) <= 3);
+        if (isNearThreatenedFront) {
+          frontPriorityBonus += BASE_REWARD * 10.0;
+        }
+
+        if (score + influenceBonus + heatBonus + frontPriorityBonus > bestUnitScore) {
+          let finalScore = score + influenceBonus + heatBonus + frontPriorityBonus;
           
-          // Composition Penalty: Avoid over-spamming one unit type
+          // Primary Aggressor Priority: Target units/settlements of the primary attacker
+          if (primaryAggressorId !== -1 && target.ownerId === primaryAggressorId) {
+            finalScore += BASE_REWARD * 5.0;
+          }
           const sameTypeCount = state.units.filter(u => u.ownerId === currentPlayer.id && u.type === unitType).length;
           const totalCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
           if (totalCount > 3) {
@@ -310,12 +349,6 @@ export function getRecruitmentAction(
     const heat = heatMap.get(tileKey) || 0;
     if (heat < HEAT_MAP_SAVINGS_THRESHOLD) {
       minThreshold += (HEAT_MAP_SAVINGS_THRESHOLD - heat) * INTERIOR_PENALTY_FACTOR;
-    }
-    
-    // Also consider total unit count vs income
-    const unitMaintenanceBuffer = income / MAINTENANCE_RATIO;
-    if (myUnitCount > unitMaintenanceBuffer && !isUnderThreat) {
-      minThreshold += (myUnitCount - unitMaintenanceBuffer) * MAINTENANCE_PENALTY_FACTOR;
     }
   }
   

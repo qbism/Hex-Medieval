@@ -11,7 +11,7 @@ import {
   UPGRADE_COSTS as _UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../types';
-import { getValidAttacks, getValidMoves, getUnitRange } from '../gameEngine';
+import { getValidAttacks, getValidMoves, getUnitRange, calculateIncome } from '../gameEngine';
 import { findNearestTarget as _findNearestTarget, getChokepointScore as _getChokepointScore } from './utils';
 import { 
   BASE_REWARD,
@@ -41,7 +41,6 @@ import {
   INFLUENCE_EXPANSION_BONUS,
   HVT_PROXIMITY_BONUS_FACTOR,
   SCREENING_BONUS,
-  FRONT_LINE_BONUS,
   COUNTER_ATTACK_BONUS,
   FOCUS_FIRE_BONUS,
   PREEMPTIVE_DEFENSE_BONUS,
@@ -61,6 +60,10 @@ import {
   CATAPULT_MEAT_SHIELD_BONUS,
   FORMATION_ANCHOR_BONUS,
   SQUAD_INTEGRITY_BONUS,
+  ARCHER_PLACEMENT_BONUS,
+  CATAPULT_PLACEMENT_BONUS,
+  INFANTRY_FRONT_LINE_BONUS,
+  KNIGHT_FLANK_BONUS,
   SETTLEMENT_DEGRADATION_PRIORITY_BONUS,
   COMBO_FOLLOW_UP_CLAIMER_BONUS,
   COMBO_FOLLOW_UP_NEUTRALIZER_BONUS,
@@ -111,12 +114,16 @@ export function getUnitAction(
   isLagging: boolean,
   isCriticallyLaggingLargeEconomy: boolean,
   isBarbarian: boolean = false,
-  cachedData: any = {}
+  cachedData: any = {},
+  primaryAggressorId: number = -1,
+  threatenedBasesCount: number = 0
 ) {
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id && !u.hasActed);
   const unitToAct = myUnits[0];
   
   if (!unitToAct) return null;
+
+  const income = calculateIncome(currentPlayer, state.board);
 
   // Pre-calculate maps and lists for O(1) lookups and efficient filtering
   if (!cachedData.unitsMap) {
@@ -166,19 +173,25 @@ export function getUnitAction(
     
     // High income / gold reserves allow for more aggression
     const myIncome = mySettlements.reduce((sum, s) => sum + SETTLEMENT_INCOME[s.terrain as TerrainType], 0);
-    const isRich = currentPlayer.gold > 500 || myIncome > 200;
+    const isRichLocal = currentPlayer.gold > 500 || myIncome > 200;
     
     // "Aggressive Stance" triggers when we outnumber the enemy decisively and have strong backing.
     let aggression = 1.0;
-    if (globalUnitRatio >= 2.0 && isRich) {
-       aggression = 2.0; 
-    } else if (globalUnitRatio >= 1.5) {
-       aggression = 1.3;
+    
+    // If we are under significant threat at home, we drop all aggression to defensive posture
+    if (threatenedBasesCount > 0) {
+      aggression = 0.5; // Defensive posture: fear the threat more
+    } else {
+      if (globalUnitRatio >= 2.0 && isRichLocal) {
+         aggression = 2.0; 
+      } else if (globalUnitRatio >= 1.5) {
+         aggression = 1.3;
+      }
     }
     
     cachedData.globalAggression = aggression;
     cachedData.globalUnitRatio = globalUnitRatio;
-    cachedData.isRich = isRich;
+    cachedData.isRich = isRichLocal;
   }
   const globalAggression = cachedData.globalAggression;
   const globalUnitRatio = cachedData.globalUnitRatio;
@@ -243,6 +256,11 @@ export function getUnitAction(
         // Strategic Bonuses
         if (targetUnit.type === UnitType.CATAPULT) priority += BASE_REWARD * 1.0;
         if (focusOnLeader && targetUnit.ownerId === leaderId) priority += BASE_REWARD * 0.5;
+        
+        // Multi-Front Priority: Target units belonging to a player currently threatening our bases
+        if (primaryAggressorId !== -1 && targetUnit.ownerId === primaryAggressorId) {
+          priority += BASE_REWARD * 15.0; // High priority to neutralize the active invader
+        }
 
         // Trade / Suicide Evaluation (Chess-like 1-hit kill awareness)
         // If we are currently in peril, calculate if attacking this target is actually a terrible trade.
@@ -335,6 +353,11 @@ export function getUnitAction(
         }
 
         if (focusOnLeader && targetTile.ownerId === leaderId) priority += BASE_REWARD * 1.0;
+        
+        // Multi-Front Priority: Target settlements belonging to a player currently threatening our bases
+        if (primaryAggressorId !== -1 && targetTile.ownerId === primaryAggressorId) {
+          priority += BASE_REWARD * 10.0;
+        }
       }
 
       if (priority > maxPriority) {
@@ -398,7 +421,7 @@ export function getUnitAction(
         ...enemyUnitTargets,
         ...expansionHubs
       ].sort((a, b) => getDistance(unitToAct.coord, a.coord) - getDistance(unitToAct.coord, b.coord))
-       .slice(0, 10); // Limit to top 10
+       .slice(0, 30); // Limit expanded to top 30 targets to consider multiple goals simultaneously
 
     for (const m of moves) {
       if (moveSafety.tick()) break;
@@ -470,11 +493,20 @@ export function getUnitAction(
       if (!isMoveInPeril || isBarbarian || isUnitInPeril) {
         const perilSafety = new LoopSafety('getUnitAction-peril', 100);
         let putsEnemyInPeril = false;
+        let perilCount = 0;
         for (const target of moveTargets) {
           if (perilSafety.tick()) break;
           const dist = getDistance(m, target.coord);
           if (dist <= potentialRange) {
-            score += BASE_REWARD * PUT_ENEMY_IN_PERIL_BONUS; // High bonus for putting enemy in peril
+            perilCount++;
+            let pBonus = BASE_REWARD * PUT_ENEMY_IN_PERIL_BONUS;
+            
+            // Settlement peril is even more valuable (neutralization)
+            if (target.isSettlement) {
+              pBonus *= 1.25;
+            }
+            
+            score += pBonus;
             putsEnemyInPeril = true;
             
             // Counter-Attack Bonus: If we are already in peril, but this move turns the tide
@@ -482,6 +514,11 @@ export function getUnitAction(
               score += BASE_REWARD * COUNTER_ATTACK_BONUS;
             }
           }
+        }
+        
+        // Multi-Goal Synergy: If a single move puts MULTIPLE targets in peril (like Chess forks)
+        if (perilCount > 1) {
+          score += BASE_REWARD * 10 * (perilCount - 1); 
         }
 
         // Strategic Movement: Unclaimed Village Priority
@@ -503,7 +540,7 @@ export function getUnitAction(
 
       // Local Numerical Advantage (LNA) Check
       // Calculate how many friendly units can hit this tile vs how many enemies
-      const friendlyAttackers = otherFriendlyUnits.filter(u => getDistance(u.coord, m) <= UNIT_STATS[u.type].range).length + 1;
+      const friendlyAttackers = otherFriendlyUnits.filter(u => getDistance(u.coord, m) <= UNIT_STATS[u.type].range).length;
       const enemyAttackers = moveThreat ? moveThreat.attackerCount : 0;
       const eminentEnemyAttackers = moveThreat ? moveThreat.eminentAttackerCount : 0;
       
@@ -582,11 +619,18 @@ export function getUnitAction(
           // Target Saturation Penalty: If multiple friendly units are already closer to this target, 
           // reduce the score to encourage this unit to find its own front.
           const friendlyCloserToTarget = otherFriendlyUnits.filter(u => getDistance(u.coord, target.coord) < dist).length;
+          let saturationPenalty = 1.0;
           if (friendlyCloserToTarget >= 2) {
-            targetScore *= 0.6; // Heavy penalty for dogpiling
+            saturationPenalty = 0.6; // Heavy penalty for dogpiling
           } else if (friendlyCloserToTarget === 1) {
-            targetScore *= 0.9;
+            saturationPenalty = 0.9;
           }
+
+          // Wealthy Jamming logic: If rich, reduce the dogpiling penalty to jam more units in
+          if (isRich) {
+            saturationPenalty = Math.max(saturationPenalty, 0.95);
+          }
+          targetScore *= saturationPenalty;
 
           // Knight Distant Claim Bonus: Knights explicitly prioritize traversing to neutral villages
           if (unitToAct.type === UnitType.KNIGHT && target.isSettlement && target.ownerId === null) {
@@ -602,11 +646,28 @@ export function getUnitAction(
               }
           }
 
+          // Formation Depth Scoring (1-2-3 depth)
+          if (target.ownerId !== null && target.ownerId !== currentPlayer.id) {
+            if (unitToAct.type === UnitType.INFANTRY && dist === 1) {
+              targetScore += BASE_REWARD * INFANTRY_FRONT_LINE_BONUS;
+            } else if (unitToAct.type === UnitType.ARCHER && dist === 2) {
+              targetScore += BASE_REWARD * ARCHER_PLACEMENT_BONUS;
+            } else if (unitToAct.type === UnitType.CATAPULT && dist === 3) {
+              targetScore += BASE_REWARD * CATAPULT_PLACEMENT_BONUS;
+            } else if (unitToAct.type === UnitType.KNIGHT) {
+              // Flank logic: Knights prefer distant targets but seek protection from cover fire
+              const isFlanking = dist <= 4 && dist >= 2;
+              if (isFlanking) {
+                targetScore += BASE_REWARD * KNIGHT_FLANK_BONUS;
+              }
+            }
+          }
+
           if (targetScore > maxTargetScore) {
-            otherTargetsScore += maxTargetScore * 0.2; // Decay previous max
+            otherTargetsScore += maxTargetScore * 0.5; // Increased from 0.2 to value moves serving multiple disparate goals
             maxTargetScore = targetScore;
           } else {
-            otherTargetsScore += targetScore * 0.2; // Decay this target
+            otherTargetsScore += targetScore * 0.5; // Increased from 0.2 to value moves serving multiple disparate goals
           }
         }
       }
@@ -753,7 +814,7 @@ export function getUnitAction(
       if (distToFriendlyBase <= 3 && distToEnemyBase <= 4) {
         // Only take the front line bonus if we have at least neutral influence and decent LNA
         if (influence >= -20 && lnaRatio >= 1.0) {
-          score += BASE_REWARD * FRONT_LINE_BONUS;
+          score += BASE_REWARD * 4.5; // Generic front line bonus
         }
       }
       
@@ -865,8 +926,8 @@ export function getUnitAction(
           // Tightened threshold: In a 1-hit kill game, being "outnumbered by 1" (score -50) 
           // is just as fatal as being outnumbered by 2. We must at least match the enemy 
           // support to even consider moving in.
-          if (maxSupportScore < 0 && !isBarbarian) {
-             score -= 10000; // Force hold the line if we don't have support parity
+          if (maxSupportScore <= 0 && !isBarbarian) {
+             score -= 10000; // Force hold the line if we don't have support superiority
           } else {
              score += Math.max(0, maxSupportScore);
           }

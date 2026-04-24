@@ -222,16 +222,37 @@ export function identifyThreatenedSettlements(state: GameState, currentPlayerId:
     (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
   );
 
-  const eminentThreatBases = mySettlements.filter(s => {
+  const threatenedBases = mySettlements.map(s => {
     const threat = threatMatrix.get(`${s.coord.q},${s.coord.r}`);
-    return threat !== undefined && threat.minTurns <= 1;
+    return { settlement: s, threat };
+  }).filter(t => t.threat !== undefined && t.threat.minTurns <= 2);
+
+  const eminentThreatBases = threatenedBases.filter(t => t.threat!.minTurns <= 1).map(t => t.settlement);
+  
+  // Identify which players are the primary aggressors
+  const attackerUnitCounts = new Map<number, number>();
+  threatenedBases.forEach(tb => {
+    // Find units of other players that can hit this base
+    state.units.forEach(u => {
+      if (u.ownerId !== currentPlayerId && getDistance(u.coord, tb.settlement.coord) <= (UNIT_STATS[u.type].moves + getUnitRange(u, state.board))) {
+        attackerUnitCounts.set(u.ownerId, (attackerUnitCounts.get(u.ownerId) || 0) + 1);
+      }
+    });
   });
 
-  const possibleThreatBases: any[] = []; // Deprecated, kept for API compatibility
+  let primaryAggressorId = -1;
+  let maxAttacks = 0;
+  attackerUnitCounts.forEach((count, id) => {
+    if (count > maxAttacks) {
+      maxAttacks = count;
+      primaryAggressorId = id;
+    }
+  });
 
+  const possibleThreatBases: any[] = []; 
   const isUnderThreat = eminentThreatBases.length > 0;
 
-  return { mySettlements, eminentThreatBases, possibleThreatBases, isUnderThreat };
+  return { mySettlements, eminentThreatBases, possibleThreatBases, isUnderThreat, primaryAggressorId, threatenedBasesCount: threatenedBases.length };
 }
 
 export function getEmpireCenter(mySettlements: HexTile[]): HexCoord {

@@ -103,7 +103,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
   }
 
   // Identify threatened settlements
-  const { eminentThreatBases, possibleThreatBases, isUnderThreat } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
+  const { eminentThreatBases, possibleThreatBases, isUnderThreat, primaryAggressorId, threatenedBasesCount } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
 
   const isEarlyGame = state.turnNumber <= 15;
   const numSettlements = mySettlements.length;
@@ -131,7 +131,9 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     isLaggingIncome,
     isCriticallyLaggingLargeEconomy,
     heatMap,
-    isBarbarian
+    isBarbarian,
+    primaryAggressorId,
+    threatenedBasesCount
   );
   if (recruitmentAction) return { ...recruitmentAction, matrix: opportunityPerilMatrix };
 
@@ -158,7 +160,9 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     isLagging,
     isCriticallyLaggingLargeEconomy,
     false,
-    cachedData
+    cachedData,
+    primaryAggressorId,
+    threatenedBasesCount
   );
   if (unitAction) return { ...unitAction, matrix: opportunityPerilMatrix };
 
