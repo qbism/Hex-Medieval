@@ -1,12 +1,13 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrthographicCamera, MapControls, Text, useCursor, Billboard } from '@react-three/drei';
+import { PerspectiveCamera, OrbitControls, Text, useCursor, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, getDistance, UNIT_STATS } from '../types';
 import { TERRAIN_COLORS } from '../constants/colors';
 import { Sparks3D, SmokeEffect3D, Projectile3D, MissEffect3D } from './Effects3D';
 import { WaterfallEffect } from './WaterfallEffect';
-import { WaterSurfaceEffect } from './WaterSurfaceEffect';
+import { WaterSurfaceEffect, updateWaterTime } from './WaterSurfaceEffect';
+import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { 
   CastleFeature, 
   FortressFeature, 
@@ -17,9 +18,7 @@ import {
   forestCone3,
   forestMat,
   mountainCone1,
-  mountainMat1,
-  mountainCone2,
-  mountainMat2
+  mountainMat
 } from './TerrainFeatures3D';
 
 interface Game3DProps {
@@ -34,46 +33,29 @@ interface Game3DProps {
 }
 
 const TERRAIN_HEIGHTS: Record<TerrainType, number> = {
-  [TerrainType.WATER]: 0.2,
-  [TerrainType.PLAINS]: 0.4,
-  [TerrainType.FOREST]: 0.5,
-  [TerrainType.MOUNTAIN]: 1.2,
-  [TerrainType.VILLAGE]: 0.45,
-  [TerrainType.FORTRESS]: 0.5,
-  [TerrainType.CASTLE]: 0.6,
-  [TerrainType.GOLD_MINE]: 1.2,
+  [TerrainType.WATER]: 0.1,
+  [TerrainType.PLAINS]: 0.2,
+  [TerrainType.FOREST]: 0.3,
+  [TerrainType.MOUNTAIN]: 0.4,
+  [TerrainType.VILLAGE]: 0.25,
+  [TerrainType.FORTRESS]: 0.4,
+  [TerrainType.CASTLE]: 0.5,
+  [TerrainType.GOLD_MINE]: 0.4,
 };
 
 // Geometry and Material Caches for Memory Efficiency
 const tileGeometries: Record<number, THREE.CylinderGeometry> = {};
 const getTileGeometry = (height: number) => {
   if (!tileGeometries[height]) {
-    tileGeometries[height] = new THREE.CylinderGeometry(0.92, 0.92, height, 6);
+    const geo = new THREE.CylinderGeometry(0.92, 0.92, height, 6);
+    // Optimization: Don't render bottom cap (last 18 indices for a 6-segment cylinder)
+    geo.setDrawRange(0, 54); 
+    tileGeometries[height] = geo;
   }
   return tileGeometries[height];
 };
 
 const tileBorderGeometries: Record<number, THREE.CylinderGeometry> = {};
-const getTileBorderGeometry = (height: number) => {
-  if (!tileBorderGeometries[height]) {
-    tileBorderGeometries[height] = new THREE.CylinderGeometry(0.97, 0.97, height - 0.02, 6);
-  }
-  return tileBorderGeometries[height];
-};
-
-const tileMaterials: Record<string, THREE.MeshStandardMaterial> = {};
-const getTileMaterial = (color: string, isWater: boolean) => {
-  const key = `${color}-${isWater}`;
-  if (!tileMaterials[key]) {
-    tileMaterials[key] = new THREE.MeshStandardMaterial({
-      color,
-      opacity: isWater ? 0.8 : 1,
-      transparent: isWater
-    });
-  }
-  return tileMaterials[key];
-};
-
 const borderMaterials: Record<string, THREE.MeshBasicMaterial> = {};
 const getBorderMaterial = (color: string) => {
   if (!borderMaterials[color]) {
@@ -96,8 +78,6 @@ const territoryRingGeo = new THREE.RingGeometry(0.7, 0.9, 6);
 
 // Shared Geometries and Materials for Units
 const unitConeGeo = new THREE.ConeGeometry(0.4, 0.6, 16);
-const unitBaseMat = new THREE.MeshStandardMaterial({ color: "white" });
-
 const infantryGeo = new THREE.BoxGeometry(0.4, 0.8, 0.4);
 const archerGeo = new THREE.ConeGeometry(0.3, 1, 8);
 const knightGeo1 = new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8);
@@ -149,12 +129,12 @@ const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { hei
 const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer, evaluation }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
-  const depth = 2.0; // About the width of a tile
+  const isWater = tile.terrain === TerrainType.WATER;
+  const depth = 2.0; 
   const totalHeight = height + depth;
-  const baseColor = TERRAIN_COLORS[tile.terrain as TerrainType];
-  const isPerimeter = Math.max(Math.abs(tile.coord.q), Math.abs(tile.coord.r), Math.abs(-tile.coord.q - tile.coord.r)) === 10;
   
   const [hovered, setHovered] = useState(false);
+  
   useCursor(hovered);
 
   const handlePointerEnter = (e: any) => {
@@ -169,43 +149,44 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
     onPointerLeave(null);
   };
 
-  const handleClick = (e: any) => {
-    e.stopPropagation();
-    onClick(tile.coord.q, tile.coord.r);
-  };
-
-  const isWater = tile.terrain === TerrainType.WATER;
-  const borderColor = isSelected ? 'white' : (isHovered ? 'white' : playerColor);
-
+  // Use white for hover, player color for ownership. Selection is handled by instanced shader.
   return (
     <group position={[x, 0, z]}>
-      <mesh 
-        position={[0, height - totalHeight / 2, 0]}
-        onClick={handleClick}
-        onPointerEnter={handlePointerEnter}
-        onPointerLeave={handlePointerLeave}
-        geometry={getTileGeometry(totalHeight)}
-        material={getTileMaterial(baseColor, isWater)}
-      >
-        {/* Border using a simple mesh instead of Edges for performance */}
-        {(isSelected || isHovered || tile.ownerId !== null) && (
-          <mesh 
-            position={[0, -0.01, 0]}
-            geometry={getTileBorderGeometry(totalHeight)}
-            material={getBorderMaterial(borderColor)}
-          />
-        )}
-      </mesh>
+      {/* 
+        The base tile mesh is now handled by MapBasesInstanced for performance.
+        We only render overlays, borders, and effects here. 
+      */}
+      
+      {/* Invisible interaction layer for non-water tiles (water has its own interaction) */}
+      {!isWater && (
+        <mesh 
+          position={[0, height - totalHeight / 2, 0]}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.(tile.coord.q, tile.coord.r);
+          }}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
+          geometry={getTileGeometry(totalHeight)}
+          visible={false} 
+        />
+      )}
 
       {/* Waterfall Effect for perimeter water tiles */}
-      {isPerimeter && tile.terrain === TerrainType.WATER && (
+      {isPerimeter(tile.coord) && isWater && (
         <WaterfallEffect topHeight={height} depth={depth} />
       )}
 
       {/* Water Surface Effect */}
-      {tile.terrain === TerrainType.WATER && (
+      {isWater && (
         <group position={[0, height, 0]}>
-          <WaterSurfaceEffect radius={0.92} />
+          <WaterSurfaceEffect 
+            radius={0.92} 
+            isSelected={isSelected} 
+            onClick={() => onClick(tile.coord.q, tile.coord.r)}
+            onInteractionEnter={() => onPointerEnter(tile.coord)}
+            onInteractionLeave={() => onPointerLeave(null)}
+          />
         </group>
       )}
 
@@ -215,7 +196,7 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
       )}
       {isPossibleMove && (
         <mesh 
-          position={[0, height + (tile.terrain === TerrainType.MOUNTAIN ? 0.8 : 0.04), 0]} 
+          position={[0, height + ([TerrainType.MOUNTAIN, TerrainType.GOLD_MINE].includes(tile.terrain as any) ? 1.4 : 0.04), 0]} 
           rotation={[-Math.PI / 2, 0, 0]} 
           geometry={tile.terrain === TerrainType.FOREST ? forestMoveGeo : possibleMoveGeo} 
           material={tile.terrain === TerrainType.FOREST ? forestMoveMat : possibleMoveMat} 
@@ -307,8 +288,154 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
   );
 });
 
+const isPerimeter = (coord: HexCoord) => Math.max(Math.abs(coord.q), Math.abs(coord.r), Math.abs(-coord.q - coord.r)) === 10;
+
+const MapBasesInstanced = React.memo(({ board, selectedHex, hoveredHex, onClick }: { board: any[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void }) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
+  const hoverAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
+  
+  // Only instance non-water tiles to handle water shader separately or keep it simple
+  const nonWaterTiles = useMemo(() => board.filter(t => t.terrain !== TerrainType.WATER), [board]);
+  const selectionStates = useRef(new Float32Array(nonWaterTiles.length));
+  const hoverStates = useRef(new Float32Array(nonWaterTiles.length));
+
+  const unitHexGeo = useMemo(() => {
+    const geo = new THREE.CylinderGeometry(0.92, 0.92, 1, 6);
+    geo.setDrawRange(0, 54); // No bottom cap
+    return geo;
+  }, []);
+
+  const instancedMat = useMemo(() => {
+    const mat = new THREE.MeshStandardMaterial();
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = `
+        attribute float selection;
+        attribute float hover;
+        varying float vSelection;
+        varying float vHover;
+        ${shader.vertexShader}
+      `.replace(
+        '#include <begin_vertex>',
+        `
+        #include <begin_vertex>
+        vSelection = selection;
+        vHover = hover;
+        `
+      );
+      
+      shader.fragmentShader = `
+        varying float vSelection;
+        varying float vHover;
+        ${shader.fragmentShader}
+      `.replace(
+        '#include <color_fragment>',
+        `
+        #include <color_fragment>
+        // Neutral highlights: selection #444444 (vec3(0.27)), hover #222222 (vec3(0.13))
+        diffuseColor.rgb += vSelection * vec3(0.27) + vHover * vec3(0.13);
+        `
+      );
+    };
+    return mat;
+  }, []);
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+
+    nonWaterTiles.forEach((tile, i) => {
+      const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+      const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
+      const depth = 2.0;
+      const totalHeight = height + depth;
+      const baseColor = TERRAIN_COLORS[tile.terrain as TerrainType];
+
+      dummy.scale.set(1, totalHeight, 1);
+      dummy.position.set(x, height - totalHeight / 2, z);
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+
+      color.set(baseColor);
+      meshRef.current!.setColorAt(i, color);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+  }, [nonWaterTiles]);
+
+  useFrame((_state, delta) => {
+    if (!meshRef.current || !selectionAttrRef.current || !hoverAttrRef.current) return;
+    
+    let needsUpdate = false;
+    nonWaterTiles.forEach((tile, i) => {
+      // Selection
+      const isSelected = selectedHex?.q === tile.coord.q && selectedHex?.r === tile.coord.r;
+      const targetSel = isSelected ? 1.0 : 0.0;
+      const currentSel = selectionStates.current[i];
+
+      if (Math.abs(currentSel - targetSel) > 0.001) {
+        if (targetSel > currentSel) {
+          selectionStates.current[i] = Math.min(targetSel, currentSel + 20 * delta);
+        } else {
+          selectionStates.current[i] = Math.max(targetSel, currentSel - 5 * delta);
+        }
+        selectionAttrRef.current!.setX(i, selectionStates.current[i]);
+        needsUpdate = true;
+      }
+
+      // Hover
+      const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
+      const targetHover = isHovered ? 1.0 : 0.0;
+      const currentHover = hoverStates.current[i];
+
+      if (Math.abs(currentHover - targetHover) > 0.001) {
+        if (targetHover > currentHover) {
+          hoverStates.current[i] = Math.min(targetHover, currentHover + 20 * delta);
+        } else {
+          hoverStates.current[i] = Math.max(targetHover, currentHover - 10 * delta);
+        }
+        hoverAttrRef.current!.setX(i, hoverStates.current[i]);
+        needsUpdate = true;
+      }
+    });
+
+    if (needsUpdate) {
+      selectionAttrRef.current.needsUpdate = true;
+      hoverAttrRef.current.needsUpdate = true;
+    }
+  });
+
+  return (
+    <instancedMesh 
+      ref={meshRef} 
+      args={[unitHexGeo, instancedMat, nonWaterTiles.length]}
+      onClick={(e) => {
+        e.stopPropagation();
+        const instanceId = e.instanceId;
+        if (instanceId !== undefined) {
+          const tile = nonWaterTiles[instanceId];
+          onClick(tile.coord.q, tile.coord.r);
+        }
+      }}
+    >
+      <instancedBufferAttribute 
+        ref={selectionAttrRef}
+        attach="geometry-attributes-selection"
+        args={[selectionStates.current, 1]}
+      />
+      <instancedBufferAttribute 
+        ref={hoverAttrRef}
+        attach="geometry-attributes-hover"
+        args={[hoverStates.current, 1]}
+      />
+    </instancedMesh>
+  );
+});
+
 // 3D Unit
-const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnimationEnd, onClick, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget }: any) => {
+const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnimationEnd, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget }: any) => {
   const { x, y: z } = hexToPixel(unit.coord.q, unit.coord.r);
   
   const targetX = anim?.to ? hexToPixel(anim.to.q, anim.to.r).x : x;
@@ -374,13 +501,12 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
     <group
       ref={groupRef}
       position={[x, baseHeight, z]}
-      onClick={(e: any) => { e.stopPropagation(); onClick(); }}
     >
       {/* Unit Support Cone */}
       <mesh 
         position={[0, 0.3, 0]} 
         geometry={unitConeGeo} 
-        material={isSelected ? unitBaseMat : getPlayerMaterial(playerColor)} 
+        material={getPlayerMaterial(playerColor)} 
       />
 
       {/* Unit Body */}
@@ -448,7 +574,7 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
   const mountains = useMemo(() => board.filter(t => t.terrain === TerrainType.MOUNTAIN), [board]);
 
   const forestRefs = [useRef<THREE.InstancedMesh>(null), useRef<THREE.InstancedMesh>(null), useRef<THREE.InstancedMesh>(null)];
-  const mountainRefs = [useRef<THREE.InstancedMesh>(null), useRef<THREE.InstancedMesh>(null)];
+  const mountainRef = useRef<THREE.InstancedMesh>(null);
 
   useEffect(() => {
     const dummy = new THREE.Object3D();
@@ -487,29 +613,17 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
       forestRefs[2].current.instanceMatrix.needsUpdate = true;
     }
 
-    // Mountain 1
-    if (mountainRefs[0].current) {
+    // Mountain
+    if (mountainRef.current) {
       mountains.forEach((tile, i) => {
         const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
         const height = TERRAIN_HEIGHTS[TerrainType.MOUNTAIN];
-        dummy.position.set(x, height + 0.5, z);
+        dummy.position.set(x, height + 0.575, z);
         dummy.rotation.set(0, Math.PI / 4, 0);
         dummy.updateMatrix();
-        mountainRefs[0].current!.setMatrixAt(i, dummy.matrix);
+        mountainRef.current!.setMatrixAt(i, dummy.matrix);
       });
-      mountainRefs[0].current.instanceMatrix.needsUpdate = true;
-    }
-    // Mountain 2
-    if (mountainRefs[1].current) {
-      mountains.forEach((tile, i) => {
-        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
-        const height = TERRAIN_HEIGHTS[TerrainType.MOUNTAIN];
-        dummy.position.set(x, height + 1.0, z);
-        dummy.rotation.set(0, Math.PI / 4, 0);
-        dummy.updateMatrix();
-        mountainRefs[1].current!.setMatrixAt(i, dummy.matrix);
-      });
-      mountainRefs[1].current.instanceMatrix.needsUpdate = true;
+      mountainRef.current.instanceMatrix.needsUpdate = true;
     }
   }, [forests, mountains]);
 
@@ -523,20 +637,17 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
         </>
       )}
       {mountains.length > 0 && (
-        <>
-          <instancedMesh ref={mountainRefs[0]} args={[mountainCone1, mountainMat1, mountains.length]} />
-          <instancedMesh ref={mountainRefs[1]} args={[mountainCone2, mountainMat2, mountains.length]} />
-        </>
+        <instancedMesh ref={mountainRef} args={[mountainCone1, mountainMat, mountains.length]} />
       )}
     </group>
   );
 });
-const skySphereGeo = new THREE.SphereGeometry(500, 32, 32);
+const skySphereGeo = new THREE.SphereGeometry(800, 32, 32);
 const skySphereMat = new THREE.ShaderMaterial({
   side: THREE.BackSide,
   uniforms: {
-    colorBottom: { value: new THREE.Color('#450a0a') }, // Hell (dark red)
-    colorTop: { value: new THREE.Color('#dbeafe') }, // Heaven (light blue)
+    colorTop: { value: new THREE.Color('#94E2FF') }, // Brighter Sky Blue (+10%)
+    colorBottom: { value: new THREE.Color('#7A4F44') }, // Terra Cotta (+25% saturation, adjusted brightness)
   },
   vertexShader: `
     varying vec3 vWorldPosition;
@@ -547,21 +658,372 @@ const skySphereMat = new THREE.ShaderMaterial({
     }
   `,
   fragmentShader: `
-    uniform vec3 colorBottom;
     uniform vec3 colorTop;
+    uniform vec3 colorBottom;
     varying vec3 vWorldPosition;
+
     void main() {
       vec3 direction = normalize(vWorldPosition);
-      // direction.y goes from -1 (straight down) to +1 (straight up)
-      // We want h to be 0 at the horizon (direction.y = 0) and 1 straight up
-      float h = max(0.0, direction.y);
+      // Align midpoint to 35% latitude from bottom
+      // Total range -1..1 (diff 2). 35% of 2 is 0.7. -1 + 0.7 = -0.3.
+      // So midpoint should be at y = -0.3.
+      // For smoothstep(A, B, y) to have midpoint at -0.3, (A+B)/2 = -0.3.
+      // Let's use A = -1.0, B = 0.4. (-1 + 0.4)/2 = -0.3.
+      float h = smoothstep(-1.0, 0.4, direction.y);
       vec3 color = mix(colorBottom, colorTop, h);
       gl_FragColor = vec4(color, 1.0);
     }
   `
 });
 
+const GlobalSceneUpdates = () => {
+  useFrame(() => {
+    updateWaterTime();
+  });
+  return null;
+};
+
+const birdGeo = new THREE.BoxGeometry(0.1, 0.05, 0.3);
+const wingGeo = new THREE.BoxGeometry(0.4, 0.01, 0.15);
+const birdMat = new THREE.MeshStandardMaterial({ color: "white" });
+
+const batGeo = new THREE.BoxGeometry(0.15, 0.1, 0.3);
+const batWingGeo = new THREE.BoxGeometry(0.6, 0.01, 0.25);
+const batMat = new THREE.MeshStandardMaterial({ color: "#2a0505" });
+const batWingMat = new THREE.MeshStandardMaterial({ color: "#450a0a" });
+
+const BackgroundElements = React.memo(() => {
+  const birdMeshRef = useRef<THREE.InstancedMesh>(null);
+  const birdLeftWingRef = useRef<THREE.InstancedMesh>(null);
+  const birdRightWingRef = useRef<THREE.InstancedMesh>(null);
+
+  const batMeshRef = useRef<THREE.InstancedMesh>(null);
+  const batLeftWingRef = useRef<THREE.InstancedMesh>(null);
+  const batRightWingRef = useRef<THREE.InstancedMesh>(null);
+
+  // Reuse Object3D instances to avoid GC pressure
+  const dummyObject = useMemo(() => new THREE.Object3D(), []);
+  const wingLObject = useMemo(() => new THREE.Object3D(), []);
+  const wingRObject = useMemo(() => new THREE.Object3D(), []);
+
+  const entities = useMemo(() => {
+    const data = [];
+    for (let i = 0; i < 10; i++) {
+       data.push({
+         x: (Math.random() - 0.5) * 100,
+         y: 8 + Math.random() * 4,
+         z: (Math.random() - 0.5) * 100,
+         speed: 2 + Math.random() * 3,
+         offset: Math.random() * 100,
+         type: 'bird'
+       });
+    }
+    for (let i = 0; i < 6; i++) {
+      data.push({
+        x: (Math.random() - 0.5) * 120,
+        y: -12 - Math.random() * 8,
+        z: (Math.random() - 0.5) * 120,
+        speed: 3 + Math.random() * 4,
+        offset: Math.random() * 100,
+        type: 'bat'
+      });
+    }
+    return data;
+  }, []);
+
+  useFrame(({ clock }) => {
+    let birdIdx = 0;
+    let batIdx = 0;
+
+    entities.forEach((e) => {
+      const t = clock.getElapsedTime() + e.offset;
+      const x = e.x + (e.type === 'bird' ? Math.sin(t * 0.1) * 30 : Math.cos(t * 0.15) * 40);
+      let z = e.z + t * e.speed;
+      const boundary = e.type === 'bird' ? 80 : 100;
+      if (z > boundary) z = -boundary;
+      const y = e.y + (e.type === 'bird' ? Math.sin(t * 2) * 0.2 : Math.sin(t * 5) * 0.3);
+
+      dummyObject.position.set(x, y, z);
+      dummyObject.updateMatrix();
+
+      if (e.type === 'bird') {
+        if (birdMeshRef.current) birdMeshRef.current.setMatrixAt(birdIdx, dummyObject.matrix);
+        
+        const flap = Math.sin(t * 12) * 0.6;
+        wingLObject.position.set(x + 0.2, y, z);
+        wingLObject.rotation.z = flap;
+        wingLObject.updateMatrix();
+        if (birdLeftWingRef.current) birdLeftWingRef.current.setMatrixAt(birdIdx, wingLObject.matrix);
+
+        wingRObject.position.set(x - 0.2, y, z);
+        wingRObject.rotation.z = -flap;
+        wingRObject.updateMatrix();
+        if (birdRightWingRef.current) birdRightWingRef.current.setMatrixAt(birdIdx, wingRObject.matrix);
+        
+        birdIdx++;
+      } else {
+        if (batMeshRef.current) batMeshRef.current.setMatrixAt(batIdx, dummyObject.matrix);
+        
+        const flap = Math.sin(t * 18) * 0.9;
+        wingLObject.position.set(x + 0.3, y, z);
+        wingLObject.rotation.z = flap;
+        wingLObject.updateMatrix();
+        if (batLeftWingRef.current) batLeftWingRef.current.setMatrixAt(batIdx, wingLObject.matrix);
+
+        wingRObject.position.set(x - 0.3, y, z);
+        wingRObject.rotation.z = -flap;
+        wingRObject.updateMatrix();
+        if (batRightWingRef.current) batRightWingRef.current.setMatrixAt(batIdx, wingRObject.matrix);
+        
+        batIdx++;
+      }
+    });
+
+    if (birdMeshRef.current) birdMeshRef.current.instanceMatrix.needsUpdate = true;
+    if (birdLeftWingRef.current) birdLeftWingRef.current.instanceMatrix.needsUpdate = true;
+    if (birdRightWingRef.current) birdRightWingRef.current.instanceMatrix.needsUpdate = true;
+    if (batMeshRef.current) batMeshRef.current.instanceMatrix.needsUpdate = true;
+    if (batLeftWingRef.current) batLeftWingRef.current.instanceMatrix.needsUpdate = true;
+    if (batRightWingRef.current) batRightWingRef.current.instanceMatrix.needsUpdate = true;
+  });
+
+  const birdCount = entities.filter(e => e.type === 'bird').length;
+  const batCount = entities.filter(e => e.type === 'bat').length;
+
+  return (
+    <group>
+      {birdCount > 0 && (
+        <>
+          <instancedMesh ref={birdMeshRef} args={[birdGeo, birdMat, birdCount]} />
+          <instancedMesh ref={birdLeftWingRef} args={[wingGeo, birdMat, birdCount]} />
+          <instancedMesh ref={birdRightWingRef} args={[wingGeo, birdMat, birdCount]} />
+        </>
+      )}
+      {batCount > 0 && (
+        <>
+          <instancedMesh ref={batMeshRef} args={[batGeo, batMat, batCount]} />
+          <instancedMesh ref={batLeftWingRef} args={[batWingGeo, batWingMat, batCount]} />
+          <instancedMesh ref={batRightWingRef} args={[batWingGeo, batWingMat, batCount]} />
+        </>
+      )}
+    </group>
+  );
+});
+
+const CameraRotationTicker = ({ controls, rotationActive }: { controls: any, rotationActive: React.MutableRefObject<any> }) => {
+  useFrame((_state, delta) => {
+    if (!controls) return;
+    
+    // Significantly increase speed for Orthographic camera responsiveness
+    const speed = 2.5; // Even faster for better feel
+    
+    let needsUpdate = false;
+    if (rotationActive.current.left) {
+      controls.setAzimuthalAngle(controls.getAzimuthalAngle() + speed * delta);
+      needsUpdate = true;
+    }
+    if (rotationActive.current.right) {
+      controls.setAzimuthalAngle(controls.getAzimuthalAngle() - speed * delta);
+      needsUpdate = true;
+    }
+    if (rotationActive.current.up) {
+      controls.setPolarAngle(controls.getPolarAngle() + speed * delta);
+      needsUpdate = true;
+    }
+    if (rotationActive.current.down) {
+      controls.setPolarAngle(controls.getPolarAngle() - speed * delta);
+      needsUpdate = true;
+    }
+    
+    if (needsUpdate) {
+      controls.update();
+    }
+  });
+  return null;
+};
+
+const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: React.MutableRefObject<any> }) => {
+  const [activeActions, setActiveActions] = useState({ left: false, right: false, up: false, down: false });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture keys if an input is focused
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          rotationActive.current.up = true;
+          setActiveActions(prev => prev.up ? prev : { ...prev, up: true });
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          rotationActive.current.down = true;
+          setActiveActions(prev => prev.down ? prev : { ...prev, down: true });
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          rotationActive.current.left = true;
+          setActiveActions(prev => prev.left ? prev : { ...prev, left: true });
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          rotationActive.current.right = true;
+          setActiveActions(prev => prev.right ? prev : { ...prev, right: true });
+          break;
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowUp': 
+          rotationActive.current.up = false; 
+          setActiveActions(prev => ({ ...prev, up: false }));
+          break;
+        case 'ArrowDown': 
+          rotationActive.current.down = false; 
+          setActiveActions(prev => ({ ...prev, down: false }));
+          break;
+        case 'ArrowLeft': 
+          rotationActive.current.left = false; 
+          setActiveActions(prev => ({ ...prev, left: false }));
+          break;
+        case 'ArrowRight': 
+          rotationActive.current.right = false; 
+          setActiveActions(prev => ({ ...prev, right: false }));
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [rotationActive]);
+
+  return (
+    <div className="absolute bottom-6 right-6 flex flex-col items-center gap-2 pointer-events-none z-10 scale-90 sm:scale-100 origin-bottom-right">
+      <button 
+        onPointerDown={(e) => { 
+          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+          rotationActive.current.up = true; 
+          setActiveActions(prev => ({ ...prev, up: true }));
+        }}
+        onPointerUp={() => { 
+          rotationActive.current.up = false; 
+          setActiveActions(prev => ({ ...prev, up: false }));
+        }}
+        onPointerLeave={() => { 
+          rotationActive.current.up = false; 
+          setActiveActions(prev => ({ ...prev, up: false }));
+        }}
+        className={`w-12 h-12 bg-white/20 backdrop-blur-md border-2 border-black/20 rounded-xl flex items-center justify-center hover:bg-white/40 active:scale-95 transition-all pointer-events-auto shadow-lg ${activeActions.up ? 'bg-white/60 border-amber-500 scale-95' : ''}`}
+        title="Rotate Up"
+      >
+        <ArrowUp size={30} className={activeActions.up ? "text-amber-600" : "text-black/60"} />
+      </button>
+      <div className="flex gap-2">
+        <button 
+          onPointerDown={(e) => { 
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            rotationActive.current.left = true; 
+            setActiveActions(prev => ({ ...prev, left: true }));
+          }}
+          onPointerUp={() => { 
+            rotationActive.current.left = false; 
+            setActiveActions(prev => ({ ...prev, left: false }));
+          }}
+          onPointerLeave={() => { 
+            rotationActive.current.left = false; 
+            setActiveActions(prev => ({ ...prev, left: false }));
+          }}
+          className={`w-12 h-12 bg-white/20 backdrop-blur-md border-2 border-black/20 rounded-xl flex items-center justify-center hover:bg-white/40 active:scale-95 transition-all pointer-events-auto shadow-lg ${activeActions.left ? 'bg-white/60 border-amber-500 scale-95' : ''}`}
+          title="Spin Left"
+        >
+          <ArrowLeft size={30} className={activeActions.left ? "text-amber-600" : "text-black/60"} />
+        </button>
+        <button 
+          onPointerDown={(e) => { 
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            rotationActive.current.down = true; 
+            setActiveActions(prev => ({ ...prev, down: true }));
+          }}
+          onPointerUp={() => { 
+            rotationActive.current.down = false; 
+            setActiveActions(prev => ({ ...prev, down: false }));
+          }}
+          onPointerLeave={() => { 
+            rotationActive.current.down = false; 
+            setActiveActions(prev => ({ ...prev, down: false }));
+          }}
+          className={`w-12 h-12 bg-white/20 backdrop-blur-md border-2 border-black/20 rounded-xl flex items-center justify-center hover:bg-white/40 active:scale-95 transition-all pointer-events-auto shadow-lg ${activeActions.down ? 'bg-white/60 border-amber-500 scale-95' : ''}`}
+          title="Rotate Down"
+        >
+          <ArrowDown size={30} className={activeActions.down ? "text-amber-600" : "text-black/60"} />
+        </button>
+        <button 
+          onPointerDown={(e) => { 
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            rotationActive.current.right = true; 
+            setActiveActions(prev => ({ ...prev, right: true }));
+          }}
+          onPointerUp={() => { 
+            rotationActive.current.right = false; 
+            setActiveActions(prev => ({ ...prev, right: false }));
+          }}
+          onPointerLeave={() => { 
+            rotationActive.current.right = false; 
+            setActiveActions(prev => ({ ...prev, right: false }));
+          }}
+          className={`w-12 h-12 bg-white/20 backdrop-blur-md border-2 border-black/20 rounded-xl flex items-center justify-center hover:bg-white/40 active:scale-95 transition-all pointer-events-auto shadow-lg ${activeActions.right ? 'bg-white/60 border-amber-500 scale-95' : ''}`}
+          title="Spin Right"
+        >
+          <ArrowRight size={30} className={activeActions.right ? "text-amber-600" : "text-black/60"} />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const SunLight = () => {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const targetRef = useRef<THREE.Object3D>(new THREE.Object3D());
+  
+  useFrame(({ camera }) => {
+    if (!lightRef.current) return;
+    
+    // Position light over the left shoulder relative to camera
+    // We want it to "hit the scene at 45 degrees"
+    // Left shoulder means offset to the left (-X in local camera space)
+    // and slightly up (+Y in local camera space) and behind (+Z in local camera space)
+    
+    const offset = new THREE.Vector3(-20, 20, 20); // Relative offset
+    offset.applyQuaternion(camera.quaternion);
+    lightRef.current.position.copy(camera.position).add(offset);
+    
+    // We want the light to target the point the camera is looking at, or just 0,0,0
+    // DirectionalLight uses a target Object3D. 
+    // If not specified, it targets 0,0,0.
+  });
+
+  return (
+    <>
+      <primitive object={targetRef.current} position={[0, 0, 0]} />
+      <directionalLight 
+        ref={lightRef} 
+        intensity={2.2} 
+        target={targetRef.current}
+      />
+    </>
+  );
+};
+
 export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHoveredHex, handleHexClick, finalizeMove, finalizeAttack, clearAnimation, showStrategicView }) => {
+  const [controls, setControls] = useState<any>(null);
+  const rotationActive = useRef({ left: false, right: false, up: false, down: false });
+  
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const selectedUnit = gameState.units.find(u => u.id === gameState.selectedUnitId);
   const isSelectedCatapult = selectedUnit?.type === UnitType.CATAPULT;
@@ -572,19 +1034,19 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
   const attackRangeSet = useMemo(() => new Set(gameState.attackRange.map(r => `${r.q},${r.r}`)), [gameState.attackRange]);
   const unitsMap = useMemo(() => {
     const map = new Map<string, any>();
-    gameState.units.forEach(u => map.set(`${u.coord.q},${u.coord.r}`, u));
+    (gameState.units || []).forEach(u => map.set(`${u.coord.q},${u.coord.r}`, u));
     return map;
   }, [gameState.units]);
 
   const boardMap = useMemo(() => {
     const map = new Map<string, any>();
-    gameState.board.forEach(t => map.set(`${t.coord.q},${t.coord.r}`, t));
+    (gameState.board || []).forEach(t => map.set(`${t.coord.q},${t.coord.r}`, t));
     return map;
   }, [gameState.board]);
 
   const animationsMap = useMemo(() => {
     const map = new Map<string, any>();
-    gameState.animations.forEach(a => {
+    (gameState.animations || []).forEach(a => {
       if (a.unitId) map.set(a.unitId, a);
     });
     return map;
@@ -600,145 +1062,215 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
     return map;
   }, [showStrategicView, gameState.opportunityPerilMatrix]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (controls) {
+        // Force controls to sync with new camera state/aspect
+        controls.update();
+      }
+      // Some browsers (mobile safari/chrome) need a small delay for 
+      // the DOM layout to settle before coordinate mapping is reliable
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+      return () => clearTimeout(timer);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [controls]);
+
   return (
-    <Canvas>
-      {/* Epic Ambient Sky Sphere */}
-      <mesh geometry={skySphereGeo} material={skySphereMat} />
-
-      <OrthographicCamera makeDefault position={[10, 20, 17.32]} zoom={30} near={-1000} far={1000} />
-      <MapControls 
-        enableRotate={true} 
-        maxPolarAngle={Math.PI / 2 - 0.1}
-        enableDamping 
-        dampingFactor={0.05} 
-        minZoom={10} 
-        maxZoom={80} 
-        target={[0, 0, 0]}
-      />
-      
-      <ambientLight intensity={0.6} />
-      <directionalLight 
-        position={[10, 20, 10]} 
-        intensity={1.5} 
-      />
-
-      <group position={[0, 0, 0]}>
-      {/* Render Board Features (Instanced) */}
-      <FeaturesInstanced board={gameState.board} />
-
-      {/* Render Board */}
-      {gameState.board.map((tile) => {
-        const coordKey = `${tile.coord.q},${tile.coord.r}`;
-        const isSelected = gameState.selectedHex?.q === tile.coord.q && gameState.selectedHex?.r === tile.coord.r;
-        const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
-        const isPossibleMove = possibleMovesSet.has(coordKey);
-        const isPossibleAttack = possibleAttacksSet.has(coordKey);
-        const isAttackRange = attackRangeSet.has(coordKey);
-        const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord) > UNIT_STATS[selectedUnit.type].range;
-        const unitAtHex = unitsMap.get(coordKey);
-        const evaluation = matrixMap.get(coordKey);
+    <div className="w-full h-full relative">
+      <Canvas>
+        <GlobalSceneUpdates />
+        {/* Epic Ambient Sky Sphere */}
+        <mesh geometry={skySphereGeo} material={skySphereMat} />
         
-        let hasAdjacentSettlement = false;
-        if (tile.terrain === TerrainType.WATER) {
-          const neighbors = getNeighbors(tile.coord);
-          hasAdjacentSettlement = neighbors.some(n => {
-            const neighborTile = boardMap.get(`${n.q},${n.r}`);
-            return neighborTile && (
-              neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORTRESS || 
-              neighborTile.terrain === TerrainType.CASTLE || neighborTile.terrain === TerrainType.GOLD_MINE
-            );
-          });
-        }
+        {/* Background Animated Elements */}
+        <BackgroundElements />
 
-        return (
-          <HexTile3D
-            key={`tile-${tile.coord.q}-${tile.coord.r}`}
-            tile={tile}
-            isSelected={isSelected}
-            isHovered={isHovered}
-            isPossibleMove={isPossibleMove}
-            isPossibleAttack={isPossibleAttack}
-            isAttackRange={isAttackRange}
-            isExtendedRange={isExtendedRange}
-            playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
-            hasAdjacentSettlement={hasAdjacentSettlement}
-            unitAtHex={unitAtHex}
-            isCurrentPlayer={tile.ownerId === currentPlayer.id}
-            evaluation={evaluation}
-            onClick={handleHexClick}
-            onPointerEnter={setHoveredHex}
-            onPointerLeave={setHoveredHex}
-          />
-        );
-      })}
-
-      {/* Render Units */}
-      {gameState.units.map((unit) => {
-        const anim = animationsMap.get(unit.id);
-        const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
-        const coordKey = `${displayCoord.q},${displayCoord.r}`;
-        const tile = boardMap.get(coordKey);
-        const isOnWater = tile?.terrain === TerrainType.WATER;
-        const tileHeight = tile ? (TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4) : 0.4;
+        <PerspectiveCamera 
+          makeDefault 
+          position={[60, 64, 60]} 
+          fov={18} 
+          near={0.1} 
+          far={3000} 
+          onUpdate={(c) => {
+            if (c instanceof THREE.PerspectiveCamera) {
+              const horizontalFov = 18;
+              const aspect = c.aspect;
+              if (aspect < 1) {
+                if (Math.abs(c.fov - horizontalFov) > 0.01) {
+                  c.fov = horizontalFov;
+                  c.updateProjectionMatrix();
+                }
+              } else {
+                const targetFov = (2 * Math.atan(Math.tan((horizontalFov * Math.PI) / 360) / aspect) * 180) / Math.PI;
+                if (Math.abs(c.fov - targetFov) > 0.01) {
+                  c.fov = targetFov;
+                  c.updateProjectionMatrix();
+                }
+              }
+            }
+          }}
+        />
+        <OrbitControls 
+          ref={(inst) => {
+            setControls(inst);
+            if (inst) {
+              // Standard OrbitControls has internal key listeners, disable them
+              (inst as any).enableKeys = false;
+            }
+          }}
+          enableRotate={true} 
+          minPolarAngle={0.01}
+          maxPolarAngle={Math.PI / 2 - 0.15}
+          enableDamping 
+          dampingFactor={0.05} 
+          minDistance={10} 
+          maxDistance={150} 
+          target={[0, 0, 0]}
+          screenSpacePanning={false}
+          mouseButtons={{
+            LEFT: THREE.MOUSE.PAN,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.ROTATE
+          }}
+        />
+        <CameraRotationTicker controls={controls} rotationActive={rotationActive} />
         
-        const isAttackRange = attackRangeSet.has(`${unit.coord.q},${unit.coord.r}`);
-        const isProhibitedTarget = isSelectedCatapult && tile?.terrain === TerrainType.FOREST && isAttackRange && unit.ownerId !== currentPlayer.id;
+        <ambientLight intensity={0.4} />
+        <SunLight />
 
-        return (
-          <React.Fragment key={unit.id}>
-            <AnimatedUnit3D
-              unit={unit}
-              playerColor={gameState.players[unit.ownerId].color}
-              isSelected={gameState.selectedUnitId === unit.id}
-              canMove={unit.ownerId === currentPlayer.id && unit.movesLeft > 0}
-              anim={anim}
-              isOnWater={isOnWater}
-              tileHeight={tileHeight}
-              isPossibleAttackTarget={possibleAttacksSet.has(`${unit.coord.q},${unit.coord.r}`)}
-              isProhibitedTarget={isProhibitedTarget}
-              onAnimationEnd={() => {
-                if (anim?.type === 'move') finalizeMove(unit.id, anim.to!);
-                if (anim?.type === 'attack') finalizeAttack(unit.id, anim.to!);
-              }}
-              onClick={() => handleHexClick(unit.coord.q, unit.coord.r)}
-            />
-            {/* Projectiles for ranged attacks */}
-            {anim?.type === 'attack' && (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) && (
-              <Projectile3D 
-                from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
-                to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
-                type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
+        <group position={[0, 0, 0]}>
+        {/* Render Board Bases (Instanced) */}
+        <MapBasesInstanced 
+          board={gameState.board} 
+          selectedHex={gameState.selectedHex}
+          hoveredHex={hoveredHex}
+          onClick={handleHexClick} 
+        />
 
-        {/* Damage Popups and Sparks */}
-        {gameState.animations.filter(a => a.type === 'damage' || a.type === 'miss').map(anim => {
-          const { x, y: z } = hexToPixel(anim.to!.q, anim.to!.r);
-          if (anim.type === 'miss') {
-            return (
-              <MissEffect3D 
-                key={anim.id} 
-                x={x} 
-                z={z} 
-                onComplete={() => clearAnimation(anim.id)} 
-              />
-            );
+        {/* Render Board Features (Instanced) */}
+        <FeaturesInstanced board={gameState.board} />
+
+        {/* Render Board */}
+        {gameState.board.map((tile) => {
+          const coordKey = `${tile.coord.q},${tile.coord.r}`;
+          const isSelected = gameState.selectedHex?.q === tile.coord.q && gameState.selectedHex?.r === tile.coord.r;
+          const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
+          const isPossibleMove = possibleMovesSet.has(coordKey);
+          const isPossibleAttack = possibleAttacksSet.has(coordKey);
+          const isAttackRange = attackRangeSet.has(coordKey);
+          const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord, gameState.board) > UNIT_STATS[selectedUnit.type].range;
+          const unitAtHex = unitsMap.get(coordKey);
+          const evaluation = matrixMap.get(coordKey);
+          
+          let hasAdjacentSettlement = false;
+          if (tile.terrain === TerrainType.WATER) {
+            const neighbors = getNeighbors(tile.coord);
+            hasAdjacentSettlement = neighbors.some(n => {
+              const neighborTile = boardMap.get(`${n.q},${n.r}`);
+              return neighborTile && (
+                neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORTRESS || 
+                neighborTile.terrain === TerrainType.CASTLE || neighborTile.terrain === TerrainType.GOLD_MINE
+              );
+            });
           }
+
           return (
-            <group key={anim.id}>
-              <Sparks3D x={x} z={z} />
-              <SmokeEffect3D 
-                x={x} 
-                z={z} 
-                onComplete={() => clearAnimation(anim.id)}
-              />
-            </group>
+            <HexTile3D
+              key={`tile-${tile.coord.q}-${tile.coord.r}`}
+              tile={tile}
+              isSelected={isSelected}
+              isHovered={isHovered}
+              isPossibleMove={isPossibleMove}
+              isPossibleAttack={isPossibleAttack}
+              isAttackRange={isAttackRange}
+              isExtendedRange={isExtendedRange}
+              playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
+              hasAdjacentSettlement={hasAdjacentSettlement}
+              unitAtHex={unitAtHex}
+              isCurrentPlayer={tile.ownerId === currentPlayer.id}
+              evaluation={evaluation}
+              onClick={handleHexClick}
+              onPointerEnter={setHoveredHex}
+              onPointerLeave={setHoveredHex}
+            />
           );
         })}
-      </group>
-    </Canvas>
+
+        {/* Render Units */}
+        {gameState.units.map((unit) => {
+          const anim = animationsMap.get(unit.id);
+          const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
+          const coordKey = `${displayCoord.q},${displayCoord.r}`;
+          const tile = boardMap.get(coordKey);
+          const isOnWater = tile?.terrain === TerrainType.WATER;
+          const tileHeight = tile ? (TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4) : 0.4;
+          
+          const isAttackRange = attackRangeSet.has(`${unit.coord.q},${unit.coord.r}`);
+          const isProhibitedTarget = isSelectedCatapult && tile?.terrain === TerrainType.FOREST && isAttackRange && unit.ownerId !== currentPlayer.id;
+
+          return (
+            <React.Fragment key={unit.id}>
+              <AnimatedUnit3D
+                unit={unit}
+                playerColor={gameState.players[unit.ownerId].color}
+                isSelected={gameState.selectedUnitId === unit.id}
+                canMove={unit.ownerId === currentPlayer.id && unit.movesLeft > 0}
+                anim={anim}
+                isOnWater={isOnWater}
+                tileHeight={tileHeight}
+                isPossibleAttackTarget={possibleAttacksSet.has(`${unit.coord.q},${unit.coord.r}`)}
+                isProhibitedTarget={isProhibitedTarget}
+                onAnimationEnd={() => {
+                  if (anim?.type === 'move') finalizeMove(unit.id, anim.to!);
+                  if (anim?.type === 'attack') finalizeAttack(unit.id, anim.to!);
+                }}
+              />
+              {/* Projectiles for ranged attacks */}
+              {anim?.type === 'attack' && (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) && (
+                <Projectile3D 
+                  from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
+                  to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
+                  type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+
+          {/* Damage Popups and Sparks */}
+          {(gameState.animations || []).filter(a => a.type === 'damage' || a.type === 'miss').map(anim => {
+            const { x, y: z } = hexToPixel(anim.to!.q, anim.to!.r);
+            if (anim.type === 'miss') {
+              return (
+                <MissEffect3D 
+                  key={anim.id} 
+                  x={x} 
+                  z={z} 
+                  onComplete={() => clearAnimation(anim.id)} 
+                />
+              );
+            }
+            return (
+              <group key={anim.id}>
+                <Sparks3D x={x} z={z} />
+                <SmokeEffect3D 
+                  x={x} 
+                  z={z} 
+                  onComplete={() => clearAnimation(anim.id)}
+                />
+              </group>
+            );
+          })}
+        </group>
+      </Canvas>
+
+      {/* Floating Camera Controls Overlay (refactored to separate component) */}
+      <CameraControlsOverlay rotationActive={rotationActive} />
+    </div>
   );
 };

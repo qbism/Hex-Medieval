@@ -6,14 +6,41 @@ import * as THREE from 'three';
 export const forestCone1 = new THREE.ConeGeometry(0.2, 0.7, 5);
 export const forestCone2 = new THREE.ConeGeometry(0.28, 0.9, 5);
 export const forestCone3 = new THREE.ConeGeometry(0.18, 0.6, 5);
-export const forestMat = new THREE.MeshStandardMaterial({ color: "#022c22" });
-const vineMat = new THREE.MeshStandardMaterial({ color: "#111827" });
+export const forestMat = new THREE.MeshStandardMaterial({ color: "#044738" });
+const vineMat = new THREE.MeshStandardMaterial({ color: "#066342" });
 const thornGeo = new THREE.ConeGeometry(0.02, 0.08, 3);
 
-export const mountainCone1 = new THREE.ConeGeometry(0.6, 1, 4);
-export const mountainMat1 = new THREE.MeshStandardMaterial({ color: "#78716c" });
-export const mountainCone2 = new THREE.ConeGeometry(0.3, 0.3, 4);
-export const mountainMat2 = new THREE.MeshStandardMaterial({ color: "white" });
+export const mountainCone1 = new THREE.ConeGeometry(0.69, 1.15, 4);
+export const mountainMat = new THREE.ShaderMaterial({
+  uniforms: {
+    colorBase: { value: new THREE.Color("#676767") },
+    colorSnow: { value: new THREE.Color("#f0f0f0") }
+  },
+  vertexShader: `
+    varying vec3 vPosition;
+    void main() {
+      vPosition = position;
+      #ifdef USE_INSTANCING
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+      #else
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      #endif
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 colorBase;
+    uniform vec3 colorSnow;
+    varying vec3 vPosition;
+    void main() {
+      // mountainCone1 height is 1.15, centered at origin
+      float h = vPosition.y; 
+      // Reduced snow: start higher and blend later
+      float snow = smoothstep(-0.1, 0.35, h);
+      vec3 color = mix(colorBase, colorSnow, snow);
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `
+});
 
 const castleWallGeo = new THREE.BoxGeometry(0.65, 0.5, 0.15);
 const castleMat = new THREE.MeshStandardMaterial({ color: "#d1d5db" });
@@ -30,11 +57,11 @@ const fortressMat = new THREE.MeshStandardMaterial({ color: "#d1d5db" });
 
 const villageBox1 = new THREE.BoxGeometry(0.3, 0.4, 0.3);
 const villageBox2 = new THREE.BoxGeometry(0.25, 0.3, 0.25);
-const villageMat1 = new THREE.MeshStandardMaterial({ color: "#fef3c7" });
+const villageMat1 = new THREE.MeshStandardMaterial({ color: "#d1d5db" });
 const villageCone1 = new THREE.ConeGeometry(0.25, 0.3, 4);
 const villageCone2 = new THREE.ConeGeometry(0.2, 0.25, 4);
 const villageTowerGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.5, 6);
-const villageMat2 = new THREE.MeshStandardMaterial({ color: "#b45309" });
+const villageMat2 = new THREE.MeshStandardMaterial({ color: "#873e06" });
 
 const mineBox = new THREE.BoxGeometry(0.2, 0.3, 0.2);
 const mineMat1 = new THREE.MeshStandardMaterial({ color: "#1c1917" });
@@ -64,12 +91,12 @@ export const ForestFeature = ({ position }: { position: [number, number, number]
       <mesh geometry={forestCone2} material={forestMat} />
       <mesh position={[0.12, -0.1, 0]} rotation={[0, 0, Math.PI/2]} geometry={thornGeo} material={vineMat} />
     </group>
-
+ 
     <group position={[-0.1, 0.3, 0.3]} rotation={[0, -0.3, -0.1]}>
       <mesh geometry={forestCone3} material={forestMat} />
       <mesh position={[0, 0.1, 0.1]} rotation={[Math.PI/2, 0, 0]} geometry={thornGeo} material={vineMat} />
     </group>
-
+ 
     {/* Twisted Vines */}
     {Array.from({ length: 4 }).map((_, i) => (
       <mesh 
@@ -78,7 +105,7 @@ export const ForestFeature = ({ position }: { position: [number, number, number]
         rotation={[Math.random(), Math.random(), Math.random()]}
       >
         <cylinderGeometry args={[0.01, 0.01, 0.6, 4]} />
-        <meshStandardMaterial color="#064e3b" />
+        <meshStandardMaterial color="#0a7e60" />
       </mesh>
     ))}
   </group>
@@ -86,8 +113,7 @@ export const ForestFeature = ({ position }: { position: [number, number, number]
 
 export const MountainFeature = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
-    <mesh position={[0, 0.5, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone1} material={mountainMat1} />
-    <mesh position={[0, 1, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone2} material={mountainMat2} />
+    <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone1} material={mountainMat} />
   </group>
 );
 
@@ -207,17 +233,15 @@ export const VillageFeature = ({ position, playerColor, isClaimed }: { position:
 export const GoldMineFeature = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     {/* Mountain Base */}
-    <mesh position={[0, 0.5, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone1} material={mountainMat1} />
-    {/* Snow Peak */}
-    <mesh position={[0, 1, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone2} material={mountainMat2} />
+    <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone1} material={mountainMat} />
     {/* Mine Opening 1 */}
-    <group position={[0.2, 0.15, 0.3]} rotation={[0, Math.PI/4, 0]}>
+    <group position={[0.23, 0.1725, 0.345]} rotation={[0, Math.PI/4, 0]} scale={[1.15, 1.15, 1.15]}>
       <mesh geometry={mineBox} material={mineMat1} />
       <mesh position={[0, -0.1, 0.1]} geometry={mineDodec1} material={mineMat2} />
       <mesh position={[0.1, -0.1, 0.05]} geometry={mineDodec2} material={mineMat2} />
     </group>
     {/* Mine Opening 2 */}
-    <group position={[-0.3, 0.15, -0.2]} rotation={[0, -Math.PI/4, 0]}>
+    <group position={[-0.345, 0.1725, -0.23]} rotation={[0, -Math.PI/4, 0]} scale={[1.15, 1.15, 1.15]}>
       <mesh geometry={mineBox} material={mineMat1} />
       <mesh position={[0, -0.1, 0.1]} geometry={mineDodec1} material={mineMat2} />
     </group>

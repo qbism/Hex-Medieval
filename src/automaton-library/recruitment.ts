@@ -21,23 +21,6 @@ import {
   CHEAP_UNIT_THRESHOLD,
   MAX_TURNS_TO_ACT,
   DEFENSE_DISTANCE_THRESHOLD,
-  KNIGHT_SNIPE_BONUS,
-  KNIGHT_EXPANSION_BONUS,
-  KNIGHT_INCOME_THRESHOLD,
-  KNIGHT_INCOME_PENALTY,
-  KNIGHT_APPEAL_BOOST,
-  CATAPULT_SIEGE_BONUS,
-  CATAPULT_CASTLE_BONUS,
-  CATAPULT_DEFENSE_BONUS,
-  CATAPULT_INCOME_THRESHOLD,
-  CATAPULT_INCOME_PENALTY,
-  CATAPULT_MOBILITY_PENALTY_FAR,
-  CATAPULT_MOBILITY_PENALTY_VERY_FAR,
-  CATAPULT_APPEAL_BOOST,
-  CATAPULT_PROXIMITY_BONUS_L1,
-  CATAPULT_PROXIMITY_BONUS_L2,
-  CATAPULT_MEAT_SHIELD_RECRUIT_PENALTY,
-  CATAPULT_MEAT_SHIELD_RECRUIT_BONUS,
   NEUTRAL_CAPTURE_BONUS,
   NEAR_BASE_BONUS,
   INFLUENCE_BONUS_RATIO,
@@ -167,7 +150,7 @@ export function getRecruitmentAction(
       const targetSafety = new LoopSafety('getRecruitmentAction-targets', 1000);
       for (const target of targets) {
         if (targetSafety.tick()) break;
-        const dist = getDistance(t.coord, target.coord);
+        const dist = getDistance(t.coord, target.coord, state.board);
         
         // Calculate turns to act
         let turnsToAct: number;
@@ -194,7 +177,7 @@ export function getRecruitmentAction(
         }
         
         // Bonus for defending own territory
-        const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord) <= DEFENSE_DISTANCE_THRESHOLD);
+        const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord, state.board) <= DEFENSE_DISTANCE_THRESHOLD);
 
         // Strict Recruitment Constraints Based on Unit Type
         let isValidImmediateNeed = false;
@@ -235,7 +218,7 @@ export function getRecruitmentAction(
             // Boost for each additional target (settlement or unit) within 2 to 4 range
             const otherTargetsInRange = targets.filter(other => {
                if (other.coord.q === target.coord.q && other.coord.r === target.coord.r) return false;
-               const d = getDistance(t.coord, other.coord);
+               const d = getDistance(t.coord, other.coord, state.board);
                return d >= 2 && d <= 4;
             }).length;
 
@@ -282,7 +265,7 @@ export function getRecruitmentAction(
 
         // Front Priority Bonus: Favor tiles that are near threatened bases
         let frontPriorityBonus = 0;
-        const isNearThreatenedFront = eminentThreatBases.some(b => getDistance(t.coord, b.coord) <= 3);
+        const isNearThreatenedFront = eminentThreatBases.some(b => getDistance(t.coord, b.coord, state.board) <= 3);
         if (isNearThreatenedFront) {
           frontPriorityBonus += BASE_REWARD * 10.0;
         }

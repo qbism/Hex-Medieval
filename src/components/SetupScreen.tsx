@@ -27,11 +27,11 @@ export const SetupScreen = ({
   COLORS,
 }: SetupScreenProps) => {
   return (
-    <div className="min-h-full bg-[#2a1a1a] flex flex-col items-center py-12 px-4 sm:p-8 font-sans">
+    <div className="min-h-full bg-transparent flex flex-col items-center py-12 px-4 sm:p-8 font-sans">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-2xl w-full neo-brutalist-card p-8 flex flex-col items-center my-auto"
+        className="max-w-2xl w-full neo-brutalist-card-lg p-8 flex flex-col items-center my-auto"
       >
         <div className="relative mb-8 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-10 gap-2 w-full">
           <div className="grayscale opacity-60 pointer-events-none select-none">
@@ -42,7 +42,7 @@ export const SetupScreen = ({
           </h1>
         </div>
         
-        <div className="space-y-4 mb-8 w-full">
+        <div className="space-y-4 mb-4 w-full">
           <div className="flex justify-center items-center">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <User size={20} /> Player Setup

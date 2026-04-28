@@ -4,7 +4,6 @@ import {
   Unit, 
   UnitType, 
   TerrainType, 
-  UNIT_STATS, 
   HexCoord, 
   SETTLEMENT_INCOME
 } from '../types';
@@ -16,11 +15,14 @@ import { ThreatInfo } from './threatAnalysis';
  * getUnitAction: The core decision-making engine for individual unit tactics.
  * Refactored to use separated evaluators for better maintainability.
  */
+import { DEFAULT_AI_CONFIG } from './AIConfig';
+
 export function getUnitAction(
   state: GameState, 
   currentPlayer: Player, 
   threatMatrix: Map<string, ThreatInfo>,
   influenceMap: Map<string, number>,
+  evaluationMap: Map<string, any>,
   eminentThreatBases: any[],
   possibleThreatBases: any[],
   playerStrengths: any[],
@@ -39,19 +41,17 @@ export function getUnitAction(
   threatenedBasesCount: number = 0
 ) {
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id && !u.hasActed);
-  const unitToAct = myUnits[0];
-  
-  if (!unitToAct) return null;
+  if (myUnits.length === 0) return null;
   
   // 1. Prepare Context & Cached Data
   if (!cachedData.unitsMap) {
     cachedData.unitsMap = new Map<string, Unit>();
-    state.units.forEach(u => cachedData.unitsMap.set(`${u.coord.q},${u.coord.r}`, u));
+    if (state.units) state.units.forEach(u => cachedData.unitsMap.set(`${u.coord.q},${u.coord.r}`, u));
   }
   
   if (!cachedData.boardMap) {
     cachedData.boardMap = new Map<string, any>();
-    state.board.forEach(t => cachedData.boardMap.set(`${t.coord.q},${t.coord.r}`, t));
+    if (state.board) state.board.forEach(t => cachedData.boardMap.set(`${t.coord.q},${t.coord.r}`, t));
   }
 
   const mySettlements = state.board.filter(t => 
@@ -84,57 +84,96 @@ export function getUnitAction(
     cachedData.isRich = isRichLocal;
   }
 
-  const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
-  const otherFriendlyUnitsThatHaventActed = otherFriendlyUnits.filter(u => !u.hasActed);
-
-  const friendlyFollowUpPotential = otherFriendlyUnitsThatHaventActed.map(u => ({
+  // Pre-calculate follow-up potential for ALL units once
+  const friendlyFollowUpPotential = myUnits.map(u => ({
     id: u.id,
     type: u.type,
     moves: getValidMoves(u, state.board, state.units),
     attacks: getValidAttacks(u, state.board, state.units, true)
   }));
 
-  const context: UnitActionContext = {
-    state,
-    currentPlayer,
-    threatMatrix,
-    influenceMap,
-    eminentThreatBases,
-    possibleThreatBases,
-    playerStrengths,
-    myStrength,
-    focusOnLeader,
-    leaderId,
-    empireCenter,
-    hvt,
-    isSavingForMine,
-    isSavingForVillage,
-    isLagging,
-    isCriticallyLaggingLargeEconomy,
-    isBarbarian,
-    cachedData,
-    primaryAggressorId,
-    threatenedBasesCount,
-    unitsMap: cachedData.unitsMap,
-    boardMap: cachedData.boardMap,
-    mySettlements,
-    enemySettlements,
-    myCatapults: state.units.filter(u => u.ownerId === currentPlayer.id && u.type === UnitType.CATAPULT),
-    otherFriendlyUnits,
-    friendlyFollowUpPotential,
-    globalAggression: cachedData.globalAggression,
-    globalUnitRatio: cachedData.globalUnitRatio,
-    isRich: cachedData.isRich
-  };
+  const possibleActions: { unit: Unit, action: any, score: number }[] = [];
 
-  // 2. Evaluate Actions
-  // First, check for profitable attacks
-  const attackAction = evaluateAttacks(unitToAct, context);
-  if (attackAction) return attackAction;
+  for (const unitToAct of myUnits) {
+    const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
 
-  // Second, check for optimal movement
-  const moveAction = evaluateMoves(unitToAct, context);
-  if (moveAction) return moveAction;
+    const context: UnitActionContext = {
+      state,
+      currentPlayer,
+      threatMatrix,
+      influenceMap,
+      evaluationMap,
+      eminentThreatBases,
+      possibleThreatBases,
+      playerStrengths,
+      myStrength,
+      focusOnLeader,
+      leaderId,
+      empireCenter,
+      hvt,
+      isSavingForMine,
+      isSavingForVillage,
+      isLagging,
+      isCriticallyLaggingLargeEconomy,
+      isBarbarian,
+      cachedData,
+      primaryAggressorId,
+      threatenedBasesCount,
+      unitsMap: cachedData.unitsMap,
+      boardMap: cachedData.boardMap,
+      mySettlements,
+      enemySettlements,
+      myCatapults: state.units.filter(u => u.ownerId === currentPlayer.id && u.type === UnitType.CATAPULT),
+      otherFriendlyUnits,
+      friendlyFollowUpPotential,
+      globalAggression: cachedData.globalAggression,
+      globalUnitRatio: cachedData.globalUnitRatio,
+      isRich: cachedData.isRich,
+      config: cachedData.config || DEFAULT_AI_CONFIG
+    };
 
-  return { type: 'skipUnit' as const, payload: { unitId: unitToAct.id } };
+    const attackEval = evaluateAttacks(unitToAct, context);
+    if (attackEval) {
+      possibleActions.push({ unit: unitToAct, action: attackEval.action, score: attackEval.score });
+    }
+
+    const moveEval = evaluateMoves(unitToAct, context);
+    if (moveEval) {
+      possibleActions.push({ unit: unitToAct, action: moveEval.action, score: moveEval.score });
+    }
+  }
+
+  // Combinatorial Logic: Prioritize combos
+  // 1. Catapult Neutralizing -> Knight Capturing
+  // We check if a Catapult can attack an enemy settlement AND a Knight can move into that same settlement.
+  const catapultAction = possibleActions.find(pa => 
+    pa.unit.type === UnitType.CATAPULT && 
+    pa.action.type === 'attack' &&
+    enemySettlements.some(s => s.coord.q === pa.action.payload.target.q && s.coord.r === pa.action.payload.target.r)
+  );
+
+  if (catapultAction) {
+    const targetCoord = catapultAction.action.payload.target;
+    // Use pre-calculated results for efficiency
+    const knightCapturer = friendlyFollowUpPotential.find(f => 
+      f.type === UnitType.KNIGHT && 
+      f.moves.some((m: any) => m.q === targetCoord.q && m.r === targetCoord.r)
+    );
+
+    if (knightCapturer) {
+      // Prioritize the Catapult attack first!
+      return catapultAction.action;
+    }
+  }
+
+  // 2. High-Priority Sequences (e.g. killing units blocking a path)
+  // ... 
+
+  // Default: return the action with the highest overall priority score among all units.
+  if (possibleActions.length > 0) {
+    const sorted = possibleActions.sort((a, b) => b.score - a.score);
+    return sorted[0].action;
+  }
+
+  return { type: 'skipUnit' as const, payload: { unitId: myUnits[0].id } };
 }

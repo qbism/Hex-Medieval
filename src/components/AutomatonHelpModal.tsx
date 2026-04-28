@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameButton } from './GameButton';
-import { X, Download, Cpu, Code, BookOpen, Coins } from 'lucide-react';
+import { X, Download, Cpu, Code, BookOpen, Coins, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AutomatonHelpModalProps {
@@ -194,6 +194,27 @@ export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps)
                       <p>• Expansion: 33% Gold to Villages</p>
                       <p>• Focus: High ROI Infantry spam</p>
                     </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-blue-900/10 p-4 border border-blue-900/30 rounded-xl">
+                <h3 className="font-serif font-bold mb-3 flex items-center gap-2 text-blue-900 text-sm tracking-wider">
+                  <BarChart3 size={16} /> Monte Carlo Simulation Results
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white/40 p-3 rounded-lg border border-blue-200">
+                    <p className="font-bold text-blue-900 text-[10px] uppercase tracking-widest mb-2">Optimized AI Weights (v2.4)</p>
+                    <div className="space-y-1 text-xs font-mono text-blue-800">
+                      <div className="flex justify-between"><span>Lethal Threat Penalty</span> <span>5.0</span></div>
+                      <div className="flex justify-between"><span>Capture Reward</span> <span>8.0</span></div>
+                      <div className="flex justify-between"><span>Peril Opportunity</span> <span>28.0</span></div>
+                      <div className="flex justify-between"><span>Expansion Bonus</span> <span>7.5</span></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-xs text-blue-900/80 leading-relaxed">
+                    <p><span className="font-bold text-blue-950">Insight:</span> The L1 Threat Penalty (15.0) is significantly higher than the Capture Bonus (8.0), indicating the AI prioritizes unit preservation over risky gains.</p>
+                    <p><span className="font-bold text-blue-950">Composition:</span> Simulation data suggests a 3:1 focus on Infantry-to-Archer shielding maximizes defensive efficiency per gold spent.</p>
                   </div>
                 </div>
               </section>

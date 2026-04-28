@@ -72,7 +72,22 @@ The AI is not static; it adjusts its risk tolerance based on the global state of
 *   **Stance: Steamroller**: If the AI outnumbers its enemies by 2:1 and has high gold reserves, it adopts an aggressive "Siege" stance. It relaxes unit risk aversion to apply overwhelming pressure and finish the match.
 *   **Stance: Survival (Secret Pact)**: If an AI is failing (strength < 35% of the leader), it enters a "Survival Mode." It will identify another underdog as a "Secret Partner," forming an invisible non-aggression pact to focus all remaining strength on the game leader (the "King-Slayer Directive").
 
-### 6. Tactical Heuristics
+### 6. Tactical Search & Group Sequencing (Advanced Lookahead)
+The AI has been upgraded with a **Deep Tactical Lookahead** layer that simulates potential counter-moves before executing high-value actions:
+*   **Action Safety (MiniMax-lite)**: Before moving a Knight or Catapult, the AI simulates an immediate "Optimal Response" from the opponent. If the move results in the unit entering a lethal trap without a high-value trade, the action is rejected.
+*   **Combinatorial "Group" Sequencing**: Instead of evaluating units in isolation, the AI plans sequences across multiple units. For example, it will purposefully schedule a **Catapult barrage** to neutralize a settlement's defenses *first*, expressly chaining it so a mobile unit can move in and capture the tile in a single turn.
+
+### 7. Evolutionary Self-Play Tuning (Genetic Algorithm)
+The AI's performance is optimized through a headless "Simulated Arena" and a **Genetic Algorithm (GA)**:
+*   **Automated Balancing**: The dozens of strategic multipliers (e.g., `LETHAL_THREAT_PENALTY_MULT`, `IMMEDIATE_CAPTURE_BONUS`) are no longer hand-tuned.
+*   **Fitness Evolution**: By pitting AI versions against each other for thousands of simulated matches, the system incrementally evolves the most aggressive and optimal constants for various map sizes—vastly out-calculating human-guessed parameters.
+
+### 8. Advanced Defensive Behaviors: Withdrawal & Sacrificial Screening
+The AI now employs "Human-like" preservation tactics:
+*   **Elite Withdrawal**: Imperiled high-value units (Knights/Catapults) will actively withdraw from danger if outnumbered, forcing the enemy to overextend into vulnerable territory if they want the kill.
+*   **Sacrificial Screening (The Infantry Wall)**: The AI identifies when an elite unit or a vital settlement is at risk and will rotate low-cost Infantry into the "Kill Zone." This behavior purposefully trades a 50g unit to preserve a 300g asset, creating a dense tactical screen that slow-moving enemies cannot easily bypass.
+
+### 9. Tactical Heuristics
 In addition to the mathematical core, the AI uses several tuned heuristics:
 *   **Formation-Based Thinking**: The AI treats the Catapult as its "Queen" and uses Infantry/Knights as "Pawns" to screen it. Units are heavily incentivized to maintain **Squad Integrity**, staying in a tight 1-2 hex cluster to provide mutual support and block flanking maneuvers.
 *   **Infinite Mitigation (Sniper Logic)**: The AI understands that striking from Range 3 provides "Infinite Mitigation" because most enemies cannot return fire in a single move. It will aggressively prioritize protecting any unit that achieves this overmatch capability.

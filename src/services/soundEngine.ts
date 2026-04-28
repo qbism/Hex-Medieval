@@ -41,24 +41,26 @@ class SoundEngine {
     }
   }
 
-  private playDrum(note: number, velocity: number = 100) {
+  private playDrum(note: number, velocity: number = 100, timeOffset: number = 0) {
     this.init();
     if (!this.synth || !this.enabled) return;
     const v = Math.floor(velocity * this.globalVolume * 2);
-    this.synth.send([0x99, note, Math.min(127, Math.max(0, v))]);
+    const now = this.synth.audioContext ? this.synth.audioContext.currentTime : 0;
+    this.synth.send([0x99, note, Math.min(127, Math.max(0, v))], now + timeOffset);
   }
 
-  private playToneSynth(channel: number, note: number, velocity: number = 100, durationMs: number = 200, program?: number) {
+  private playToneSynth(channel: number, note: number, velocity: number = 100, durationMs: number = 200, program?: number, timeOffset: number = 0) {
     this.init();
     if (!this.synth || !this.enabled) return;
+    const now = this.synth.audioContext ? this.synth.audioContext.currentTime : 0;
+    const startTime = now + timeOffset;
     if (program !== undefined) {
-      this.synth.send([0xC0 + channel, program]);
+      this.synth.send([0xC0 + channel, program], startTime);
     }
     const v = Math.floor(velocity * this.globalVolume * 2);
-    this.synth.send([0x90 + channel, note, Math.min(127, Math.max(0, v))]);
-    setTimeout(() => {
-      this.synth.send([0x80 + channel, note, 0]);
-    }, durationMs);
+    const vel = Math.min(127, Math.max(0, v));
+    this.synth.send([0x90 + channel, note, vel], startTime);
+    this.synth.send([0x80 + channel, note, 0], startTime + durationMs / 1000);
   }
 
   playClick() {
@@ -69,13 +71,13 @@ class SoundEngine {
     switch (unitType) {
       case UnitType.KNIGHT:
         // Gallop (Wood blocks)
-        this.playDrum(77, 120); // Low Wood Block
-        setTimeout(() => this.playDrum(76, 105), 100);
+        this.playDrum(77, 120, 0); // Low Wood Block
+        this.playDrum(76, 105, 0.1);
         break;
       case UnitType.ARCHER:
         // Light footsteps (Shaker & Hihat)
-        this.playDrum(82, 90); // Shaker
-        setTimeout(() => this.playDrum(42, 75), 100); // Closed Hi-Hat
+        this.playDrum(82, 90, 0); // Shaker
+        this.playDrum(42, 75, 0.1); // Closed Hi-Hat
         break;
       case UnitType.CATAPULT:
         // Heavy Creak (Low Tom)
@@ -84,8 +86,8 @@ class SoundEngine {
       case UnitType.INFANTRY:
       default:
         // Standard march
-        this.playDrum(45, 105); // Low Tom
-        setTimeout(() => this.playDrum(45, 90), 150);
+        this.playDrum(45, 105, 0); // Low Tom
+        this.playDrum(45, 90, 0.15);
         break;
     }
   }
@@ -106,10 +108,10 @@ class SoundEngine {
       case UnitType.KNIGHT: {
         // Horse neigh effect: fast slide on Ocarina/Synth Voice + gallop
         for (let i = 0; i < 4; i++) {
-          setTimeout(() => this.playToneSynth(11, 80 - i * 1, 90, 150, 79), i * 30); // Ocarina Whinny
+          this.playToneSynth(11, 80 - i * 1, 90, 150, 79, i * 0.03); // Ocarina Whinny
         }
         this.playDrum(49, 80); // Crash Cymbal
-        setTimeout(() => this.playDrum(76, 80), 100);
+        this.playDrum(76, 80, 0.1);
         break;
       }
       case UnitType.INFANTRY:
@@ -125,8 +127,8 @@ class SoundEngine {
   playRecruit(unitType?: UnitType) {
     switch (unitType) {
       case UnitType.KNIGHT:
-        this.playDrum(76, 90);
-        setTimeout(() => this.playDrum(77, 100), 100);
+        this.playDrum(76, 90, 0);
+        this.playDrum(77, 100, 0.1);
         break;
       case UnitType.ARCHER:
         this.playDrum(55, 70); // Splash cymbal
@@ -137,8 +139,8 @@ class SoundEngine {
         break;
       case UnitType.INFANTRY:
       default:
-        this.playDrum(48, 90); // Hi Mid Tom
-        setTimeout(() => this.playDrum(45, 90), 150);
+        this.playDrum(48, 90, 0); // Hi Mid Tom
+        this.playDrum(45, 90, 0.15);
         break;
     }
   }
@@ -160,8 +162,8 @@ class SoundEngine {
   }
 
   playUpgrade() {
-    this.playToneSynth(12, 72, 60, 300, 9); // High glockenspiel (volume reduced 40%)
-    setTimeout(() => this.playToneSynth(12, 76, 60, 500), 150);
+    this.playToneSynth(12, 72, 60, 300, 9, 0); // High glockenspiel (volume reduced 40%)
+    this.playToneSynth(12, 76, 60, 500, undefined, 0.15);
   }
 
   playHeal() {
@@ -171,23 +173,21 @@ class SoundEngine {
 
   playConquest() {
     // Triumphant 3-note fanfare
-    this.playToneSynth(13, 60, 100, 200, 61); // Brass (C4)
-    setTimeout(() => this.playToneSynth(13, 64, 100, 200), 150); // Brass (E4)
-    setTimeout(() => this.playToneSynth(13, 67, 110, 600), 300); // Brass (G4)
+    this.playToneSynth(13, 60, 100, 200, 61, 0); // Brass (C4)
+    this.playToneSynth(13, 64, 100, 200, undefined, 0.15); // Brass (E4)
+    this.playToneSynth(13, 67, 110, 600, undefined, 0.3); // Brass (G4)
   }
 
   playGoldMine() {
     // "Cha-ching": High-pitched metallic ring + coin jingle
     const playCoin = (vol: number, delay: number) => {
-      setTimeout(() => {
-        this.playDrum(81, vol); // Triangle
-        this.playToneSynth(12, 84, vol, 400, 9); // Glockenspiel
-      }, delay);
+      this.playDrum(81, vol, delay); // Triangle
+      this.playToneSynth(12, 84, vol, 400, 9, delay); // Glockenspiel
     };
 
     playCoin(120, 0);      // Initial sound
-    playCoin(80, 100);    // First echo
-    playCoin(50, 200);   // Second echo
+    playCoin(80, 0.1);    // First echo
+    playCoin(50, 0.2);   // Second echo
   }
 
   playDamage() {
@@ -199,14 +199,14 @@ class SoundEngine {
     // Brass Fanfare
     const notes = [60, 64, 67, 72]; // C4, E4, G4, C5
     notes.forEach((note, i) => {
-      setTimeout(() => this.playToneSynth(13, note, 110, 500, 61), i * 200);
+      this.playToneSynth(13, note, 110, 500, 61, i * 0.2);
     });
   }
 
   playTurnFanfare() {
     // Short 2-note fanfare (G4 -> C5)
-    this.playToneSynth(13, 67, 90, 200, 61);
-    setTimeout(() => this.playToneSynth(13, 72, 100, 400), 150);
+    this.playToneSynth(13, 67, 90, 200, 61, 0);
+    this.playToneSynth(13, 72, 100, 400, undefined, 0.15);
   }
 
   resume() {

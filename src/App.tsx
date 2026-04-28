@@ -6,7 +6,7 @@ import {
   axialToCube,
   Unit as _Unit,
 } from './types';
-import { PLAYER_COLORS as COLORS } from './constants/colors';
+import { PLAYER_COLORS as COLORS, COLOR_NAMES } from './constants/colors';
 import { getValidMoves, getValidAttacks, getAttackRange, triggerBarbarianInvasion } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';
@@ -178,12 +178,12 @@ export default function App() {
   };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
   const [playerConfigs, setPlayerConfigs] = useState([
-    { name: 'Red', isAutomaton: false },
-    { name: 'Blue', isAutomaton: true },
-    { name: 'Yellow', isAutomaton: true },
-    { name: 'Orange', isAutomaton: true },
-    { name: 'Purple', isAutomaton: true },
-    { name: 'Cyan', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[0]], isAutomaton: false },
+    { name: COLOR_NAMES[COLORS[1]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[2]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[3]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[4]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[5]], isAutomaton: true },
   ]);
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const _stageRef = useRef<any>(null);
@@ -487,7 +487,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#2a1a1a] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
+    <div className="h-screen w-screen bg-gradient-to-b from-[#43e3ff] via-[#0e5984] to-[#1f0606] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
       <AnimatePresence mode="wait">
         {setupMode ? (
           <motion.div
@@ -515,7 +515,7 @@ export default function App() {
             className="h-full w-full flex flex-col lg:flex-row"
           >
             {/* Main Game Area */}
-            <div className="flex-1 relative bg-black order-2 lg:order-1" ref={stageContainerRef}>
+            <div className="flex-1 relative bg-transparent order-2 lg:order-1" ref={stageContainerRef}>
               <Game3D 
                 gameState={gameState}
                 hoveredHex={hoveredHex}

@@ -23,7 +23,7 @@ export class MusicEngine {
   private currentGlobalStep: number = 0;
   private timer: NodeJS.Timeout | null = null;
   private nextNoteTime: number = 0;
-  private readonly lookAhead = 0.2;
+  private readonly lookAhead = 0.5;
   private readonly scheduleInterval = 25;
   private stepDuration: number = 0.125;
   private bpm: number = 120;

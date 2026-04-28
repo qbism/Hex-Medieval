@@ -51,7 +51,7 @@ export function calculateInfluenceMap(state: GameState, currentPlayerId: number)
 
     for (const unit of state.units) {
       const stats = UNIT_STATS[unit.type];
-      const dist = getDistance(unit.coord, tile.coord);
+      const dist = getDistance(unit.coord, tile.coord, state.board);
       
       // Lanchester-inspired power: Square of cost (quality) scaled by distance decay
       const power = Math.pow(stats.cost, INFLUENCE_POWER_EXPONENT) / Math.pow(dist + 1, INFLUENCE_DECAY_EXPONENT);
@@ -90,52 +90,104 @@ export interface ThreatInfo {
 export function calculateThreatMatrix(state: GameState, currentPlayerId: number): Map<string, ThreatInfo> {
   const threatMatrix = new Map<string, ThreatInfo>();
   const boardMap = getBoardMap(state.board);
-  const safety = new LoopSafety('calculateThreatMatrix', 50000);
+  const unitsByCoord = new Map<string, Unit>();
+  state.units.forEach(un => unitsByCoord.set(`${un.coord.q},${un.coord.r}`, un));
+  
+  const safety = new LoopSafety('calculateThreatMatrix', 100000);
 
   for (const u of state.units) {
     if (safety.tick()) break;
-    if (u.ownerId !== currentPlayerId) {
-      const stats = UNIT_STATS[u.type];
-      const threatValue = stats.cost;
-      const range = getUnitRange(u, state.board);
-      
-      // Check tiles within attack range + movement range (Potential Peril)
-      const maxThreatDist = range + stats.moves;
-      
-      for (let dq = -maxThreatDist; dq <= maxThreatDist; dq++) {
-        for (let dr = Math.max(-maxThreatDist, -dq - maxThreatDist); dr <= Math.min(maxThreatDist, -dq + maxThreatDist); dr++) {
-          const targetCoord = { q: u.coord.q + dq, r: u.coord.r + dr, s: u.coord.s - dq - dr };
-          const t = boardMap.get(`${targetCoord.q},${targetCoord.r}`);
-          if (!t) continue;
+    // Only calculate threats FROM enemies TO the player
+    if (u.ownerId === currentPlayerId) continue;
 
-          // Catapults cannot target units in forests
-          if (u.type === UnitType.CATAPULT && t.terrain === TerrainType.FOREST) {
-            continue;
-          }
+    const stats = UNIT_STATS[u.type];
+    const range = getUnitRange(u, state.board);
+    const moves = stats.moves;
+    const threatValue = stats.cost;
 
-          const dist = getDistance(u.coord, t.coord);
-          if (dist <= maxThreatDist) {
-            const key = `${t.coord.q},${t.coord.r}`;
-            const turnsToHit = dist <= range ? 1 : 2;
-            const current = threatMatrix.get(key) || { 
-              minTurns: turnsToHit, 
-              totalThreatValue: 0, 
-              attackerCount: 0,
-              eminentThreatValue: 0,
-              eminentAttackerCount: 0
-            };
-            
-            const isEminent = turnsToHit === 1;
-            
-            threatMatrix.set(key, {
-              minTurns: Math.min(current.minTurns, turnsToHit),
-              totalThreatValue: current.totalThreatValue + threatValue,
-              attackerCount: current.attackerCount + 1,
-              eminentThreatValue: current.eminentThreatValue + (isEminent ? threatValue : 0),
-              eminentAttackerCount: current.eminentAttackerCount + (isEminent ? 1 : 0)
-            });
+    // 1. Precise Eminent Targets (tiles hit THIS turn from CURRENT standing position)
+    const eminentTargetKeys = new Set<string>();
+    for (let dq = -range; dq <= range; dq++) {
+      for (let dr = Math.max(-range, -dq - range); dr <= Math.min(range, -dq + range); dr++) {
+        const dist = (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+        if (dist > range) continue; // Hex distance check
+        
+        const tKey = `${u.coord.q + dq},${u.coord.r + dr}`;
+        const tTile = boardMap.get(tKey);
+        if (!tTile) continue;
+        if (u.type === UnitType.CATAPULT && tTile.terrain === TerrainType.FOREST) continue;
+        eminentTargetKeys.add(tKey);
+      }
+    }
+
+    // 2. Potential Threat (Movement + Range reach for strategic scoring)
+    const reachable = new Set<string>();
+    const queue: { q: number, r: number, cost: number }[] = [{ q: u.coord.q, r: u.coord.r, cost: 0 }];
+    const visited = new Map<string, number>();
+    const startKey = `${u.coord.q},${u.coord.r}`;
+    visited.set(startKey, 0);
+    reachable.add(startKey);
+
+    let head = 0;
+    while (head < queue.length) {
+      if (safety.tick()) break;
+      const { q, r, cost } = queue[head++];
+      const neighbors = getNeighbors({ q, r, s: -q - r });
+      
+      for (const n of neighbors) {
+        const nKey = `${n.q},${n.r}`;
+        const nTile = boardMap.get(nKey);
+        if (!nTile) continue;
+        
+        if (nTile.terrain === TerrainType.WATER) {
+           const currentTile = boardMap.get(`${q},${r}`);
+           if (currentTile && currentTile.terrain !== TerrainType.WATER) {
+             const hasAdj = getNeighbors(n).some(nn => {
+               const nt = boardMap.get(`${nn.q},${nn.r}`);
+               return nt && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(nt.terrain);
+             });
+             if (!hasAdj) continue;
+           }
+        }
+        
+        const blocker = unitsByCoord.get(nKey);
+        if (blocker && blocker.ownerId === currentPlayerId) continue;
+
+        const stepCost = nTile.terrain === TerrainType.FOREST ? 2 : 1;
+        const total = cost + stepCost;
+        if (total <= moves) {
+          if (!visited.has(nKey) || total < visited.get(nKey)!) {
+            visited.set(nKey, total);
+            reachable.add(nKey);
+            queue.push({ q: n.q, r: n.r, cost: total });
           }
         }
+      }
+    }
+
+    const potentialRadius = range + moves + 1;
+    for (let dq = -potentialRadius; dq <= potentialRadius; dq++) {
+      for (let dr = Math.max(-potentialRadius, -dq - potentialRadius); dr <= Math.min(potentialRadius, -dq + potentialRadius); dr++) {
+        const tKey = `${u.coord.q + dq},${u.coord.r + dr}`;
+        const tTile = boardMap.get(tKey);
+        if (!tTile) continue;
+
+        const isEminent = eminentTargetKeys.has(tKey);
+        const current = threatMatrix.get(tKey) || {
+          minTurns: 2,
+          totalThreatValue: 0,
+          attackerCount: 0,
+          eminentThreatValue: 0,
+          eminentAttackerCount: 0
+        };
+
+        threatMatrix.set(tKey, {
+          minTurns: isEminent ? 1 : Math.min(current.minTurns, 2),
+          totalThreatValue: current.totalThreatValue + threatValue,
+          attackerCount: current.attackerCount + 1,
+          eminentThreatValue: current.eminentThreatValue + (isEminent ? threatValue : 0),
+          eminentAttackerCount: current.eminentAttackerCount + (isEminent ? 1 : 0)
+        });
       }
     }
   }
@@ -153,7 +205,7 @@ export function calculateHeatMap(state: GameState, currentPlayerId: number): Map
 
     for (const unit of state.units) {
       if (unit.ownerId !== currentPlayerId) {
-        const dist = getDistance(unit.coord, tile.coord);
+        const dist = getDistance(unit.coord, tile.coord, state.board);
         // Heat decays with distance: Strength / (dist + 1)
         const stats = UNIT_STATS[unit.type];
         heat += stats.cost / (dist + 1);
@@ -233,8 +285,8 @@ export function identifyThreatenedSettlements(state: GameState, currentPlayerId:
   const attackerUnitCounts = new Map<number, number>();
   threatenedBases.forEach(tb => {
     // Find units of other players that can hit this base
-    state.units.forEach(u => {
-      if (u.ownerId !== currentPlayerId && getDistance(u.coord, tb.settlement.coord) <= (UNIT_STATS[u.type].moves + getUnitRange(u, state.board))) {
+    (state.units || []).forEach(u => {
+      if (u.ownerId !== currentPlayerId && getDistance(u.coord, tb.settlement.coord, state.board) <= (UNIT_STATS[u.type].moves + getUnitRange(u, state.board))) {
         attackerUnitCounts.set(u.ownerId, (attackerUnitCounts.get(u.ownerId) || 0) + 1);
       }
     });
@@ -271,7 +323,7 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
     if (safety.tick()) break;
     if (u.ownerId !== currentPlayerId) {
       const stats = UNIT_STATS[u.type];
-      const distToEmpire = getDistance(u.coord, empireCenter);
+      const distToEmpire = getDistance(u.coord, empireCenter, state.board);
       
       let score = stats.cost;
       if (u.type === UnitType.CATAPULT) score *= HVT_CATAPULT_MULT;
@@ -341,7 +393,7 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player, isCr
         let nearestFriendlySettlementDist = Infinity;
         for (const t of state.board) {
           if (t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
-            const d = getDistance(t.coord, u.coord);
+            const d = getDistance(t.coord, u.coord, state.board);
             if (d < nearestFriendlySettlementDist) nearestFriendlySettlementDist = d;
           }
         }
@@ -355,7 +407,7 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player, isCr
     const nearbyFriendlySettlements = state.board.filter(t => 
       t.ownerId === currentPlayer.id && 
       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-      getDistance(t.coord, tile.coord) <= 2 &&
+      getDistance(t.coord, tile.coord, state.board) <= 2 &&
       !(t.coord.q === tile.coord.q && t.coord.r === tile.coord.r)
     ).length;
 

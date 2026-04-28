@@ -1,9 +1,10 @@
-import { useFrame, extend } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
+import { extend, useFrame } from '@react-three/fiber';
 import { shaderMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 const WaterSurfaceMaterial = shaderMaterial(
-  { time: 0, color: new THREE.Color('#7495be') },
+  { time: 0, color: new THREE.Color('#7495be'), selectionBrightness: 0 },
   // vertex shader
   `
     varying vec2 vUv;
@@ -25,6 +26,7 @@ const WaterSurfaceMaterial = shaderMaterial(
   `
     uniform float time;
     uniform vec3 color;
+    uniform float selectionBrightness;
     varying vec2 vUv;
     varying vec3 vPosition;
 
@@ -36,6 +38,10 @@ const WaterSurfaceMaterial = shaderMaterial(
       // Subtle color variation based on wave (scale 2x)
       float wave = sin(vPosition.x * 10.0 + time * 2.0) * cos(vPosition.y * 10.0 + time * 2.0);
       vec3 finalColor = color + vec3(wave * 0.1);
+      
+      // Slightly more greenish
+      finalColor.g += 0.08;
+      finalColor.b -= 0.02;
       
       // White-flecked texture from waterfall (scaled 2x)
       vec2 uv = vUv;
@@ -51,8 +57,10 @@ const WaterSurfaceMaterial = shaderMaterial(
       float dist = distance(vUv, vec2(0.5));
       float foam = smoothstep(0.45, 0.5, dist);
       finalColor = mix(finalColor, vec3(1.0), foam * 0.5);
-
-      gl_FragColor = vec4(finalColor, 0.8);
+      
+      // Additive #444444 (approx 0.27) based on selection factor
+      // Base brightness is 1.25
+      gl_FragColor = vec4(finalColor * 1.25 + selectionBrightness * vec3(0.27), 0.8);
     }
   `
 );
@@ -75,12 +83,60 @@ const getWaterGeometry = (radius: number) => {
 
 const sharedWaterMaterial = new WaterSurfaceMaterial();
 
-export const WaterSurfaceEffect = ({ radius }: { radius: number }) => {
-  useFrame(() => {
-    sharedWaterMaterial.time = performance.now() / 1000;
+export const updateWaterTime = () => {
+  sharedWaterMaterial.time = performance.now() / 1000;
+};
+
+export const WaterSurfaceEffect = ({ 
+  radius, 
+  isSelected = false, 
+  onClick,
+  onInteractionEnter, 
+  onInteractionLeave 
+}: { 
+  radius: number, 
+  isSelected?: boolean,
+  onClick?: () => void,
+  onInteractionEnter?: () => void,
+  onInteractionLeave?: () => void
+}) => {
+  const material = useMemo(() => new WaterSurfaceMaterial(), []);
+  const selectionFactor = useRef(0);
+  
+  useFrame((_state, delta) => {
+    material.time = performance.now() / 1000;
+    
+    // Selection highlight: additive #444444 (vec3(0.27))
+    // Transitions: 50ms up, 200ms down
+    const target = isSelected ? 1.0 : 0.0;
+    if (Math.abs(selectionFactor.current - target) > 0.001) {
+      if (target > selectionFactor.current) {
+        selectionFactor.current = Math.min(target, selectionFactor.current + 20 * delta);
+      } else {
+        selectionFactor.current = Math.max(target, selectionFactor.current - 5 * delta);
+      }
+    }
+    material.selectionBrightness = selectionFactor.current;
   });
 
   return (
-    <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.01, 0]} geometry={getWaterGeometry(radius)} material={sharedWaterMaterial} />
+    <mesh 
+      rotation={[-Math.PI / 2, 0, Math.PI / 2]} 
+      position={[0, 0.01, 0]} 
+      geometry={getWaterGeometry(radius)} 
+      material={material} 
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      onPointerEnter={(e) => {
+        e.stopPropagation();
+        onInteractionEnter?.();
+      }}
+      onPointerLeave={(e) => {
+        e.stopPropagation();
+        onInteractionLeave?.();
+      }}
+    />
   );
 };

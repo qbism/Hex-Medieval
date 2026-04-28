@@ -40,7 +40,10 @@ const WaterfallMaterial = shaderMaterial(
       // fade out at top
       alpha *= smoothstep(1.0, 0.9, vUv.y);
 
-      gl_FragColor = vec4(color + vec3(drip > 0.95 ? 0.5 : 0.0), alpha * 0.8);
+      vec3 waterColor = color;
+      waterColor.g += 0.08;
+      waterColor.b -= 0.02;
+      gl_FragColor = vec4(waterColor + vec3(drip > 0.95 ? 0.5 : 0.0), alpha * 0.8);
     }
   `
 );

@@ -1,8 +1,8 @@
-import { GameState, TerrainType, HexCoord, getNeighbors, getDistance } from '../types';
+import { GameState, getDistance } from '../types';
 import { AutomatonAction } from './types';
 import { getValidMoves, getValidAttacks } from '../game/units';
 
-export function getBarbarianAction(state: GameState, currentPlayer: any, cachedData: any): AutomatonAction {
+export function getBarbarianAction(state: GameState, currentPlayer: any, _cachedData: any): AutomatonAction {
   const barbarianPlayer = currentPlayer;
   
   if (!barbarianPlayer.isAutomaton) {
@@ -30,9 +30,8 @@ export function getBarbarianAction(state: GameState, currentPlayer: any, cachedD
         for (const t of state.board) {
           if ((t.ownerId !== null && t.ownerId !== barbarianPlayer.id) || 
               (state.units.some(u => u.ownerId !== barbarianPlayer.id && u.coord.q === t.coord.q && u.coord.r === t.coord.r))) {
-            const distToTarget = getDistance(unit.coord, t.coord);
             for (const m of moves) {
-               const d = getDistance(m, t.coord);
+               const d = getDistance(m, t.coord, state.board);
                if (d < minDiff) {
                  minDiff = d;
                  bestMove = m;

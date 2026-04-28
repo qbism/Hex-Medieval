@@ -23,7 +23,10 @@ import { getUnitAction } from './unitActions';
 // Cache for expensive calculations within the same GameState
 const actionCache = new WeakMap<GameState, any>();
 
-export function getAutomatonBestAction(state: GameState): AutomatonAction {
+import { AIConfig, DEFAULT_AI_CONFIG } from './AIConfig';
+
+export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFAULT_AI_CONFIG): AutomatonAction {
+  if (!state) return { type: 'endTurn' as const };
   const currentPlayer = state.players[state.currentPlayerIndex];
   
   if (currentPlayer.isEliminated) {
@@ -39,6 +42,9 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     const influenceMap = calculateInfluenceMap(state, currentPlayer.id);
     const heatMap = calculateHeatMap(state, currentPlayer.id);
     const opportunityPerilMatrix = calculateOpportunityPerilMatrix(state, currentPlayer.id, threatMatrix);
+    const evaluationMap = new Map<string, any>();
+    opportunityPerilMatrix.forEach(ev => evaluationMap.set(`${ev.q},${ev.r}`, ev));
+
     const mySettlements = state.board.filter(t => 
       t.ownerId === currentPlayer.id && 
       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
@@ -52,12 +58,18 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
       influenceMap,
       heatMap,
       opportunityPerilMatrix,
+      evaluationMap,
       mySettlements,
       empireCenter,
-      hvt
+      hvt,
+      config // Store config in cache for sub-functions to use
     };
     actionCache.set(state, cachedData);
   }
+
+  // Ensure the config in cache matches the passed one if we want to support multiple configs per state
+  // But usually within one turn call, it's consistent.
+  cachedData.config = config;
 
   const { opportunityPerilMatrix } = cachedData;
 
@@ -147,6 +159,7 @@ export function getAutomatonBestAction(state: GameState): AutomatonAction {
     currentPlayer,
     threatMatrix,
     influenceMap,
+    cachedData.evaluationMap,
     eminentThreatBases,
     possibleThreatBases,
     playerStrengths,

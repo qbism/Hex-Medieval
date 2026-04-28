@@ -51,7 +51,7 @@ export const GameHUD = ({
             variant="primary"
             size="md"
             className="px-6 py-3"
-            icon={<ChevronRight className="ml-2" />}
+            icon={<ChevronRight size={20} className="ml-2" />}
           >
             <span className="tracking-widest text-sm">
               {currentPlayer.isAutomaton ? "Processing..." : "End Turn"}
@@ -75,7 +75,7 @@ export const GameHUD = ({
               className="bg-white border-4 border-black p-8 max-w-md w-full text-center shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] rounded-3xl"
             >
               <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-black shadow-lg">
-                <Trophy size={48} className="text-amber-600" />
+                <Trophy size={60} className="text-amber-600" />
               </div>
               
               <h2 className="text-4xl font-serif font-black mb-2 tracking-tighter">Victory!</h2>
@@ -93,7 +93,7 @@ export const GameHUD = ({
                   size="lg"
                   fullWidth
                   className="py-4"
-                  icon={<RotateCcw size={20} />}
+                  icon={<RotateCcw size={25} />}
                 >
                   Play again
                 </GameButton>
@@ -106,7 +106,7 @@ export const GameHUD = ({
                   size="lg"
                   fullWidth
                   className="py-4 border-2 border-black"
-                  icon={<Settings size={20} />}
+                  icon={<Settings size={25} />}
                 >
                   Main menu
                 </GameButton>

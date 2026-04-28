@@ -1,16 +1,20 @@
-import { GameState, HexCoord, TerrainType, HexTile, Unit, getNeighbors, getDistance } from '../types';
+import { GameState, HexCoord, TerrainType, HexTile, getNeighbors, getDistance } from '../types';
 
 export function calculateKingdomStrength(player: any, state: GameState): number {
   const playerId = player.id;
   let strength = 0;
-  state.units.forEach(u => {
-    if (u.ownerId === playerId) strength += 10;
-  });
-  state.board.forEach(t => {
-    if (t.ownerId === playerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE)) {
-      strength += 20;
-    }
-  });
+  if (state.units) {
+    state.units.forEach(u => {
+      if (u.ownerId === playerId) strength += 10;
+    });
+  }
+  if (state.board) {
+    state.board.forEach(t => {
+      if (t.ownerId === playerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE)) {
+        strength += 20;
+      }
+    });
+  }
   return strength;
 }
 
@@ -23,7 +27,7 @@ export function findNearestTarget(
   let minDiff = Infinity;
   for (const t of state.board) {
     if (t.ownerId !== null && t.ownerId !== myPlayerId) {
-      const dist = getDistance(start, t.coord);
+      const dist = getDistance(start, t.coord, state.board);
       if (dist < minDiff) {
         minDiff = dist;
         nearest = t;
@@ -33,7 +37,7 @@ export function findNearestTarget(
   // Check units as well
   for (const u of state.units) {
     if (u.ownerId !== myPlayerId) {
-      const dist = getDistance(start, u.coord);
+      const dist = getDistance(start, u.coord, state.board);
       if (dist < minDiff) {
         minDiff = dist;
         const tile = state.board.find(t => t.coord.q === u.coord.q && t.coord.r === u.coord.r);
@@ -67,7 +71,7 @@ export function findNearestEnemySettlement(start: HexCoord, state: GameState, my
   for (const t of state.board) {
     if (t.ownerId !== null && t.ownerId !== myPlayerId && 
        (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
-       const dist = getDistance(start, t.coord);
+       const dist = getDistance(start, t.coord, state.board);
        if (dist < minDiff) {
          minDiff = dist;
          nearest = t;

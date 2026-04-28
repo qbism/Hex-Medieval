@@ -2,7 +2,6 @@ import {
   GameState, 
   Player, 
   TerrainType, 
-  UnitType, 
   UNIT_STATS, 
   UPGRADE_COSTS, 
   HexCoord, 
@@ -153,7 +152,7 @@ export function getUpgradeAction(
            const nearbyFriendlySettlements = state.board.filter(t => 
              t.ownerId === currentPlayer.id && 
              (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-             getDistance(t.coord, tile.coord) <= 2 &&
+             getDistance(t.coord, tile.coord, state.board) <= 2 &&
              !(t.coord.q === tile.coord.q && t.coord.r === tile.coord.r) // exclude self
            ).length;
 
@@ -161,7 +160,7 @@ export function getUpgradeAction(
            // If we are building this village exactly at our current supply limit, it's a critical expansion anchor.
            let nearestSettlementDist = Infinity;
            for (const s of state.board.filter(t => t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE))) {
-             const d = getDistance(tile.coord, s.coord);
+             const d = getDistance(tile.coord, s.coord, state.board);
              if (d < nearestSettlementDist) nearestSettlementDist = d;
            }
            

@@ -53,7 +53,15 @@ export function useAutomatonTurn({
     const currentPlayer = meaningfulState.players[meaningfulState.currentPlayerIndex];
     if (currentPlayer.isAutomaton) {
       // Prevent redundant processing if state hasn't changed since last action
-      if (meaningfulState === lastStateRef.current) return;
+      if (meaningfulState === lastStateRef.current) {
+        // If we've already tried to take an action and the state didn't change, 
+        // we might be in a no-op loop or stuck.
+        if (actionsTakenRef.current > 0 && !isProcessingRef.current) {
+          console.warn('AI stuck on state, forcing end turn');
+          actions.endTurn();
+        }
+        return;
+      }
     } else {
       isProcessingRef.current = false;
       return;
@@ -78,15 +86,6 @@ export function useAutomatonTurn({
     // Only process if no animations are running
     if (meaningfulState.animations && meaningfulState.animations.length > 0) return;
 
-    // Prevent redundant processing if state hasn't changed since last action
-    if (meaningfulState === lastStateRef.current) {
-      if (isProcessingRef.current === false) {
-        console.warn('AI stuck on state, forcing end turn');
-        actions.endTurn();
-      }
-      return;
-    }
-
     isProcessingRef.current = true;
 
     timerRef.current = setTimeout(() => {
@@ -104,6 +103,9 @@ export function useAutomatonTurn({
           actions.updateAIMatrix(action.matrix);
         }
 
+        // Detect if we are about to attempt the EXACT SAME ACTION that failed before
+        // (if we had a way to track the previous action, which we will add below)
+        
         // Mark this state as processed to avoid loops
         lastStateRef.current = meaningfulState;
         actionsTakenRef.current++;

@@ -198,11 +198,17 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
   const unitOnTile = state.units.find(u => u.coord.q === coord.q && u.coord.r === coord.r && u.ownerId === player.id);
 
   if (tile.terrain === TerrainType.PLAINS) {
-    if (!unitOnTile || unitOnTile.hasActed) return state;
+    if (!unitOnTile || unitOnTile.hasActed) {
+      console.warn('Upgrade failed: Plains requires an idle unit on the tile');
+      return state;
+    }
     cost = UPGRADE_COSTS[TerrainType.VILLAGE];
     nextTerrain = TerrainType.VILLAGE;
   } else if (tile.terrain === TerrainType.MOUNTAIN) {
-    if (!unitOnTile || unitOnTile.hasActed) return state;
+    if (!unitOnTile || unitOnTile.hasActed) {
+      console.warn('Upgrade failed: Mountain requires an idle unit on the tile');
+      return state;
+    }
     cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
     nextTerrain = TerrainType.GOLD_MINE;
   } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === player.id) {
@@ -242,6 +248,12 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
       possibleAttacks: [],
       attackRange: []
     };
+  }
+  
+  if (nextTerrain && player.gold < cost) {
+    console.warn(`Upgrade failed: Not enough gold. Have ${player.gold}, need ${cost}`);
+  } else if (!nextTerrain) {
+    console.warn('Upgrade failed: Invalid terrain for upgrade or not owned by player', tile.terrain, tile.ownerId, player.id);
   }
   
   return state;

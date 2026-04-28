@@ -37,10 +37,11 @@ export class LoopSafety {
 
 const boardMapCache = new WeakMap<HexTile[], Map<string, HexTile>>();
 export function getBoardMap(board: HexTile[]): Map<string, HexTile> {
+  if (!board) return new Map();
   let map = boardMapCache.get(board);
   if (!map) {
     map = new Map();
-    board.forEach(tile => map!.set(`${tile.coord.q},${tile.coord.r}`, tile));
+    if (board) board.forEach(tile => map!.set(`${tile.coord.q},${tile.coord.r}`, tile));
     boardMapCache.set(board, map);
   }
   return map;
@@ -48,10 +49,11 @@ export function getBoardMap(board: HexTile[]): Map<string, HexTile> {
 
 const unitsMapCache = new WeakMap<Unit[], Map<string, Unit>>();
 export function getUnitsMap(units: Unit[]): Map<string, Unit> {
+  if (!units) return new Map();
   let map = unitsMapCache.get(units);
   if (!map) {
     map = new Map();
-    units.forEach(unit => map!.set(`${unit.coord.q},${unit.coord.r}`, unit));
+    if (units) units.forEach(unit => map!.set(`${unit.coord.q},${unit.coord.r}`, unit));
     unitsMapCache.set(units, map);
   }
   return map;
