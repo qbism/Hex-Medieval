@@ -82,7 +82,7 @@ export const Sidebar = ({
               <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
                 <span className="text-[24px]">🏰</span>
               </div>
-              <p className="relative text-sm font-black leading-none tracking-tight z-10">
+              <p className="relative text-sm font-black leading-none tracking-tight z-10" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                 {COLOR_NAMES[currentPlayer.color]}
               </p>
             </div>
@@ -185,7 +185,7 @@ export const Sidebar = ({
                         <div className="p-1 neo-brutalist-card-sm border-black/20">
                           <div className="flex items-center gap-2.5">
                             <div className="w-6 h-6 rounded-full border-2 border-black" style={{ backgroundColor: occupant.color }} />
-                            <p className="font-black text-sm tracking-tight" style={{ color: occupant.color }}>
+                            <p className="font-black text-sm tracking-tight" style={{ color: occupant.color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                               {COLOR_NAMES[occupant.color]} Empire
                             </p>
                           </div>
@@ -235,7 +235,7 @@ export const Sidebar = ({
                             <div className="text-3xl bg-white w-12 h-12 rounded-xl border-2 border-black flex items-center justify-center shadow-sm">{UNIT_ICONS[unit.type]}</div>
                             <div>
                               <p className="font-black text-base tracking-tight leading-none">{unit.type}</p>
-                              <p className="text-sm font-black" style={{ color: gameState.players[unit.ownerId].color }}>
+                              <p className="text-sm font-black" style={{ color: gameState.players[unit.ownerId].color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                                 {COLOR_NAMES[gameState.players[unit.ownerId].color]} Forces
                               </p>
                             </div>
@@ -372,7 +372,7 @@ export const Sidebar = ({
                 <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
                   <span className="text-[32px]">🏰</span>
                 </div>
-                <p className="relative font-black text-sm tracking-widest z-10 font-serif">Imperial command</p>
+                <p className="relative text-sm font-black tracking-widest z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
               </div>
               <p className="text-sm font-bold">Select a tile or unit to begin</p>
             </div>

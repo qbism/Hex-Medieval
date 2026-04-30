@@ -53,21 +53,16 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
         isPassable = false;
       }
 
-      // Water rule: impassable unless adjacent to a village/settlement OR moving from another water tile
+      // Water rule: impassable unless adjacent to a settlement (navigable)
       if (tile.terrain === TerrainType.WATER) {
-        const currentTile = boardMap.get(`${coord.q},${coord.r}`);
-        const isMovingFromWater = currentTile?.terrain === TerrainType.WATER;
-        
-        if (!isMovingFromWater) {
-          const tileNeighbors = getNeighbors(tile.coord);
-          const hasAdjacentSettlement = tileNeighbors.some(n => {
-            const nt = boardMap.get(`${n.q},${n.r}`);
-            return nt && (nt.terrain === TerrainType.VILLAGE || nt.terrain === TerrainType.FORTRESS || 
-                          nt.terrain === TerrainType.CASTLE || nt.terrain === TerrainType.GOLD_MINE);
-          });
-          if (!hasAdjacentSettlement) {
-            isPassable = false;
-          }
+        const tileNeighbors = getNeighbors(tile.coord);
+        const isNavigable = tileNeighbors.some(n => {
+          const nt = boardMap.get(`${n.q},${n.r}`);
+          return nt && (nt.terrain === TerrainType.VILLAGE || nt.terrain === TerrainType.FORTRESS || 
+                        nt.terrain === TerrainType.CASTLE || nt.terrain === TerrainType.GOLD_MINE);
+        });
+        if (!isNavigable) {
+          isPassable = false;
         }
       }
       

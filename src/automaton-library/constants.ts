@@ -43,14 +43,14 @@ export const CATAPULT_MEAT_SHIELD_RECRUIT_BONUS = 2.0;
 export const NEUTRAL_CAPTURE_BONUS = 0.5;
 
 // Unit Actions
-export const STAY_PUT_BIAS = 0.2;
-export const IMMEDIATE_CAPTURE_BONUS = 8.0;
-export const PILLAGE_SCORE_BONUS = 5.0; // Reduced from 15 to prioritize income over purely disruptive attacks
-export const UNCLAIMED_VILLAGE_PRIORITY_BONUS = 45.0; // Increased via GA for faster land grab
-export const PUT_ENEMY_IN_PERIL_BONUS = 28.0; // Increased via GA to value tactical harassment
-export const EXPANSION_DISTANCE_BONUS = 7.5; // Stronger push after GA results
-export const PLAINS_PRIORITY_BONUS = 12.0; // Units should crave empty plains tiles for building
-export const EDGE_OF_PERIL_BONUS = 30.0;
+export const STAY_PUT_BIAS = 0.1;
+export const IMMEDIATE_CAPTURE_BONUS = 20.0;
+export const PILLAGE_SCORE_BONUS = 5.0; 
+export const UNCLAIMED_VILLAGE_PRIORITY_BONUS = 60.0; 
+export const PUT_ENEMY_IN_PERIL_BONUS = 28.0; 
+export const EXPANSION_DISTANCE_BONUS = 7.5; 
+export const PLAINS_PRIORITY_BONUS = 2.0; 
+export const EDGE_OF_PERIL_BONUS = 15.0;
 export const INFILLING_BONUS = 10.0;
 export const PATHING_CONSISTENCY_BONUS = 0.2;
 export const KNIGHT_HARASSMENT_BONUS = 5.0;

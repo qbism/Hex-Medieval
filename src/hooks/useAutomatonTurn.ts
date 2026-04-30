@@ -88,24 +88,32 @@ export function useAutomatonTurn({
 
     isProcessingRef.current = true;
 
-    timerRef.current = setTimeout(() => {
-      // Use the latest gameState from props here to ensure we have the full state
+    // Use a Web Worker to keep the UI responsive during heavy AI computation
+    const worker = new Worker(new URL('../automaton-library/worker.ts', import.meta.url), { type: 'module' });
+
+    worker.onmessage = (e) => {
       if (!gameState) {
         isProcessingRef.current = false;
+        worker.terminate();
         return;
       }
+
+      if (e.data.error) {
+        console.error('Automaton worker error:', e.data.error);
+        actions.endTurn();
+        isProcessingRef.current = false;
+        worker.terminate();
+        return;
+      }
+
+      const action = e.data.action;
       
       try {
-        const action = getAutomatonBestAction(gameState);
-        
         // Update the shared opportunity/peril matrix if provided
         if (action.matrix) {
           actions.updateAIMatrix(action.matrix);
         }
 
-        // Detect if we are about to attempt the EXACT SAME ACTION that failed before
-        // (if we had a way to track the previous action, which we will add below)
-        
         // Mark this state as processed to avoid loops
         lastStateRef.current = meaningfulState;
         actionsTakenRef.current++;
@@ -147,18 +155,41 @@ export function useAutomatonTurn({
             break;
         }
       } catch (error) {
-        console.error('Automaton error:', error);
+        console.error('Automaton error post-worker:', error);
+        actions.endTurn();
+      }
+      
+      isProcessingRef.current = false;
+      worker.terminate();
+    };
+
+    worker.onerror = (error) => {
+      console.error('Worker failed to initialize:', error);
+      // Fallback to synchronous if worker fails
+      try {
+        const action = getAutomatonBestAction(gameState as GameState);
+        if (action.matrix) actions.updateAIMatrix(action.matrix);
+        actions.endTurn(); 
+      } catch (e) {
         actions.endTurn();
       }
       isProcessingRef.current = false;
-    }, 150); // Faster delay for better pacing
+      worker.terminate();
+    };
+
+    // Post message to worker with a timeout delay to allow the "Analyzing battlefield..." status to render
+    timerRef.current = setTimeout(() => {
+      worker.postMessage({ state: meaningfulState, config: (gameState as any).config || undefined });
+    }, 150);
 
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      isProcessingRef.current = false; // CRITICAL: Reset on cleanup to prevent permanent freeze
+      worker.terminate();
+      isProcessingRef.current = false;
     };
+
   }, [meaningfulState, setupMode, actions, setAutomatonStatus, gameState]);
 }

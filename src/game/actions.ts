@@ -4,7 +4,8 @@ import {
   UnitType, 
   Unit, 
   TerrainType, 
-  UNIT_STATS 
+  UNIT_STATS,
+  getDistance 
 } from '../types';
 
 export function applyMove(state: GameState, unitId: string, target: HexCoord): GameState {
@@ -20,9 +21,13 @@ export function applyMove(state: GameState, unitId: string, target: HexCoord): G
     return tile;
   });
 
+  const cost = getDistance(unit.coord, target, state.board);
   const newUnits = state.units.map(u => {
     if (u.id === unitId) {
-      return { ...u, coord: target, movesLeft: 0, hasAttacked: true, hasActed: true };
+      const newMovesLeft = Math.max(0, u.movesLeft - cost);
+      // Unit has acted if it has no moves left AND it cannot attack (or we just allow it to be reselected if movesLeft > 0)
+      // Actually, let's keep it simple: if movesLeft > 0, it has NOT fully acted yet.
+      return { ...u, coord: target, movesLeft: newMovesLeft, hasActed: newMovesLeft <= 0 };
     }
     return u;
   });

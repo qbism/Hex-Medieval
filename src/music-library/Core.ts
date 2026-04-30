@@ -169,7 +169,8 @@ export class MusicEngine {
     for (let i = 0; i < structure.length; i++) {
       const section = structure[i];
       let numMeasures = 16;
-      if (section === 'Intro' || section === 'Outro') numMeasures = 8;
+      if (section === 'Intro') numMeasures = 2;
+      else if (section === 'Outro') numMeasures = 8;
       
       // Production Dynamics: Detect "Builds" and "Drops"
       // A "Drop" usually happens when a sparse section (like C or high-tension B) returns to a dense A or B.
@@ -227,26 +228,16 @@ export class MusicEngine {
           // Resolution: Consequent phrase (Answer) ends on tonic, Antecedent (Question) ends on dominant or median
           degree = isAnswerPhase ? 0 : [2, 4, 7][Math.floor(Math.random() * 3)];
         } else {
-          // Step-wise motion or small skips for "hum-along" feel
-          // Proportion adjustment: prioritize harmonal notes (chord tones), reserve dissonance for question ends
-          const chordTones = [0, 2, 4, 7, -3];
-          const isStrongBeat = beat.step % 8 === 0;
-          const isStrictConsonance = m === 0 || m >= 2; // Meas 1, 3, 4 are strictly harmonic
-          
-          if (isStrictConsonance || isStrongBeat) {
-            // Anchor to chord tones
-            const interval = [0, 1, -1, 2, -2][Math.floor(Math.random() * 5)];
-            const target = lastDegree + interval;
-            degree = chordTones.reduce((prev, curr) => 
-              Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev
-            );
-          } else {
-            // Measure 2 (End of Question) or weak beats allow non-harmonal "human" passing tones
-            const interval = [0, 1, 1, -1, -1, 2, -2][Math.floor(Math.random() * 7)];
-            degree = lastDegree + interval;
-          }
-
-          // Octave range management
+        const chordTones = [0, 2, 4, 7, -3];
+        
+        // Lead instrument should strictly play chord tones as requested to ensure no "off-key" notes
+        const interval = [0, 1, -1, 2, -2][Math.floor(Math.random() * 5)];
+        const target = lastDegree + interval;
+        degree = chordTones.reduce((prev, curr) => 
+          Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev
+        );
+        
+        // Octave range management
           if (degree > 10) degree -= 2;
           if (degree < -3) degree += 2;
         }
@@ -478,20 +469,17 @@ export class MusicEngine {
         // Natural Breathing Logic for Solos
         const restProbability = s < 4 || s > 12 ? 0.1 : 0.35; // More notes at phrase starts, more "breaths" in middle
         if (Math.random() > restProbability) {
-          // High likelihood of resetting to a chord tone on strong beats
-          if (isStrong && Math.random() > 0.6) {
-            currentDeg = chordRoot + [0, 2, 4, 7][Math.floor(Math.random() * 4)];
-          } else {
-            // Guided random walk: mostly steps, occasional small skips
-            const move = [0, 1, -1, 1, -1, 2, -2][Math.floor(Math.random() * 7)];
-            currentDeg += move;
-            
-            // High-pressure correction: if we land on a very discordant interval
-            // on a long note, push it towards a chordal neighbor
-            if (len > 2 && Math.abs(currentDeg - chordRoot) % 2 !== 0) {
-              currentDeg += (Math.random() > 0.5 ? 1 : -1);
-            }
-          }
+          // Chord tones relative to chord root: 1st, 3rd, 5th, 8th
+          const chordTones = [0, 2, 4, 7];
+          
+          // Guided random walk snapped to chord tones
+          const move = [0, 1, -1, 2, -2][Math.floor(Math.random() * 5)];
+          const targetDeg = currentDeg + move;
+          
+          // Snap strictly to closest chord tone to avoid "off-key" notes
+          currentDeg = chordRoot + chordTones.reduce((prev, curr) => 
+            Math.abs((chordRoot + curr) - targetDeg) < Math.abs((chordRoot + prev) - targetDeg) ? curr : prev
+          );
 
           // Bass instrument handles a lower range
           const pitchOffset = instrument === 'bass' ? -7 : 7;

@@ -1,14 +1,18 @@
 import { useCallback } from 'react';
-import { GameState, HexCoord, UnitType, Unit, TerrainType, UNIT_STATS } from '../types';
+import { GameState, HexCoord, UnitType, Unit, TerrainType, UNIT_STATS, getDistance } from '../types';
 import { 
   upgradeSettlement, 
   processTurnTransition, 
-  createInitialState 
+  createInitialState,
+  getValidMoves,
+  getValidAttacks,
+  getAttackRange,
+  calculateStrategicAnalysis
 } from '../gameEngine';
 import { triggerEffect } from '../services/effectEngine';
 
 export interface GameActions {
-  startGame: (playerConfigs: { name: string; isAutomaton: boolean }[]) => void;
+  startGame: (playerConfigs: { name: string; isAutomaton: boolean }[], existingBoard?: GameState['board']) => void;
   moveUnit: (unitId: string, target: HexCoord) => void;
   finalizeMove: (unitId: string, target: HexCoord) => void;
   attackUnit: (attackerId: string, targetCoord: HexCoord) => void;
@@ -30,9 +34,9 @@ export function useGameActions(
   setSetupMode: (val: boolean) => void
 ): GameActions {
 
-  const startGame = useCallback((playerConfigs: { name: string; isAutomaton: boolean }[]) => {
+  const startGame = useCallback((playerConfigs: { name: string; isAutomaton: boolean }[], existingBoard?: GameState['board']) => {
     triggerEffect('victory');
-    const state = createInitialState(playerConfigs);
+    const state = createInitialState(playerConfigs, existingBoard);
     setGameState(state);
     setSetupMode(false);
   }, [setGameState, setSetupMode]);
@@ -87,25 +91,42 @@ export function useGameActions(
         return tile;
       });
 
+      const targetTile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
+      const isCapturingSettlement = targetTile && targetTile.ownerId === null && (
+        targetTile.terrain === TerrainType.VILLAGE || 
+        targetTile.terrain === TerrainType.FORTRESS || 
+        targetTile.terrain === TerrainType.CASTLE || 
+        targetTile.terrain === TerrainType.GOLD_MINE
+      );
+
+      const cost = getDistance(unit.coord, target, prev.board);
+      const newMovesLeft = isCapturingSettlement ? 0 : Math.max(0, unit.movesLeft - cost);
+      const hasActuallyActed = newMovesLeft <= 0;
+
       const newUnits = prev.units.map(u => {
         if (u.id === unitId) {
-          return { ...u, coord: target, movesLeft: 0, hasAttacked: true, hasActed: true };
+          return { ...u, coord: target, movesLeft: newMovesLeft, hasActed: hasActuallyActed };
         }
         return u;
       });
 
       const isAutomaton = prev.players[prev.currentPlayerIndex].isAutomaton;
+      const updatedUnit = newUnits.find(u => u.id === unitId)!;
 
-      return {
+      const newState: GameState = {
         ...prev,
         units: newUnits,
         board: newBoard,
-        selectedUnitId: null,
+        selectedUnitId: (!isAutomaton && !hasActuallyActed) ? unitId : null,
         selectedHex: isAutomaton ? prev.selectedHex : target,
-        possibleMoves: [],
-        possibleAttacks: [],
+        possibleMoves: (!isAutomaton && !hasActuallyActed) ? getValidMoves(updatedUnit, newBoard, newUnits) : [],
+        possibleAttacks: (!isAutomaton && !hasActuallyActed) ? getValidAttacks(updatedUnit, newBoard, newUnits, true) : [],
+        attackRange: (!isAutomaton && !hasActuallyActed) ? getAttackRange(updatedUnit, newBoard, newUnits) : [],
         animations: prev.animations.filter(a => a.unitId !== unitId)
       };
+
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
+      return newState;
     });
   }, [setGameState, gameState]);
 
@@ -175,7 +196,7 @@ export function useGameActions(
 
       const isAutomaton = prev.players[prev.currentPlayerIndex].isAutomaton;
 
-      return {
+      const newState: GameState = {
         ...prev,
         units: newUnits,
         board: newBoard,
@@ -185,6 +206,9 @@ export function useGameActions(
         possibleAttacks: [],
         animations: prev.animations.filter(a => a.unitId !== attackerId)
       };
+
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
+      return newState;
     });
   }, [setGameState, gameState]);
 
@@ -217,7 +241,7 @@ export function useGameActions(
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
       const newHistory = [...history, stateWithoutHistory];
 
-      return {
+      const newState: GameState = {
         ...prev,
         history: newHistory,
         units: [...prev.units, newUnit],
@@ -227,6 +251,9 @@ export function useGameActions(
         possibleAttacks: [],
         attackRange: []
       };
+      
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, player.id);
+      return newState;
     });
   }, [setGameState]);
 
@@ -240,7 +267,12 @@ export function useGameActions(
         triggerEffect('upgrade');
       }
     }
-    setGameState(prev => prev ? upgradeSettlement(prev, coord) : prev);
+    setGameState(prev => {
+      if (!prev) return prev;
+      const newState = upgradeSettlement(prev, coord);
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
+      return newState;
+    });
   }, [setGameState, gameState]);
 
   const updateAIMatrix = useCallback((matrix: GameState['opportunityPerilMatrix']) => {
@@ -260,9 +292,7 @@ export function useGameActions(
       if (!prev || !prev.history || prev.history.length === 0) return prev;
       const lastState = prev.history[prev.history.length - 1];
       
-      // Ensure we restore the movesLeft and hasActed from the history
-      // The history state already contains the correct unit values from before the action
-      return {
+      const newState: GameState = {
         ...lastState,
         history: prev.history.slice(0, -1),
         animations: [],
@@ -272,6 +302,9 @@ export function useGameActions(
         possibleAttacks: [],
         attackRange: []
       };
+      
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, newState.players[newState.currentPlayerIndex].id);
+      return newState;
     });
   }, [setGameState]);
 
@@ -291,7 +324,7 @@ export function useGameActions(
       const newUnits = prev.units.map(u => 
         u.id === unitId ? { ...u, hasActed: true, movesLeft: 0, hasAttacked: true } : u
       );
-      return { 
+      const newState: GameState = { 
         ...prev, 
         units: newUnits,
         selectedUnitId: null,
@@ -299,6 +332,9 @@ export function useGameActions(
         possibleAttacks: [],
         attackRange: []
       };
+      
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
+      return newState;
     });
   }, [setGameState]);
 

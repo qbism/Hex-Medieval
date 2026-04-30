@@ -85,6 +85,7 @@ export interface Player {
   incomeHistory: number[];
   strengthHistory: number[];
   isOriginalBarbarian?: boolean;
+  isBarbarian?: boolean;
 }
 
 export interface TileEvaluation {
@@ -95,6 +96,20 @@ export interface TileEvaluation {
   score: number;
   reasons: string[];
   isAvailableTarget?: boolean;
+}
+
+export interface ThreatInfo {
+  minTurns: number;
+  totalThreatValue: number;
+  attackerCount: number;
+  eminentThreatValue: number; // Value from 1-turn attackers only
+  eminentAttackerCount: number; // Count of 1-turn attackers only
+}
+
+export interface StrategicAnalysis {
+  threatMap: Record<string, ThreatInfo>;
+  opportunityMap: Record<string, number>;
+  influenceMap: Record<string, number>;
 }
 
 export interface GameState {
@@ -111,6 +126,7 @@ export interface GameState {
   winnerId: number | null;
   isBarbarianInvasion?: boolean;
   opportunityPerilMatrix?: TileEvaluation[];
+  strategicAnalysis?: StrategicAnalysis;
   history: Omit<GameState, 'history' | 'animations'>[];
   animations: {
     id: string;

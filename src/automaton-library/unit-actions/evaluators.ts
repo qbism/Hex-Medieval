@@ -11,6 +11,7 @@ import {
   UPGRADE_COSTS as _UPGRADE_COSTS,
   SETTLEMENT_INCOME
 } from '../../types';
+import { TileEvaluation } from '../types';
 import { getValidAttacks, getValidMoves, getUnitRange } from '../../gameEngine';
 import { findNearestTarget as _findNearestTarget, getChokepointScore as _getChokepointScore } from '../utils';
 import { 
@@ -121,6 +122,7 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
     state, 
     currentPlayer, 
     threatMatrix, 
+    eminentThreatBases,
     leaderId, 
     focusOnLeader, 
     hvt, 
@@ -173,6 +175,17 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
       if (potentialAttackers.length >= 1) {
         priority += config.BASE_REWARD * config.KILL_PRIORITY_BONUS;
+      }
+
+      // LETHALITY: Huge bonus for finishing off a unit that is threatening a base
+      const isTargetThreateningBase = eminentThreatBases.some(b => {
+        const distToBase = getDistance(targetUnit.coord, b.coord, state.board);
+        const enemyRange = UNIT_STATS[targetUnit.type].moves + getUnitRange(targetUnit, state.board);
+        return distToBase <= enemyRange;
+      });
+
+      if (isTargetThreateningBase) {
+        priority += config.BASE_REWARD * config.LETHALITY_WEIGHT_BONUS; // Urgent defense priority
       }
       
       if (isUnitInPeril && !isBarbarian) {
@@ -228,6 +241,11 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
       const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
       if (isOccupyingMySettlement) priority += BASE_REWARD * 2.0;
+
+      // SIEGE PRIORITY: Catapults should focus on cracking enemy fortifications
+      if (unitToAct.type === UnitType.CATAPULT && targetTile && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE)) {
+        priority += config.BASE_REWARD * config.SIEGE_OVERRIDE_BONUS; 
+      }
 
     } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE)) {
       const settlementValue = SETTLEMENT_INCOME[targetTile.terrain as TerrainType] * HORIZON;
@@ -302,7 +320,8 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     globalAggression,
     globalUnitRatio,
     isRich,
-    unitsMap
+    unitsMap,
+    config
   } = context;
 
   const moves = getValidMoves(unitToAct, state.board, state.units);
@@ -381,7 +400,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
 
     const evaluation = context.evaluationMap.get(`${m.q},${m.r}`);
     if (evaluation) {
-      score += evaluation.score * 2.0; // Significant weight to shared strategic evaluation
+      score += evaluation.score * 8.0; // Increased significantly to respect the global Strategic Analysis
     }
 
     if (isStayPut) {
@@ -464,9 +483,12 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       const currentDistFromCenter = getDistance(unitToAct.coord, empireCenter, state.board);
       if (distFromCenter > currentDistFromCenter) score += BASE_REWARD * EXPANSION_DISTANCE_BONUS;
       
-      if (tile.terrain === TerrainType.PLAINS && (tile.ownerId === null || tile.ownerId === currentPlayer.id)) {
+      const isExpansionTarget = (tile.terrain === TerrainType.PLAINS || (tile.terrain === TerrainType.VILLAGE && tile.ownerId === null)) && 
+                               (tile.ownerId === null || tile.ownerId === currentPlayer.id);
+
+      if (isExpansionTarget) {
         score += BASE_REWARD * PLAINS_PRIORITY_BONUS;
-        if (isSavingForVillage) score += BASE_REWARD * 10.0;
+        if (isSavingForVillage && tile.terrain === TerrainType.PLAINS) score += BASE_REWARD * 10.0;
         if (!evaluatedMoveInPeril) {
           const neighbors = _getNeighbors(m);
           let isAdjacentToPeril = false;
@@ -538,6 +560,16 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
         if (d < minDistToSettlement) minDistToSettlement = d;
       }
       if (minDistToSettlement <= 2) score += BASE_REWARD * KNIGHT_FRIENDLY_SETTLEMENT_BONUS; 
+    }
+    
+    // Archer Skirmishing: Favor positions exactly 2 tiles away from threats but safe from immediate melee
+    if (unitToAct.type === UnitType.ARCHER) {
+      const nearestEnemyDist = enemyUnitTargets.length > 0 ? Math.min(...enemyUnitTargets.map(u => getDistance(m, u.coord, state.board))) : 99;
+      if (nearestEnemyDist === 2 && moveThreatLevel > 1) {
+        score += config.BASE_REWARD * config.SKIRMISH_BIAS; // Sweet spot for archers
+      } else if (nearestEnemyDist === 1) {
+        score -= BASE_REWARD * 20.0; // Melee is very bad for archers
+      }
     }
 
     if (unitToAct.type === UnitType.CATAPULT) {

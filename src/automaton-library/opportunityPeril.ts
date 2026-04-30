@@ -2,7 +2,8 @@ import {
   GameState, 
   TerrainType,
   getNeighbors,
-  UNIT_STATS
+  UNIT_STATS,
+  StrategicAnalysis
 } from '../types';
 import { ThreatInfo } from './threatAnalysis';
 import { TileEvaluation } from './types';
@@ -25,7 +26,8 @@ import {
 export function calculateOpportunityPerilMatrix(
   state: GameState, 
   playerId: number, 
-  threatMatrix: Map<string, ThreatInfo>
+  threatMatrix: Map<string, ThreatInfo>,
+  strategicAnalysis?: StrategicAnalysis
 ): TileEvaluation[] {
   const matrix: TileEvaluation[] = [];
   const boardMap = new Map(state.board.map(t => [`${t.coord.q},${t.coord.r}`, t]));
@@ -33,6 +35,26 @@ export function calculateOpportunityPerilMatrix(
 
   for (const tile of state.board) {
     const key = `${tile.coord.q},${tile.coord.r}`;
+    
+    // Use pre-calculated values if available
+    if (strategicAnalysis) {
+      const opportunity = strategicAnalysis.opportunityMap[key] || 0;
+      const threatInfo = strategicAnalysis.threatMap[key] || { eminentThreatValue: 0, totalThreatValue: 0 };
+      const peril = threatInfo.eminentThreatValue;
+      const potentialPeril = threatInfo.totalThreatValue - peril;
+      const score = opportunity - (peril * THREAT_PENALTY_L1_MULT) - (potentialPeril * 0.05);
+
+      matrix.push({
+        q: tile.coord.q,
+        r: tile.coord.r,
+        peril,
+        opportunity,
+        score,
+        reasons: ["Global Strategic Map"]
+      });
+      continue;
+    }
+
     const peril = threatMatrix.get(key)?.eminentThreatValue || 0;
     const potentialPeril = (threatMatrix.get(key)?.totalThreatValue || 0) - peril;
     let opportunity = 0;

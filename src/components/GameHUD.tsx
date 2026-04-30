@@ -41,7 +41,7 @@ export const GameHUD = ({
             </div>
             <div>
               <p className="text-sm font-bold tracking-widest opacity-50 leading-none mb-1">Current turn</p>
-              <p className="text-lg font-black leading-none">{COLOR_NAMES[currentPlayer.color]} Empire</p>
+              <p className="text-lg font-black leading-none" style={{ color: currentPlayer.color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>{COLOR_NAMES[currentPlayer.color]} Empire</p>
             </div>
           </div>
 
@@ -80,7 +80,7 @@ export const GameHUD = ({
               
               <h2 className="text-4xl font-serif font-black mb-2 tracking-tighter">Victory!</h2>
               <p className="text-xl font-sans font-bold mb-8">
-                The <span style={{ color: gameState.players[gameState.winnerId].color }}>{COLOR_NAMES[gameState.players[gameState.winnerId].color]} Empire</span> has unified the realm!
+                The <span style={{ color: gameState.players[gameState.winnerId].color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>{COLOR_NAMES[gameState.players[gameState.winnerId].color]} Empire</span> has unified the realm!
               </p>
 
               <div className="space-y-3">

@@ -1,6 +1,7 @@
 import { 
   GameState, 
   TerrainType,
+  ThreatInfo
 } from '../types';
 import { AutomatonAction } from './types';
 import { getBarbarianAction } from './barbarianAI';
@@ -38,10 +39,29 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
   let cachedData = actionCache.get(state);
   if (!cachedData) {
     const threatAssessment = assessThreats(state, currentPlayer);
-    const threatMatrix = calculateThreatMatrix(state, currentPlayer.id);
-    const influenceMap = calculateInfluenceMap(state, currentPlayer.id);
-    const heatMap = calculateHeatMap(state, currentPlayer.id);
-    const opportunityPerilMatrix = calculateOpportunityPerilMatrix(state, currentPlayer.id, threatMatrix);
+    
+    let threatMatrix: Map<string, ThreatInfo>;
+    let influenceMap: Map<string, number>;
+    let heatMap: Map<string, number>;
+    
+    if (state.strategicAnalysis) {
+      // Use pre-calculated global maps
+      threatMatrix = new Map();
+      Object.entries(state.strategicAnalysis.threatMap).forEach(([k, v]) => threatMatrix.set(k, v));
+      
+      influenceMap = new Map();
+      Object.entries(state.strategicAnalysis.influenceMap).forEach(([k, v]) => influenceMap.set(k, v));
+      
+      heatMap = new Map();
+      Object.entries(state.strategicAnalysis.opportunityMap).forEach(([k, v]) => heatMap.set(k, v));
+    } else {
+      // Fallback to recalculation
+      threatMatrix = calculateThreatMatrix(state, currentPlayer.id);
+      influenceMap = calculateInfluenceMap(state, currentPlayer.id);
+      heatMap = calculateHeatMap(state, currentPlayer.id);
+    }
+    
+    const opportunityPerilMatrix = calculateOpportunityPerilMatrix(state, currentPlayer.id, threatMatrix, state.strategicAnalysis);
     const evaluationMap = new Map<string, any>();
     opportunityPerilMatrix.forEach(ev => evaluationMap.set(`${ev.q},${ev.r}`, ev));
 
@@ -145,7 +165,8 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
     heatMap,
     isBarbarian,
     primaryAggressorId,
-    threatenedBasesCount
+    threatenedBasesCount,
+    config
   );
   if (recruitmentAction) return { ...recruitmentAction, matrix: opportunityPerilMatrix };
 

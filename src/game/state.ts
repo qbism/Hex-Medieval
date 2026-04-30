@@ -13,8 +13,9 @@ import {
 import { LoopSafety } from '../utils';
 import { BOARD_RADIUS, generateBoard, getSpawnPoints } from './board';
 import { PLAYER_COLORS as COLORS } from '../constants/colors';
+import { calculateStrategicAnalysis } from './analysis';
 
-export function createInitialState(playerConfigs: { name: string; isAutomaton: boolean }[]): GameState {
+export function createInitialState(playerConfigs: { name: string; isAutomaton: boolean }[], existingBoard?: GameState['board']): GameState {
   const players: Player[] = playerConfigs.map((config, i) => ({
     id: i,
     name: config.name,
@@ -38,12 +39,26 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     incomeHistory: [],
     strengthHistory: [],
     isOriginalBarbarian: true,
+    isBarbarian: true
   });
 
   // Place starting castles and units for each player
   const spawnPoints = getSpawnPoints(BOARD_RADIUS, playerConfigs.length);
 
-  const board = generateBoard(BOARD_RADIUS, spawnPoints);
+  // Use existing board or generate new one
+  let board: GameState['board'];
+  if (existingBoard) {
+    // Reset ownership and clear structures that shouldn't persist
+    board = existingBoard.map(tile => ({
+      ...tile,
+      ownerId: null,
+      // If a tile was a CASTLE (or any settlement), we might want to keep it or reset it.
+      // The user wants to keep the map, so we'll just clear ownership.
+    }));
+  } else {
+    board = generateBoard(BOARD_RADIUS, spawnPoints);
+  }
+
   const units: Unit[] = [];
   
   players.forEach((player, i) => {
@@ -70,7 +85,7 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     });
   });
 
-  return {
+  const initialState: GameState = {
     board,
     units,
     players,
@@ -86,6 +101,10 @@ export function createInitialState(playerConfigs: { name: string; isAutomaton: b
     animations: [],
     opportunityPerilMatrix: []
   };
+
+  initialState.strategicAnalysis = calculateStrategicAnalysis(initialState, players[0].id);
+  
+  return initialState;
 }
 
 export function checkWinner(state: GameState): number | null {
@@ -332,7 +351,7 @@ export function processTurnTransition(state: GameState): GameState {
     return p;
   });
 
-  return {
+  const resultState: GameState = {
     ...state,
     players: finalPlayers,
     units: newUnits,
@@ -344,4 +363,9 @@ export function processTurnTransition(state: GameState): GameState {
     possibleAttacks: [],
     attackRange: [],
   };
+
+  // Add Global Strategic Analysis for the new current player
+  resultState.strategicAnalysis = calculateStrategicAnalysis(resultState, nextPlayer.id);
+
+  return resultState;
 }

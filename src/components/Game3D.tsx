@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, getDistance, UNIT_STATS } from '../types';
 import { TERRAIN_COLORS } from '../constants/colors';
 import { Sparks3D, SmokeEffect3D, Projectile3D, MissEffect3D } from './Effects3D';
-import { WaterfallEffect } from './WaterfallEffect';
-import { WaterSurfaceEffect, updateWaterTime } from './WaterSurfaceEffect';
+import { WaterfallsInstanced } from './WaterfallEffect';
+import { WaterBasesInstanced, updateWaterTime } from './WaterSurfaceEffect';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { 
   CastleFeature, 
@@ -126,8 +126,9 @@ const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { hei
   );
 });
 
-const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer, evaluation }: any) => {
+const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer, strategicAnalysis }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+  const coordKey = `${tile.coord.q},${tile.coord.r}`;
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
   const isWater = tile.terrain === TerrainType.WATER;
   const depth = 2.0; 
@@ -172,23 +173,7 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
         />
       )}
 
-      {/* Waterfall Effect for perimeter water tiles */}
-      {isPerimeter(tile.coord) && isWater && (
-        <WaterfallEffect topHeight={height} depth={depth} />
-      )}
-
-      {/* Water Surface Effect */}
-      {isWater && (
-        <group position={[0, height, 0]}>
-          <WaterSurfaceEffect 
-            radius={0.92} 
-            isSelected={isSelected} 
-            onClick={() => onClick(tile.coord.q, tile.coord.r)}
-            onInteractionEnter={() => onPointerEnter(tile.coord)}
-            onInteractionLeave={() => onPointerLeave(null)}
-          />
-        </group>
-      )}
+      {/* Terrain Features Usage removed individual waterfall, handled by WaterfallsInstanced */}
 
       {/* Indicators */}
       {isAttackRange && (
@@ -240,39 +225,33 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
         </Billboard>
       )}
 
-      {/* Strategic Evaluation Indicators */}
-      {evaluation && (
+      {/* Strategic Evaluation Indicators - Updated to use Global Influence Map data */}
+      {strategicAnalysis && (
         <group position={[0, height + 0.1, 0]}>
-          {evaluation.opportunity > 0 && (
+          {(strategicAnalysis.opportunityMap[coordKey] > 0) && (
             <mesh position={[-0.3, 0, 0]}>
-              <sphereGeometry args={[Math.min(0.4, 0.05 * Math.sqrt(evaluation.opportunity)), 16, 16]} />
-              <meshBasicMaterial color="#22c55e" transparent opacity={0.7} />
+              <sphereGeometry args={[0.014 * Math.sqrt(Math.min(1000, strategicAnalysis.opportunityMap[coordKey])), 16, 16]} />
+              <meshBasicMaterial color="#22c55e" transparent opacity={0.6} />
             </mesh>
           )}
-          {evaluation.peril > 0 && (
+          {(strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0) && (
             <mesh position={[0.3, 0, 0]}>
-              <sphereGeometry args={[Math.min(0.4, 0.05 * Math.sqrt(evaluation.peril)), 16, 16]} />
-              <meshBasicMaterial color="#ef4444" transparent opacity={0.7} />
+              <sphereGeometry args={[0.014 * Math.sqrt(Math.min(1000, strategicAnalysis.threatMap[coordKey].totalThreatValue)), 16, 16]} />
+              <meshBasicMaterial color="#ef4444" transparent opacity={0.6} />
             </mesh>
           )}
-          {evaluation.isAvailableTarget && (
-            <Billboard position={[0, 0.6, 0]}>
-              <Text fontSize={0.8} color="#eab308" outlineWidth={0.06} outlineColor="black" fontWeight="bold">
-                +
-              </Text>
-            </Billboard>
-          )}
-          {isHovered && (evaluation.opportunity !== 0 || evaluation.peril > 0 || evaluation.isAvailableTarget) && (
+          {isHovered && (strategicAnalysis.opportunityMap[coordKey] > 0 || strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0) && (
             <Billboard position={[0, 1.5, 0]}>
               <Text 
-                fontSize={0.25} 
+                fontSize={0.5} 
                 color="white" 
                 outlineWidth={0.02} 
                 outlineColor="black"
                 maxWidth={3}
                 textAlign="center"
               >
-                {evaluation.reasons.join('\n')}
+                {`${strategicAnalysis.opportunityMap[coordKey] > 0 ? 'Opportunity: ' + Math.round(strategicAnalysis.opportunityMap[coordKey]) : ''}
+${strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0 ? 'Threat: ' + Math.round(strategicAnalysis.threatMap[coordKey].totalThreatValue) : ''}`}
               </Text>
             </Billboard>
           )}
@@ -288,8 +267,8 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
   );
 });
 
-const isPerimeter = (coord: HexCoord) => Math.max(Math.abs(coord.q), Math.abs(coord.r), Math.abs(-coord.q - coord.r)) === 10;
 
+// Map Bases Instanced for performance
 const MapBasesInstanced = React.memo(({ board, selectedHex, hoveredHex, onClick }: { board: any[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
@@ -1052,28 +1031,12 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
     return map;
   }, [gameState.animations]);
 
-  const matrixMap = useMemo(() => {
-    const map = new Map<string, any>();
-    if (showStrategicView && gameState.opportunityPerilMatrix) {
-      gameState.opportunityPerilMatrix.forEach(eval_ => {
-        map.set(`${eval_.q},${eval_.r}`, eval_);
-      });
-    }
-    return map;
-  }, [showStrategicView, gameState.opportunityPerilMatrix]);
-
   useEffect(() => {
     const handleResize = () => {
       if (controls) {
         // Force controls to sync with new camera state/aspect
         controls.update();
       }
-      // Some browsers (mobile safari/chrome) need a small delay for 
-      // the DOM layout to settle before coordinate mapping is reliable
-      const timer = setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 100);
-      return () => clearTimeout(timer);
     };
 
     window.addEventListener('resize', handleResize);
@@ -1124,18 +1087,25 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
             }
           }}
           enableRotate={true} 
+          enablePan={true}
+          panSpeed={1.4}
+          rotateSpeed={1.0}
           minPolarAngle={0.01}
           maxPolarAngle={Math.PI / 2 - 0.15}
           enableDamping 
-          dampingFactor={0.05} 
+          dampingFactor={0.1} 
           minDistance={10} 
-          maxDistance={150} 
+          maxDistance={200} 
           target={[0, 0, 0]}
-          screenSpacePanning={false}
+          screenSpacePanning={true}
           mouseButtons={{
             LEFT: THREE.MOUSE.PAN,
             MIDDLE: THREE.MOUSE.DOLLY,
             RIGHT: THREE.MOUSE.ROTATE
+          }}
+          touches={{
+            ONE: THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.DOLLY_PAN
           }}
         />
         <CameraRotationTicker controls={controls} rotationActive={rotationActive} />
@@ -1152,6 +1122,18 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           onClick={handleHexClick} 
         />
 
+        {/* Water Surface (Instanced for GPU Efficiency) */}
+        <WaterBasesInstanced
+          board={gameState.board}
+          selectedHex={gameState.selectedHex}
+          onClick={handleHexClick}
+          onPointerEnter={setHoveredHex}
+          onPointerLeave={() => setHoveredHex(null)}
+        />
+
+        {/* Waterfalls (Instanced) */}
+        <WaterfallsInstanced board={gameState.board} />
+
         {/* Render Board Features (Instanced) */}
         <FeaturesInstanced board={gameState.board} />
 
@@ -1165,7 +1147,6 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           const isAttackRange = attackRangeSet.has(coordKey);
           const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord, gameState.board) > UNIT_STATS[selectedUnit.type].range;
           const unitAtHex = unitsMap.get(coordKey);
-          const evaluation = matrixMap.get(coordKey);
           
           let hasAdjacentSettlement = false;
           if (tile.terrain === TerrainType.WATER) {
@@ -1178,6 +1159,8 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
               );
             });
           }
+
+          const strategicAnalysisData = showStrategicView ? gameState.strategicAnalysis : undefined;
 
           return (
             <HexTile3D
@@ -1193,7 +1176,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
               hasAdjacentSettlement={hasAdjacentSettlement}
               unitAtHex={unitAtHex}
               isCurrentPlayer={tile.ownerId === currentPlayer.id}
-              evaluation={evaluation}
+              strategicAnalysis={strategicAnalysisData}
               onClick={handleHexClick}
               onPointerEnter={setHoveredHex}
               onPointerLeave={setHoveredHex}

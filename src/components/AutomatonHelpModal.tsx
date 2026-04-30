@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GameButton } from './GameButton';
-import { X, Download, Cpu, Code, BookOpen, Coins, BarChart3 } from 'lucide-react';
+import { X, Download, Cpu, Code, BookOpen, Coins, BarChart3, Play, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { evolveAsync } from '../automaton-library/GeneticAlgorithm';
+import { AIConfig, DEFAULT_AI_CONFIG } from '../automaton-library/AIConfig';
+import { cn } from '../types';
 
 interface AutomatonHelpModalProps {
-  isOpen: boolean;
   onClose: () => void;
 }
 
@@ -79,7 +81,37 @@ The ai shifts its core personality based on the global state of the game:
 - **Infantry spam:** Prioritizes infantry to overwhelm via numbers.
 `;
 
-export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps) => {
+export const AutomatonHelpModal = ({ onClose }: AutomatonHelpModalProps) => {
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simProgress, setSimProgress] = useState({ gen: 0, fitness: 0 });
+  const [currentConfig, setCurrentConfig] = useState<AIConfig>(DEFAULT_AI_CONFIG);
+  const [lastResults, setLastResults] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const runLiveSimulation = async () => {
+    setIsSimulating(true);
+    setLastResults(null);
+    setIsCopied(false);
+    try {
+      const bestConfig = await evolveAsync(8, 3, (gen, fitness) => {
+        setSimProgress({ gen: gen + 1, fitness: Math.round(fitness) });
+      });
+      setCurrentConfig(bestConfig);
+      setLastResults(JSON.stringify(bestConfig, null, 2));
+    } catch (err) {
+      console.error("Simulation failed", err);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!lastResults) return;
+    navigator.clipboard.writeText(`export const DEFAULT_AI_CONFIG: AIConfig = ${lastResults};`);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
   const handleDownload = () => {
     const blob = new Blob([RULES_CONTENT], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -93,21 +125,20 @@ export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps)
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/80 z-[10000] overflow-y-auto py-8 px-4"
+    >
+      <div className="min-h-full flex items-center justify-center">
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex flex-col items-center p-4 overflow-y-auto"
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          className="bg-parchment border-2 border-black p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative"
         >
-          <motion.div 
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            className="bg-parchment border-2 border-black p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-serif font-black tracking-tight flex items-center gap-2">
+          <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-serif font-black tracking-tight flex items-center gap-2" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                 <Cpu size={28} /> Automaton Technical Specs
               </h2>
               <GameButton onClick={onClose} variant="ghost" size="icon">
@@ -197,24 +228,101 @@ export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps)
                   </div>
                 </div>
               </section>
+                        <section className="bg-stone-900 border-2 border-black rounded-xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <div>
+                    <h3 className="font-serif font-black text-xl text-amber-50 flex items-center gap-2">
+                      <BarChart3 size={20} className="text-amber-400" /> Monte Carlo Optimization
+                    </h3>
+                    <p className="text-stone-400 text-sm mt-1">Stochastic parameter tuning via genetic evolution</p>
+                  </div>
+                  <GameButton 
+                    variant="primary" 
+                    size="lg"
+                    onClick={runLiveSimulation}
+                    disabled={isSimulating}
+                    className="w-full sm:w-auto min-w-[200px]"
+                  >
+                    {isSimulating ? (
+                      <span className="flex items-center gap-2"><Loader2 size={20} className="animate-spin" /> RUNNING...</span>
+                    ) : (
+                      <span className="flex items-center gap-2"><Play size={20} fill="currentColor" /> RUN EVOLUTION</span>
+                    )}
+                  </GameButton>
+                </div>
 
-              <section className="bg-blue-900/10 p-4 border border-blue-900/30 rounded-xl">
-                <h3 className="font-serif font-bold mb-3 flex items-center gap-2 text-blue-900 text-sm tracking-wider">
-                  <BarChart3 size={16} /> Monte Carlo Simulation Results
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-white/40 p-3 rounded-lg border border-blue-200">
-                    <p className="font-bold text-blue-900 text-[10px] uppercase tracking-widest mb-2">Optimized AI Weights (v2.4)</p>
-                    <div className="space-y-1 text-xs font-mono text-blue-800">
-                      <div className="flex justify-between"><span>Lethal Threat Penalty</span> <span>5.0</span></div>
-                      <div className="flex justify-between"><span>Capture Reward</span> <span>8.0</span></div>
-                      <div className="flex justify-between"><span>Peril Opportunity</span> <span>28.0</span></div>
-                      <div className="flex justify-between"><span>Expansion Bonus</span> <span>7.5</span></div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="lg:col-span-4 space-y-4">
+                    <div className="bg-black/40 border border-stone-800 p-4 rounded-lg">
+                      <p className="text-sm uppercase font-black tracking-[0.2em] text-stone-500 mb-3">Live Heuristics</p>
+                      <div className="space-y-3 font-mono text-sm">
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Skirmish Bias</span>
+                          <span className="text-amber-400">{currentConfig.SKIRMISH_BIAS.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Siege Bonus</span>
+                          <span className="text-amber-400">{currentConfig.SIEGE_OVERRIDE_BONUS.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Gold Target</span>
+                          <span className="text-amber-400">{currentConfig.GOLD_RESERVE_TARGET.toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Lethality</span>
+                          <span className="text-amber-400">{currentConfig.LETHALITY_WEIGHT_BONUS.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-400/10 border border-amber-400/20 p-4 rounded-lg flex flex-col items-center justify-center text-center">
+                      <p className="text-sm uppercase font-bold tracking-widest text-amber-400/60 mb-2">Peak Fitness</p>
+                      <div className="text-4xl font-black text-amber-400 tabular-nums">
+                        {simProgress.fitness}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-sm text-amber-400/80 font-mono">Iteration {simProgress.gen}/3</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2 text-xs text-blue-900/80 leading-relaxed">
-                    <p><span className="font-bold text-blue-950">Insight:</span> The L1 Threat Penalty (15.0) is significantly higher than the Capture Bonus (8.0), indicating the AI prioritizes unit preservation over risky gains.</p>
-                    <p><span className="font-bold text-blue-950">Composition:</span> Simulation data suggests a 3:1 focus on Infantry-to-Archer shielding maximizes defensive efficiency per gold spent.</p>
+
+                  <div className="lg:col-span-8">
+                    <div className="bg-black border border-stone-800 rounded-lg overflow-hidden flex flex-col h-full min-h-[220px]">
+                      <div className="bg-stone-800/50 px-4 py-2 border-b border-stone-800 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Code size={14} className="text-stone-500" />
+                          <span className="text-sm font-mono text-stone-400">optimized_config.ts</span>
+                        </div>
+                        {lastResults && (
+                          <button 
+                            onClick={handleCopy}
+                            className={cn(
+                              "text-sm font-bold px-2 py-1 rounded transition-colors",
+                              isCopied ? "bg-green-500 text-black" : "bg-white/10 text-stone-300 hover:bg-white/20"
+                            )}
+                          >
+                            {isCopied ? "COPIED" : "COPY CODE"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="p-4 font-mono text-sm leading-relaxed flex-1 overflow-auto scrollbar-thin scrollbar-thumb-stone-800">
+                        {isSimulating ? (
+                          <div className="text-stone-500 italic flex items-center gap-2">
+                            <span className="animate-pulse">_</span> Genetic crossover in progress...
+                          </div>
+                        ) : lastResults ? (
+                          <pre className="text-emerald-400">
+                            <code>{`export const DEFAULT_AI_CONFIG: AIConfig = ${lastResults};`}</code>
+                          </pre>
+                        ) : (
+                          <div className="text-stone-700">
+                            Ready for optimization run.<br/>
+                            $ await GeneticAlgorithm.evolve();
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -237,8 +345,7 @@ export const AutomatonHelpModal = ({ isOpen, onClose }: AutomatonHelpModalProps)
               </div>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
+        </div>
+      </motion.div>
+    );
+  };

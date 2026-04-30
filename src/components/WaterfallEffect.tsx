@@ -1,6 +1,8 @@
 import { useFrame, extend } from '@react-three/fiber';
 import { shaderMaterial } from '@react-three/drei';
+import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
+import { hexToPixel } from '../types';
 
 const WaterfallMaterial = shaderMaterial(
   { time: 0, color: new THREE.Color('#8eaecf') },
@@ -9,7 +11,7 @@ const WaterfallMaterial = shaderMaterial(
     varying vec2 vUv;
     void main() {
       vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
     }
   `,
   // fragment shader
@@ -56,23 +58,46 @@ declare module '@react-three/fiber' {
   }
 }
 
-const waterfallGeometries: Record<number, THREE.CylinderGeometry> = {};
-const getWaterfallGeometry = (depth: number) => {
-  if (!waterfallGeometries[depth]) {
-    waterfallGeometries[depth] = new THREE.CylinderGeometry(0.93, 0.93, depth, 6, 1, true);
-  }
-  return waterfallGeometries[depth];
-};
-
+const waterfallGeo = new THREE.CylinderGeometry(0.93, 0.93, 2.0, 6, 1, true);
 const sharedWaterfallMaterial = new WaterfallMaterial();
 sharedWaterfallMaterial.side = THREE.DoubleSide;
 
-export const WaterfallEffect = ({ topHeight, depth }: { topHeight: number, depth: number }) => {
+export const updateWaterfallTime = () => {
+  sharedWaterfallMaterial.time = performance.now() / 1000;
+};
+
+const isPerimeter = (q: number, r: number) => Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r)) === 10;
+
+export const WaterfallsInstanced = ({ board }: { board: any[] }) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const waterfallTiles = useMemo(() => board.filter(t => t.terrain === 'Water' && isPerimeter(t.coord.q, t.coord.r)), [board]);
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const dummy = new THREE.Object3D();
+
+    waterfallTiles.forEach((tile, i) => {
+      const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+      const height = 0.1;
+      const depth = 2.0;
+      
+      dummy.position.set(x, height - depth / 2, z);
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [waterfallTiles]);
+
   useFrame(() => {
-    sharedWaterfallMaterial.time = performance.now() / 1000;
+    updateWaterfallTime();
   });
 
   return (
-    <mesh position={[0, topHeight - depth / 2, 0]} geometry={getWaterfallGeometry(depth)} material={sharedWaterfallMaterial} />
+    <instancedMesh ref={meshRef} args={[waterfallGeo, sharedWaterfallMaterial, waterfallTiles.length]} />
   );
 };
+
+// Deprecated, replaced by WaterfallsInstanced in Game3D
+export const WaterfallEffect = () => null;
+

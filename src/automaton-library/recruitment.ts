@@ -38,6 +38,7 @@ import {
 } from './constants';
 import { LoopSafety } from '../utils';
 import { ThreatInfo } from './threatAnalysis';
+import { AIConfig, DEFAULT_AI_CONFIG } from './AIConfig';
 
 export function getRecruitmentAction(
   state: GameState, 
@@ -56,7 +57,8 @@ export function getRecruitmentAction(
   heatMap: Map<string, number>,
   isBarbarian: boolean = false,
   primaryAggressorId: number = -1,
-  threatenedBasesCount: number = 0
+  threatenedBasesCount: number = 0,
+  config: AIConfig = DEFAULT_AI_CONFIG
 ) {
   const recruitmentTiles = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
@@ -88,11 +90,16 @@ export function getRecruitmentAction(
   
   // If we are under imminent threat (units next to bases), defense becomes priority 1.
   // Otherwise, we stick to our savings target for income expansion.
-  const hasEminentThreat = eminentThreatBases.length > 0;
-  
   // If many bases are threatened, we completely ignore savings to spam defenders
   const isDesperateDefense = threatenedBasesCount >= 2;
-  const effectiveSavingsTarget = (hasEminentThreat || isDesperateDefense) ? 0 : savingsTarget;
+  const hasEminentThreat = eminentThreatBases.length > 0;
+  
+  // Gold Shield: If NOT under threat, keep a small reserve for emergency defense
+  // This prevents the AI from being "bankrupt" right before an enemy surprise attack
+  const isHealthyEconomy = income > 100;
+  const goldShieldAmount = (isHealthyEconomy && !isUnderThreat && !isDesperateDefense) ? config.GOLD_RESERVE_TARGET : 0;
+  
+  const effectiveSavingsTarget = (hasEminentThreat || isDesperateDefense) ? 0 : Math.max(savingsTarget, goldShieldAmount);
   
   // Potential targets for evaluation
   const targets = [

@@ -15,7 +15,7 @@ export interface SimulationResult {
   }[];
 }
 
-export function runSimulation(configs: AIConfig[], maxTurns: number = 200): SimulationResult {
+export async function runSimulation(configs: AIConfig[], maxTurns: number = 200): Promise<SimulationResult> {
   const playerConfigs = configs.map((c, i) => ({ name: `AI-${i}`, isAutomaton: true }));
   let state = createInitialState(playerConfigs);
   
@@ -23,12 +23,12 @@ export function runSimulation(configs: AIConfig[], maxTurns: number = 200): Simu
   const aiConfigs = new Map<number, AIConfig>();
   configs.forEach((c, i) => aiConfigs.set(i, c));
 
+  let actionCount = 0;
   while (state.winnerId === null && state.turnNumber < maxTurns) {
+    actionCount++;
     const currentPlayer = state.players[state.currentPlayerIndex];
     const config = aiConfigs.get(currentPlayer.id) || DEFAULT_AI_CONFIG;
     
-    // Pass config to AI
-    // NOTE: We need to modify getAutomatonBestAction to accept config!
     const bestAction = (getAutomatonBestAction as any)(state, config);
 
     if (bestAction.type === 'endTurn') {
@@ -47,8 +47,12 @@ export function runSimulation(configs: AIConfig[], maxTurns: number = 200): Simu
         units: state.units.map(u => u.id === bestAction.payload.unitId ? { ...u, hasActed: true } : u)
       };
     } else {
-      // unknown or unhandled
       state = processTurnTransition(state);
+    }
+
+    // Yield every 10 actions to prevent UI freezing without slowing down too much
+    if (actionCount % 10 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
   }
 

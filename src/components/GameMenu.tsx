@@ -1,10 +1,9 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Settings, Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music, X } from 'lucide-react';
 import { GameButton } from './GameButton';
 
 interface GameMenuProps {
-  isOpen: boolean;
   onClose: () => void;
   onExitCurrent: () => void;
   onExitAll: () => void;
@@ -19,7 +18,6 @@ interface GameMenuProps {
 }
 
 export const GameMenu = ({ 
-  isOpen, 
   onClose, 
   onExitCurrent, 
   onExitAll,
@@ -30,33 +28,31 @@ export const GameMenu = ({
   musicVolume,
   setMusicVolume,
   effectsVolume,
-  setMusicVolume: _setMusicVolume, // unused prop warning fix if any
   setEffectsVolume
 }: GameMenuProps) => {
   React.useEffect(() => {
-    if (!isOpen) return;
+    // Esc key handling remains relevant
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [onClose]);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/70 z-[9999] overflow-y-auto pt-10 pb-20 px-4"
+    >
+      <div className="min-h-full flex items-center justify-center">
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-orange-950/40 backdrop-blur-sm z-[100] flex flex-col items-center p-4 overflow-y-auto"
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          className="neo-brutalist-card-lg max-w-md w-full relative"
         >
-          <motion.div 
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            className="neo-brutalist-card-lg max-w-md w-full my-auto"
-          >
-            <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
+          <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
               <button 
                 onClick={onClose}
                 className="absolute top-2 right-2 p-1 hover:bg-black/5 rounded-full transition-colors"
@@ -67,7 +63,7 @@ export const GameMenu = ({
               <div className="grayscale opacity-40 pointer-events-none select-none">
                 <Settings size={75} />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-center">
+              <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-center" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                 Game Menu
               </h2>
             </div>
@@ -197,8 +193,7 @@ export const GameMenu = ({
               </GameButton>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
+        </div>
+      </motion.div>
+    );
+  };

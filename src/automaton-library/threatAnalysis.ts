@@ -10,8 +10,10 @@ import {
   UnitType,
   getNeighbors,
   UPGRADE_COSTS,
-  SETTLEMENT_INCOME
+  SETTLEMENT_INCOME,
+  ThreatInfo
 } from '../types';
+export type { ThreatInfo };
 import { getUnitRange } from '../game/units';
 import { calculateKingdomStrength } from './utils';
 import { 
@@ -79,14 +81,6 @@ export function calculateInfluenceMap(state: GameState, currentPlayerId: number)
   return influenceMap;
 }
 
-export interface ThreatInfo {
-  minTurns: number;
-  totalThreatValue: number;
-  attackerCount: number;
-  eminentThreatValue: number; // Value from 1-turn attackers only
-  eminentAttackerCount: number; // Count of 1-turn attackers only
-}
-
 export function calculateThreatMatrix(state: GameState, currentPlayerId: number): Map<string, ThreatInfo> {
   const threatMatrix = new Map<string, ThreatInfo>();
   const boardMap = getBoardMap(state.board);
@@ -98,6 +92,7 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
   for (const u of state.units) {
     if (safety.tick()) break;
     // Only calculate threats FROM enemies TO the player
+    // IMPORTANT: Settlements do not contribute threat. Only units are processed here.
     if (u.ownerId === currentPlayerId) continue;
 
     const stats = UNIT_STATS[u.type];

@@ -6,14 +6,14 @@ import { COLOR_NAMES } from '../constants/colors';
 
 interface GameOverOverlayProps {
   gameState: GameState;
-  setSetupMode: (setup: boolean) => void;
+  onExit: () => void;
   setGameState: React.Dispatch<React.SetStateAction<GameState | null>>;
   triggerBarbarianInvasion: (state: GameState) => GameState;
 }
 
 export const GameOverOverlay = ({ 
   gameState, 
-  setSetupMode, 
+  onExit,
   setGameState,
   triggerBarbarianInvasion
 }: GameOverOverlayProps) => {
@@ -36,15 +36,12 @@ export const GameOverOverlay = ({
                 <h2 className="text-xl font-black tracking-tighter">Conquest Complete</h2>
               </div>
             </div>
-            <p className="text-lg mb-4 font-bold" style={{ color: gameState.winnerId === -1 ? 'black' : (gameState.players[gameState.winnerId]?.color || 'black') }}>
+            <p className="text-lg mb-4 font-bold" style={{ color: gameState.winnerId === -1 ? 'black' : (gameState.players[gameState.winnerId]?.color || 'black'), textShadow: gameState.winnerId === -1 ? 'none' : '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
               {gameState.winnerId === -1 ? "It's a Draw!" : `${COLOR_NAMES[gameState.players[gameState.winnerId]?.color || '#000']} Empire Victorious!`}
             </p>
             <div className="space-y-2">
               <GameButton 
-                onClick={() => {
-                  setSetupMode(true);
-                  setGameState(null);
-                }}
+                onClick={onExit}
                 variant="primary"
                 fullWidth
                 className="py-2 text-sm"

@@ -7,7 +7,7 @@ import {
   Unit as _Unit,
 } from './types';
 import { PLAYER_COLORS as COLORS, COLOR_NAMES } from './constants/colors';
-import { getValidMoves, getValidAttacks, getAttackRange, triggerBarbarianInvasion } from './gameEngine';
+import { getValidMoves, getValidAttacks, getAttackRange, triggerBarbarianInvasion, createInitialState } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';
 import { GameButton } from './components/GameButton';
@@ -23,6 +23,7 @@ import { triggerEffect } from './services/effectEngine';
 import { saveGame, loadGame } from './services/saveLoadService';
 import { saveDemo, loadDemo } from './services/demoService';
 import { calculateOpportunityPerilMatrix, calculateThreatMatrix } from './automaton-library';
+import { calculateStrategicAnalysis } from './game/analysis';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
 
@@ -30,7 +31,22 @@ import { Play, Pause, FastForward, Rewind, X } from 'lucide-react';
 
 export default function App() {
   const [hoveredHex, setHoveredHex] = useState<HexCoord | null>(null);
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [playerConfigs, setPlayerConfigs] = useState([
+    { name: COLOR_NAMES[COLORS[0]], isAutomaton: false },
+    { name: COLOR_NAMES[COLORS[1]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[2]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[3]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[4]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[5]], isAutomaton: true },
+  ]);
+  const [gameState, setGameState] = useState<GameState>(() => createInitialState([
+    { name: COLOR_NAMES[COLORS[0]], isAutomaton: false },
+    { name: COLOR_NAMES[COLORS[1]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[2]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[3]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[4]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[5]], isAutomaton: true },
+  ]));
   const [setupMode, setSetupMode] = useState(true);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -144,10 +160,11 @@ export default function App() {
   const handleExitAll = () => {
     confirmAction(
       "Reset game?",
-      "Are you sure you want to end the current game and return to the main menu?",
+      "Are you sure you want to end the current game and return to the main menu? A new map will be generated.",
       () => {
         setSetupMode(true);
-        setGameState(null);
+        // Regenerate map upon exiting to setup screen
+        setGameState(createInitialState(playerConfigs));
         setShowMenu(false);
       }
     );
@@ -177,14 +194,6 @@ export default function App() {
     }
   };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
-  const [playerConfigs, setPlayerConfigs] = useState([
-    { name: COLOR_NAMES[COLORS[0]], isAutomaton: false },
-    { name: COLOR_NAMES[COLORS[1]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[2]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[3]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[4]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[5]], isAutomaton: true },
-  ]);
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const _stageRef = useRef<any>(null);
 
@@ -278,16 +287,6 @@ export default function App() {
       triggerEffect('victory');
     }
   }, [gameState?.winnerId]);
-
-  // Force refresh after map initiation
-  useEffect(() => {
-    if (gameState && !setupMode) {
-      const timer = setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [!!gameState, setupMode]); // Only run when gameState becomes truthy or setupMode changes
 
   // Global click listener to resume audio context (browser policy compliance)
   useEffect(() => {
@@ -403,33 +402,36 @@ export default function App() {
     if (!gameState || gameState.winnerId !== null || setupMode || gameState.isPlaybackMode) return;
     triggerEffect('click');
     const coord = axialToCube(q, r);
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    const unitAtHex = gameState.units.find(u => u.coord.q === coord.q && u.coord.r === coord.r);
     
     // Toggle selection: if clicking the same hex, deselect
     if (gameState.selectedHex && gameState.selectedHex.q === coord.q && gameState.selectedHex.r === coord.r) {
-      setGameState({
+      const newState: GameState = {
         ...gameState,
         selectedUnitId: null,
         selectedHex: null,
         possibleMoves: [],
         possibleAttacks: [],
         attackRange: [],
-      });
+      };
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
+      setGameState(newState);
       return;
     }
 
-    const unitAtHex = gameState.units.find(u => u.coord.q === coord.q && u.coord.r === coord.r);
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-
     // If it's the AI's turn, only allow inspection
     if (currentPlayer.isAutomaton) {
-      setGameState({
+      const newState: GameState = {
         ...gameState,
         selectedUnitId: null,
         selectedHex: coord,
         possibleMoves: [],
         possibleAttacks: [],
         attackRange: [],
-      });
+      };
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
+      setGameState(newState);
       return;
     }
 
@@ -453,27 +455,30 @@ export default function App() {
     if (unitAtHex) {
       const isCurrentPlayer = unitAtHex.ownerId === currentPlayer.id;
       const moves = isCurrentPlayer ? getValidMoves(unitAtHex, gameState.board, gameState.units) : [];
-      // For UI purposes, we show the range even if the unit has acted or is an enemy
       const attacks = getValidAttacks(unitAtHex, gameState.board, gameState.units, true);
       const range = getAttackRange(unitAtHex, gameState.board, gameState.units);
       
-      setGameState({
+      const newState: GameState = {
         ...gameState,
         selectedUnitId: unitAtHex.id,
         selectedHex: coord,
         possibleMoves: moves,
         possibleAttacks: attacks,
         attackRange: range,
-      });
+      };
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
+      setGameState(newState);
     } else {
-      setGameState({
+      const newState: GameState = {
         ...gameState,
         selectedUnitId: null,
         selectedHex: coord,
         possibleMoves: [],
         possibleAttacks: [],
         attackRange: [],
-      });
+      };
+      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
+      setGameState(newState);
     }
   }, [gameState, moveUnit, attackUnit, setGameState]);
 
@@ -483,21 +488,45 @@ export default function App() {
 
   const handleStartGame = (configs: any) => {
     musicEngine.resume();
-    startGame(configs);
+    // Use current board for the new game
+    startGame(configs, gameState?.board);
   };
 
   return (
     <div className="h-screen w-screen bg-gradient-to-b from-[#43e3ff] via-[#0e5984] to-[#1f0606] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
-      <AnimatePresence mode="wait">
-        {setupMode ? (
-          <motion.div
-            key="setup"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="h-full w-full overflow-y-auto"
-          >
+      <div className="h-full w-full flex flex-col lg:flex-row">
+        {/* Main Game Area - Always visible */}
+        <div className="flex-1 relative bg-transparent order-2 lg:order-1" ref={stageContainerRef}>
+          <Game3D 
+            gameState={gameState}
+            hoveredHex={hoveredHex}
+            setHoveredHex={setHoveredHex}
+            handleHexClick={handleHexClick}
+            finalizeMove={finalizeMove}
+            finalizeAttack={finalizeAttack}
+            clearAnimation={clearAnimation}
+            showStrategicView={showStrategicView}
+          />
+        </div>
+
+        {/* Game Over Overlay */}
+        {!setupMode && (
+          <GameOverOverlay 
+            gameState={gameState}
+            onExit={() => {
+              setSetupMode(true);
+              setGameState(createInitialState(playerConfigs));
+            }}
+            setGameState={setGameState}
+            triggerBarbarianInvasion={triggerBarbarianInvasion}
+          />
+        )}
+
+        {/* Sidebar / Top Bar space */}
+        <AnimatePresence mode="wait">
+          {setupMode ? (
             <SetupScreen 
+              key="setup"
               playerConfigs={playerConfigs}
               setPlayerConfigs={setPlayerConfigs}
               startGame={handleStartGame}
@@ -505,39 +534,9 @@ export default function App() {
               setShowInstructions={setShowInstructions}
               COLORS={COLORS}
             />
-          </motion.div>
-        ) : gameState ? (
-          <motion.div
-            key="game"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="h-full w-full flex flex-col lg:flex-row"
-          >
-            {/* Main Game Area */}
-            <div className="flex-1 relative bg-transparent order-2 lg:order-1" ref={stageContainerRef}>
-              <Game3D 
-                gameState={gameState}
-                hoveredHex={hoveredHex}
-                setHoveredHex={setHoveredHex}
-                handleHexClick={handleHexClick}
-                finalizeMove={finalizeMove}
-                finalizeAttack={finalizeAttack}
-                clearAnimation={clearAnimation}
-                showStrategicView={showStrategicView}
-              />
-            </div>
-
-            {/* Game Over Overlay */}
-            <GameOverOverlay 
-              gameState={gameState}
-              setSetupMode={setSetupMode}
-              setGameState={setGameState}
-              triggerBarbarianInvasion={triggerBarbarianInvasion}
-            />
-
-            {/* Sidebar / Top Bar */}
+          ) : (
             <Sidebar 
+              key="sidebar"
               gameState={gameState}
               currentPlayer={currentPlayer!}
               isMuted={isMuted}
@@ -552,9 +551,9 @@ export default function App() {
               setShowStrategicView={setShowStrategicView}
               automatonStatus={automatonStatus}
             />
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Global Overlays */}
       {gameState?.isPlaybackMode && (
@@ -581,30 +580,42 @@ export default function App() {
         </div>
       )}
 
-      <HelpModal isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
+      <AnimatePresence key="instr-anim">
+        {showInstructions && (
+          <HelpModal key="help-modal" onClose={() => setShowInstructions(false)} />
+        )}
+      </AnimatePresence>
       
-      <GameMenu 
-        isOpen={showMenu} 
-        onClose={() => setShowMenu(false)} 
-        onExitCurrent={handleExitCurrent}
-        onExitAll={handleExitAll}
-        onSave={handleSave}
-        onLoad={handleLoadWithConfirmation}
-        onSaveDemo={handleSaveDemo}
-        onLoadDemo={handleLoadDemoWithConfirmation}
-        musicVolume={musicVolume}
-        setMusicVolume={setMusicVolume}
-        effectsVolume={effectsVolume}
-        setEffectsVolume={setEffectsVolume}
-      />
+      <AnimatePresence key="menu-anim">
+        {showMenu && (
+          <GameMenu 
+            key="game-menu"
+            onClose={() => setShowMenu(false)} 
+            onExitCurrent={handleExitCurrent}
+            onExitAll={handleExitAll}
+            onSave={handleSave}
+            onLoad={handleLoadWithConfirmation}
+            onSaveDemo={handleSaveDemo}
+            onLoadDemo={handleLoadDemoWithConfirmation}
+            musicVolume={musicVolume}
+            setMusicVolume={setMusicVolume}
+            effectsVolume={effectsVolume}
+            setEffectsVolume={setEffectsVolume}
+          />
+        )}
+      </AnimatePresence>
 
-      <ConfirmationDialog
-        isOpen={confirmation.isOpen}
-        onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmation.onConfirm}
-        title={confirmation.title}
-        message={confirmation.message}
-      />
+      <AnimatePresence key="confirm-anim">
+        {confirmation.isOpen && (
+          <ConfirmationDialog
+            key="conf-dialog"
+            onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+            onConfirm={confirmation.onConfirm}
+            title={confirmation.title}
+            message={confirmation.message}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Error Dialog */}
       <AnimatePresence>
@@ -613,13 +624,14 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex flex-col items-center p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black/70 z-[10000] overflow-y-auto py-8 px-4"
           >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] my-auto"
-            >
+            <div className="min-h-full flex items-center justify-center">
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative"
+              >
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-red-100 border-2 border-black">
                   <AlertTriangle className="text-red-600" size={32} />
@@ -638,7 +650,8 @@ export default function App() {
                 Dismiss
               </GameButton>
             </motion.div>
-          </motion.div>
+          </div>
+        </motion.div>
         )}
       </AnimatePresence>
 
