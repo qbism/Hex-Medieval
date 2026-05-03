@@ -22,7 +22,9 @@ Gold is the lifeblood of your empire. You earn gold at the start of your turn ba
 *Note: You can only recruit new units on Villages and Castles.*
 
 ### Units
-Each unit has unique strengths, movement ranges, and attack ranges.
+Each unit has unique strengths, movement ranges, and attack ranges. 
+
+**Movement Rule:** Once a unit has been moved, it may not attack or take any other action that turn. Movement effectively ends the unit's turn, even if it has movement points remaining.
 
 | Unit | Cost | Movement | Range | Description |
 | :--- | :--- | :--- | :--- | :--- |

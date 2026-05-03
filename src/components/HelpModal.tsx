@@ -129,6 +129,10 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
                   <span className="font-bold">6.</span>
                   <span><span className="font-bold text-amber-700">Terrain Modifiers:</span> Archers lose <span className="font-bold text-red-700">-1 Range</span> when attacking from Forest tiles.</span>
                 </li>
+                <li className="flex gap-2">
+                  <span className="font-bold">7.</span>
+                  <span><span className="font-bold text-slate-700">Movement Limitation:</span> Once a unit has been moved, it <span className="font-bold text-red-700">cannot attack</span> or take any other action until the next turn.</span>
+                </li>
               </ul>
             </section>
 
@@ -162,7 +166,7 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
                 </div>
                 <div className="p-3 border border-black/5 rounded-lg">
                   <p className="font-bold mb-1">Camera</p>
-                  <p className="text-stone-900">Drag to pan. Scroll or pinch to zoom. The camera follows the active player.</p>
+                  <p className="text-stone-900">Drag to pan. Right-click or two-finger drag to rotate. Scroll or pinch to zoom. The camera follows the active player.</p>
                 </div>
                 <div className="p-3 border border-black/5 rounded-lg">
                   <p className="font-bold mb-1">Turn Flow</p>

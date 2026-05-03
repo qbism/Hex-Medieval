@@ -116,19 +116,19 @@ export const SetupScreen = ({
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 20, opacity: 0 }}
-        className="fixed bottom-8 left-0 right-0 pointer-events-none flex flex-col items-center justify-center p-4 z-[102]"
+        className="fixed bottom-4 sm:bottom-8 left-0 right-0 pointer-events-none flex flex-col items-center justify-center p-2 z-[102]"
       >
         <h1 
-          className="text-5xl sm:text-8xl font-serif font-black tracking-tighter leading-none text-center italic"
+          className="text-4xl sm:text-8xl font-serif font-black tracking-tighter leading-none text-center italic"
           style={{ 
             textShadow: '2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 4px 4px 0 #000, 0 8px 15px rgba(0,0,0,0.5)' 
           }}
         >
           Hex Medieval
         </h1>
-        <div className="px-4 py-1 mt-2 transform -skew-x-12">
+        <div className="px-4 py-0.5 mt-1 sm:mt-2 transform -skew-x-12">
           <span 
-            className="text-base sm:text-lg font-black tracking-normal"
+            className="text-sm sm:text-lg font-black tracking-normal"
             style={{ 
               color: 'black',
               textShadow: '1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff'

@@ -20,6 +20,8 @@ const RULES_CONTENT = `# How automatons play: Technical specifications & ai logi
 | **Knight** | 200 | 1 | 4 |
 | **Catapult** | 300 | 3 | 1 |
 
+**Movement Rule:** Once a unit moves, it may not attack that turn under any circumstances, even on a partial move. Movement ends the unit's turn.
+
 **Note:** All combat is lethal. 1 hit = 1 kill.
 
 ## 2. Economic infrastructure

@@ -400,6 +400,10 @@ export default function App() {
 
   const handleHexClick = React.useCallback((q: number, r: number) => {
     if (!gameState || gameState.winnerId !== null || setupMode || gameState.isPlaybackMode) return;
+    
+    // Ignore clicks if animations are running to prevent race conditions/double-moves
+    if (gameState.animations && gameState.animations.length > 0) return;
+
     triggerEffect('click');
     const coord = axialToCube(q, r);
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];

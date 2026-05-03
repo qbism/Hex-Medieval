@@ -10,6 +10,7 @@ import {
   calculateStrategicAnalysis
 } from '../gameEngine';
 import { triggerEffect } from '../services/effectEngine';
+import { soundEngine } from '../services/soundEngine';
 
 export interface GameActions {
   startGame: (playerConfigs: { name: string; isAutomaton: boolean }[], existingBoard?: GameState['board']) => void;
@@ -42,38 +43,59 @@ export function useGameActions(
   }, [setGameState, setSetupMode]);
 
   const moveUnit = useCallback((unitId: string, target: HexCoord) => {
-    const unit = gameState?.units.find(u => u.id === unitId);
-    if (unit) {
-      triggerEffect('move', { unitId, unitType: unit.type, to: target }, setGameState as any);
-    }
-
     setGameState(prev => {
       if (!prev) return prev;
-      
+      const unit = prev.units.find(u => u.id === unitId);
+      if (!unit) return prev;
+
+      // 1. Trigger Sound Effect
+      soundEngine.playMove(unit.type);
+
+      // 2. Create History Entry (state as it is right now)
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
       const newHistory = [...history, stateWithoutHistory];
+
+      // 3. Create Animation
+      const newAnim = { 
+        id: `move-${Date.now()}-${Math.random()}`, 
+        unitId: unit.id, 
+        type: 'move' as const, 
+        to: target 
+      };
+
+      // 4. Update state: add animation, push history, and CRITICALLY clear possible actions to prevent double-clicks
       return {
         ...prev,
         history: newHistory,
+        animations: [
+          ...prev.animations.filter(a => a.unitId !== unitId),
+          newAnim
+        ],
+        // Clear selection/moves immediately while animating
+        possibleMoves: [],
+        possibleAttacks: [],
+        attackRange: [],
       };
     });
-  }, [gameState, setGameState]);
+  }, [setGameState]);
 
   const finalizeMove = useCallback((unitId: string, target: HexCoord) => {
-    const tile = gameState?.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
-    if (tile && tile.ownerId === null) {
-      const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
-      if (isSettlement) {
-        if (tile.terrain === TerrainType.GOLD_MINE) {
-          triggerEffect('goldMine');
-        } else {
-          triggerEffect('conquest');
-        }
-      }
-    }
-
     setGameState(prev => {
       if (!prev) return prev;
+
+      // 1. Check for conqust/effects on the target hex
+      const tile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
+      if (tile && tile.ownerId === null) {
+        const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+        if (isSettlement) {
+          if (tile.terrain === TerrainType.GOLD_MINE) {
+            soundEngine.playGoldMine();
+          } else {
+            soundEngine.playConquest();
+          }
+        }
+      }
+
       const unit = prev.units.find(u => u.id === unitId);
       if (!unit) {
         return {
@@ -82,28 +104,20 @@ export function useGameActions(
         };
       }
 
-      const newBoard = prev.board.map(tile => {
-        if (tile.coord.q === target.q && tile.coord.r === target.r) {
-          const isCapturableSettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== prev.players[prev.currentPlayerIndex].id;
+      const newBoard = prev.board.map(t => {
+        if (t.coord.q === target.q && t.coord.r === target.r) {
+          const isCapturableSettlement = (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) && t.ownerId !== prev.players[prev.currentPlayerIndex].id;
           if (isCapturableSettlement) {
-            return { ...tile, ownerId: prev.players[prev.currentPlayerIndex].id };
+            return { ...t, ownerId: prev.players[prev.currentPlayerIndex].id };
           }
         }
-        return tile;
+        return t;
       });
 
-      const targetTile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
-      const isSettlement = targetTile && (
-        targetTile.terrain === TerrainType.VILLAGE || 
-        targetTile.terrain === TerrainType.FORTRESS || 
-        targetTile.terrain === TerrainType.CASTLE || 
-        targetTile.terrain === TerrainType.GOLD_MINE
-      );
-      const isCapturingSettlement = isSettlement && targetTile.ownerId !== prev.players[prev.currentPlayerIndex].id;
-
       const cost = getDistance(unit.coord, target, prev.board);
-      const newMovesLeft = isCapturingSettlement ? 0 : Math.max(0, unit.movesLeft - cost);
-      const hasActuallyActed = newMovesLeft <= 0;
+      const hasMoved = cost > 0;
+      const newMovesLeft = 0; // Movement always ends the unit's turn now
+      const hasActuallyActed = hasMoved || unit.hasActed;
 
       const newUnits = prev.units.map(u => {
         if (u.id === unitId) {
@@ -130,38 +144,45 @@ export function useGameActions(
       newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
       return newState;
     });
-  }, [setGameState, gameState]);
+  }, [setGameState]);
 
   const attackUnit = useCallback((attackerId: string, targetCoord: HexCoord) => {
-    const attacker = gameState?.units.find(u => u.id === attackerId);
-    if (attacker) {
-      triggerEffect('attack', { unitId: attackerId, unitType: attacker.type, to: targetCoord }, setGameState as any);
-    }
-
     setGameState(prev => {
       if (!prev) return prev;
+      const attacker = prev.units.find(u => u.id === attackerId);
+      if (!attacker) return prev;
 
+      // 1. Play Sound
+      soundEngine.playAttack(attacker.type);
+
+      // 2. Create History Entry
       const { history = [], animations: _animations, ...stateWithoutHistory } = prev;
       const newHistory = [...history, stateWithoutHistory];
+
+      // 3. Create Animation
+      const newAnim = { 
+        id: `attack-${Date.now()}-${Math.random()}`, 
+        unitId: attacker.id, 
+        type: 'attack' as const, 
+        to: targetCoord 
+      };
+
       return {
         ...prev,
         history: newHistory,
+        animations: [
+          ...prev.animations.filter(a => a.unitId !== attackerId),
+          newAnim
+        ],
+        // Clear possible actions
+        possibleMoves: [],
+        possibleAttacks: [],
+        attackRange: [],
       };
     });
-  }, [gameState, setGameState]);
+  }, [setGameState]);
 
   const finalizeAttack = useCallback((attackerId: string, targetCoord: HexCoord) => {
-    const defender = gameState?.units.find(u => u.coord.q === targetCoord.q && u.coord.r === targetCoord.r);
-    if (defender) {
-      triggerEffect('defeat', { unitType: defender.type });
-    } else {
-      triggerEffect('damage', { 
-        unitId: `tile-${targetCoord.q}-${targetCoord.r}`, 
-        to: targetCoord, 
-        value: -1 
-      }, setGameState as any);
-    }
-
     setGameState(prev => {
       if (!prev) return prev;
       const currentAttacker = prev.units.find(u => u.id === attackerId);
@@ -173,6 +194,12 @@ export function useGameActions(
       }
 
       const currentDefender = prev.units.find(u => u.coord.q === targetCoord.q && u.coord.r === targetCoord.r);
+      if (currentDefender) {
+        soundEngine.playDefeat(currentDefender.type);
+      } else {
+        // Attack on settlement
+        soundEngine.playDamage();
+      }
 
       const newUnits = prev.units.map(u => {
         if (u.id === attackerId) return { ...u, hasAttacked: true, movesLeft: 0, hasActed: true };
@@ -212,7 +239,7 @@ export function useGameActions(
       newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
       return newState;
     });
-  }, [setGameState, gameState]);
+  }, [setGameState]);
 
   const recruitUnit = useCallback((type: UnitType, coord: HexCoord) => {
     triggerEffect('recruit', { unitType: type });

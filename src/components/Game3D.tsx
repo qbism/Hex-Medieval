@@ -55,15 +55,6 @@ const getTileGeometry = (height: number) => {
   return tileGeometries[height];
 };
 
-const tileBorderGeometries: Record<number, THREE.CylinderGeometry> = {};
-const borderMaterials: Record<string, THREE.MeshBasicMaterial> = {};
-const getBorderMaterial = (color: string) => {
-  if (!borderMaterials[color]) {
-    borderMaterials[color] = new THREE.MeshBasicMaterial({ color });
-  }
-  return borderMaterials[color];
-};
-
 const possibleMoveGeo = new THREE.CircleGeometry(0.4, 32);
 const possibleMoveMat = new THREE.MeshBasicMaterial({ color: "white", transparent: true, opacity: 0.5 });
 
@@ -73,8 +64,6 @@ const _possibleAttackGeo = new THREE.RingGeometry(0.75, 0.9, 6);
 const _possibleAttackMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.8, side: THREE.DoubleSide });
 const _attackRangeMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.15, side: THREE.DoubleSide });
 const attackRangeGeo = new THREE.CircleGeometry(0.85, 6);
-
-const territoryRingGeo = new THREE.RingGeometry(0.7, 0.9, 6);
 
 // Shared Geometries and Materials for Units
 const unitConeGeo = new THREE.ConeGeometry(0.4, 0.6, 16);
@@ -102,33 +91,10 @@ const attackTargetMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transpar
 const attackTargetGeo = new THREE.SphereGeometry(0.8, 16, 16);
 
 // 3D Hex Tile
-const PulsatingAttackIndicator = React.memo(({ height, geometry, active }: { height: number, geometry: THREE.BufferGeometry, active: boolean }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  
-  useFrame(({ performance: _perf }) => {
-    if (!meshRef.current) return;
-    const t = performance.now() / 1000;
-    // Pulsate between 0.25 and 0.75
-    const opacity = 0.25 + 0.5 * (Math.sin(t * 3) * 0.5 + 0.5);
-    (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
-  });
+// PulsatingAttackIndicator removed - replaced by AttackIndicatorsInstanced
 
-  if (!active) return null;
-
-  return (
-    <mesh 
-      ref={meshRef}
-      position={[0, height + 0.045, 0]} 
-      rotation={[-Math.PI / 2, 0, Math.PI / 6]} 
-      geometry={geometry}
-      material={attackIndicatorMat}
-    />
-  );
-});
-
-const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _isPossibleAttack, isAttackRange, isExtendedRange, onClick, onPointerEnter, onPointerLeave, playerColor, hasAdjacentSettlement, unitAtHex, isCurrentPlayer, strategicAnalysis }: any) => {
+const HexTile3D = React.memo(({ tile, onClick, onPointerEnter, onPointerLeave }: any) => {
   const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
-  const coordKey = `${tile.coord.q},${tile.coord.r}`;
   const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
   const isWater = tile.terrain === TerrainType.WATER;
   const depth = 2.0; 
@@ -150,126 +116,163 @@ const HexTile3D = React.memo(({ tile, isSelected, isHovered, isPossibleMove, _is
     onPointerLeave(null);
   };
 
-  // Use white for hover, player color for ownership. Selection is handled by instanced shader.
+  if (isWater) return null;
+
   return (
-    <group position={[x, 0, z]}>
-      {/* 
-        The base tile mesh is now handled by MapBasesInstanced for performance.
-        We only render overlays, borders, and effects here. 
-      */}
-      
-      {/* Invisible interaction layer for non-water tiles (water has its own interaction) */}
-      {!isWater && (
-        <mesh 
-          position={[0, height - totalHeight / 2, 0]}
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick?.(tile.coord.q, tile.coord.r);
-          }}
-          onPointerEnter={handlePointerEnter}
-          onPointerLeave={handlePointerLeave}
-          geometry={getTileGeometry(totalHeight)}
-          visible={false} 
-        />
-      )}
+    <mesh 
+      position={[x, height - totalHeight / 2, z]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.(tile.coord.q, tile.coord.r);
+      }}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      geometry={getTileGeometry(totalHeight)}
+      visible={false} 
+    />
+  );
+});
 
-      {/* Terrain Features Usage removed individual waterfall, handled by WaterfallsInstanced */}
+const AttackIndicatorsInstanced = React.memo(({ coords }: { coords: {q: number, r: number}[] }) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  
+  useEffect(() => {
+    if (!meshRef.current || coords.length === 0) return;
+    const dummy = new THREE.Object3D();
+    coords.forEach((c, i) => {
+      const { x, y: z } = hexToPixel(c.q, c.r);
+      const height = 0.4; // Default/Max height for indicators
+      dummy.position.set(x, height + 0.045, z);
+      dummy.rotation.set(-Math.PI / 2, 0, Math.PI / 6);
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [coords]);
 
-      {/* Indicators */}
-      {isAttackRange && (
-        <PulsatingAttackIndicator height={height} geometry={attackRangeGeo} active={true} />
-      )}
-      {isPossibleMove && (
-        <mesh 
-          position={[0, height + ([TerrainType.MOUNTAIN, TerrainType.GOLD_MINE].includes(tile.terrain as any) ? 1.4 : 0.04), 0]} 
-          rotation={[-Math.PI / 2, 0, 0]} 
-          geometry={tile.terrain === TerrainType.FOREST ? forestMoveGeo : possibleMoveGeo} 
-          material={tile.terrain === TerrainType.FOREST ? forestMoveMat : possibleMoveMat} 
-        />
-      )}
+  useFrame(() => {
+    if (!meshRef.current || coords.length === 0) return;
+    const t = performance.now() / 1000;
+    const opacity = 0.25 + 0.5 * (Math.sin(t * 3) * 0.5 + 0.5);
+    (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
+  });
 
-      {/* Ownership indicator for settlements */}
-      {tile.ownerId !== null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && (
-        <mesh 
-          position={[0, height + 0.02, 0]} 
-          rotation={[-Math.PI / 2, 0, Math.PI / 6]} 
-          geometry={territoryRingGeo}
-          material={getBorderMaterial(playerColor)}
-        />
-      )}
+  if (coords.length === 0) return null;
 
-      {/* Recruitment Hint */}
-      {!unitAtHex && isCurrentPlayer && (tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.VILLAGE) && (
-        <Billboard position={[0, height + 0.5, 0]}>
-          <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">
-            ⊕
-          </Text>
-        </Billboard>
-      )}
+  return (
+    <instancedMesh 
+      ref={meshRef} 
+      args={[attackRangeGeo, attackIndicatorMat, coords.length]} 
+    />
+  );
+});
 
-      {/* Boat on Water adjacent to settlement */}
-      {tile.terrain === TerrainType.WATER && hasAdjacentSettlement && (
-        <Billboard position={[0, height + 0.2, 0]}>
-          <Text fontSize={0.6}>
-            ⛵
-          </Text>
-        </Billboard>
-      )}
+const PossibleMovesInstanced = React.memo(({ moves, boardMap }: { moves: {q: number, r: number}[], boardMap: Map<string, any> }) => {
+  const plainsMeshRef = useRef<THREE.InstancedMesh>(null);
+  const forestMeshRef = useRef<THREE.InstancedMesh>(null);
 
-      {/* Extended Range Indicator */}
-      {isExtendedRange && (
-        <Billboard position={[0, height + 0.8, 0]}>
-          <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold">
-            +
-          </Text>
-        </Billboard>
-      )}
+  const plainsMoves = useMemo(() => moves.filter(m => boardMap.get(`${m.q},${m.r}`)?.terrain !== TerrainType.FOREST), [moves, boardMap]);
+  const forestMoves = useMemo(() => moves.filter(m => boardMap.get(`${m.q},${m.r}`)?.terrain === TerrainType.FOREST), [moves, boardMap]);
 
-      {/* Strategic Evaluation Indicators - Updated to use Global Influence Map data */}
-      {strategicAnalysis && (
-        <group position={[0, height + 0.1, 0]}>
-          {(strategicAnalysis.opportunityMap[coordKey] > 0) && (
-            <mesh position={[-0.3, 0, 0]}>
-              <sphereGeometry args={[0.014 * Math.sqrt(Math.min(1000, strategicAnalysis.opportunityMap[coordKey])), 16, 16]} />
-              <meshBasicMaterial color="#22c55e" transparent opacity={0.6} />
-            </mesh>
-          )}
-          {(strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0) && (
-            <mesh position={[0.3, 0, 0]}>
-              <sphereGeometry args={[0.014 * Math.sqrt(Math.min(1000, strategicAnalysis.threatMap[coordKey].totalThreatValue)), 16, 16]} />
-              <meshBasicMaterial color="#ef4444" transparent opacity={0.6} />
-            </mesh>
-          )}
-          {isHovered && (strategicAnalysis.opportunityMap[coordKey] > 0 || strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0) && (
-            <Billboard position={[0, 1.5, 0]}>
-              <Text 
-                fontSize={0.5} 
-                color="white" 
-                outlineWidth={0.02} 
-                outlineColor="black"
-                maxWidth={3}
-                textAlign="center"
-              >
-                {`${strategicAnalysis.opportunityMap[coordKey] > 0 ? 'Opportunity: ' + Math.round(strategicAnalysis.opportunityMap[coordKey]) : ''}
-${strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0 ? 'Threat: ' + Math.round(strategicAnalysis.threatMap[coordKey].totalThreatValue) : ''}`}
-              </Text>
-            </Billboard>
-          )}
-        </group>
-      )}
+  useEffect(() => {
+    const dummy = new THREE.Object3D();
+    if (plainsMeshRef.current) {
+      plainsMoves.forEach((m, i) => {
+        const { x, y: z } = hexToPixel(m.q, m.r);
+        const tile = boardMap.get(`${m.q},${m.r}`);
+        const height = TERRAIN_HEIGHTS[tile?.terrain as TerrainType] || 0.4;
+        const elevation = [TerrainType.MOUNTAIN, TerrainType.GOLD_MINE].includes(tile?.terrain as any) ? 1.4 : 0.04;
+        dummy.position.set(x, height + elevation, z);
+        dummy.rotation.set(-Math.PI / 2, 0, 0);
+        dummy.updateMatrix();
+        plainsMeshRef.current!.setMatrixAt(i, dummy.matrix);
+      });
+      plainsMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (forestMeshRef.current) {
+      forestMoves.forEach((m, i) => {
+        const { x, y: z } = hexToPixel(m.q, m.r);
+        const height = TERRAIN_HEIGHTS[TerrainType.FOREST];
+        dummy.position.set(x, height + 0.04, z);
+        dummy.rotation.set(-Math.PI / 2, 0, 0);
+        dummy.updateMatrix();
+        forestMeshRef.current!.setMatrixAt(i, dummy.matrix);
+      });
+      forestMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [plainsMoves, forestMoves, boardMap]);
 
-      {/* Terrain Features */}
-      {tile.terrain === TerrainType.CASTLE && <CastleFeature position={[0, height, 0]} playerColor={playerColor} />}
-      {tile.terrain === TerrainType.FORTRESS && <FortressFeature position={[0, height, 0]} playerColor={playerColor} />}
-      {tile.terrain === TerrainType.VILLAGE && <VillageFeature position={[0, height, 0]} playerColor={playerColor} isClaimed={tile.ownerId !== null} />}
-      {tile.terrain === TerrainType.GOLD_MINE && <GoldMineFeature position={[0, height, 0]} />}
+  return (
+    <group>
+      {plainsMoves.length > 0 && <instancedMesh ref={plainsMeshRef} args={[possibleMoveGeo, possibleMoveMat, plainsMoves.length]} />}
+      {forestMoves.length > 0 && <instancedMesh ref={forestMeshRef} args={[forestMoveGeo, forestMoveMat, forestMoves.length]} />}
     </group>
   );
 });
 
+// SettlementOwnershipInstanced removed in favor of direct base tile coloring
+const StrategicIndicatorsInstanced = React.memo(({ analysis, board }: { analysis: any, board: any[] }) => {
+  const oppMeshRef = useRef<THREE.InstancedMesh>(null);
+  const threatMeshRef = useRef<THREE.InstancedMesh>(null);
+
+  const entries = useMemo(() => {
+    if (!analysis) return [];
+    return board.map(t => {
+      const key = `${t.coord.q},${t.coord.r}`;
+      return {
+        key,
+        coord: t.coord,
+        terrain: t.terrain,
+        opp: analysis.opportunityMap[key] || 0,
+        threat: analysis.threatMap[key]?.totalThreatValue || 0
+      };
+    }).filter(e => e.opp > 0 || e.threat > 0);
+  }, [analysis, board]);
+
+  useEffect(() => {
+    const dummy = new THREE.Object3D();
+    const oppEntries = entries.filter(e => e.opp > 0);
+    const threatEntries = entries.filter(e => e.threat > 0);
+
+    if (oppMeshRef.current) {
+      oppEntries.forEach((e, i) => {
+        const { x, y: z } = hexToPixel(e.coord.q, e.coord.r);
+        const height = TERRAIN_HEIGHTS[e.terrain as TerrainType] || 0.4;
+        const radius = 0.014 * Math.sqrt(Math.min(1000, e.opp));
+        dummy.position.set(x - 0.3, height + 0.1, z);
+        dummy.scale.set(radius, radius, radius);
+        dummy.updateMatrix();
+        oppMeshRef.current!.setMatrixAt(i, dummy.matrix);
+      });
+      oppMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (threatMeshRef.current) {
+      threatEntries.forEach((e, i) => {
+        const { x, y: z } = hexToPixel(e.coord.q, e.coord.r);
+        const height = TERRAIN_HEIGHTS[e.terrain as TerrainType] || 0.4;
+        const radius = 0.014 * Math.sqrt(Math.min(1000, e.threat));
+        dummy.position.set(x + 0.3, height + 0.1, z);
+        dummy.scale.set(radius, radius, radius);
+        dummy.updateMatrix();
+        threatMeshRef.current!.setMatrixAt(i, dummy.matrix);
+      });
+      threatMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [entries]);
+
+  if (!analysis) return null;
+
+  return (
+    <group>
+      <instancedMesh ref={oppMeshRef} args={[new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: "#22c55e", transparent: true, opacity: 0.6 }), entries.filter(e => e.opp > 0).length]} />
+      <instancedMesh ref={threatMeshRef} args={[new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.6 }), entries.filter(e => e.threat > 0).length]} />
+    </group>
+  );
+});
 
 // Map Bases Instanced for performance
-const MapBasesInstanced = React.memo(({ board, selectedHex, hoveredHex, onClick }: { board: any[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void }) => {
+const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex, onClick }: { board: any[], players: any[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   const hoverAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
@@ -329,7 +332,12 @@ const MapBasesInstanced = React.memo(({ board, selectedHex, hoveredHex, onClick 
       const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
       const depth = 2.0;
       const totalHeight = height + depth;
-      const baseColor = TERRAIN_COLORS[tile.terrain as TerrainType];
+      
+      let baseColor = TERRAIN_COLORS[tile.terrain as TerrainType];
+      // Graphics update: settlements show owner color on the base tile
+      if (tile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(tile.terrain as any)) {
+        baseColor = players[tile.ownerId].color;
+      }
 
       dummy.scale.set(1, totalHeight, 1);
       dummy.position.set(x, height - totalHeight / 2, z);
@@ -342,7 +350,7 @@ const MapBasesInstanced = React.memo(({ board, selectedHex, hoveredHex, onClick 
 
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  }, [nonWaterTiles]);
+  }, [nonWaterTiles, players]);
 
   useFrame((_state, delta) => {
     if (!meshRef.current || !selectionAttrRef.current || !hoverAttrRef.current) return;
@@ -1008,7 +1016,6 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
   const isSelectedCatapult = selectedUnit?.type === UnitType.CATAPULT;
 
   // Pre-calculate lookups for performance
-  const possibleMovesSet = useMemo(() => new Set(gameState.possibleMoves.map(m => `${m.q},${m.r}`)), [gameState.possibleMoves]);
   const possibleAttacksSet = useMemo(() => new Set(gameState.possibleAttacks.map(a => `${a.q},${a.r}`)), [gameState.possibleAttacks]);
   const attackRangeSet = useMemo(() => new Set(gameState.attackRange.map(r => `${r.q},${r.r}`)), [gameState.attackRange]);
   const unitsMap = useMemo(() => {
@@ -1104,8 +1111,8 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
             RIGHT: THREE.MOUSE.ROTATE
           }}
           touches={{
-            ONE: THREE.TOUCH.ROTATE,
-            TWO: THREE.TOUCH.DOLLY_PAN
+            ONE: THREE.TOUCH.PAN,
+            TWO: THREE.TOUCH.DOLLY_ROTATE
           }}
         />
         <CameraRotationTicker controls={controls} rotationActive={rotationActive} />
@@ -1117,6 +1124,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         {/* Render Board Bases (Instanced) */}
         <MapBasesInstanced 
           board={gameState.board} 
+          players={gameState.players}
           selectedHex={gameState.selectedHex}
           hoveredHex={hoveredHex}
           onClick={handleHexClick} 
@@ -1137,18 +1145,46 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         {/* Render Board Features (Instanced) */}
         <FeaturesInstanced board={gameState.board} />
 
+        {/* Recruitment Hints (Billboards) - still individual as they have text, but limited to settlements */}
+        {gameState.board.filter(t => !unitsMap.has(`${t.coord.q},${t.coord.r}`) && t.ownerId === currentPlayer.id && (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE)).map(t => {
+           const { x, y: z } = hexToPixel(t.coord.q, t.coord.r);
+           const height = TERRAIN_HEIGHTS[t.terrain as TerrainType];
+           return (
+             <Billboard key={`recruit-${t.coord.q}-${t.coord.r}`} position={[x, height + 0.5, z]}>
+               <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">
+                 ⊕
+               </Text>
+             </Billboard>
+           );
+        })}
+
+        {/* Global Attack Indicators */}
+        <AttackIndicatorsInstanced 
+          coords={gameState.attackRange}
+        />
+
+        {/* Possible Moves */}
+        <PossibleMovesInstanced 
+           moves={gameState.possibleMoves}
+           boardMap={boardMap}
+        />
+
+        {/* Strategic Indicators */}
+        <StrategicIndicatorsInstanced 
+          analysis={showStrategicView ? gameState.strategicAnalysis : null}
+          board={gameState.board}
+        />
+
         {/* Render Board */}
         {gameState.board.map((tile) => {
           const coordKey = `${tile.coord.q},${tile.coord.r}`;
-          const isSelected = gameState.selectedHex?.q === tile.coord.q && gameState.selectedHex?.r === tile.coord.r;
           const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
-          const isPossibleMove = possibleMovesSet.has(coordKey);
           const isPossibleAttack = possibleAttacksSet.has(coordKey);
-          const isAttackRange = attackRangeSet.has(coordKey);
           const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord, gameState.board) > UNIT_STATS[selectedUnit.type].range;
-          const unitAtHex = unitsMap.get(coordKey);
           
           let hasAdjacentSettlement = false;
+          const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
+          
           if (tile.terrain === TerrainType.WATER) {
             const neighbors = getNeighbors(tile.coord);
             hasAdjacentSettlement = neighbors.some(n => {
@@ -1160,27 +1196,43 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
             });
           }
 
-          const strategicAnalysisData = showStrategicView ? gameState.strategicAnalysis : undefined;
+          const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
 
           return (
-            <HexTile3D
-              key={`tile-${tile.coord.q}-${tile.coord.r}`}
-              tile={tile}
-              isSelected={isSelected}
-              isHovered={isHovered}
-              isPossibleMove={isPossibleMove}
-              isPossibleAttack={isPossibleAttack}
-              isAttackRange={isAttackRange}
-              isExtendedRange={isExtendedRange}
-              playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'}
-              hasAdjacentSettlement={hasAdjacentSettlement}
-              unitAtHex={unitAtHex}
-              isCurrentPlayer={tile.ownerId === currentPlayer.id}
-              strategicAnalysis={strategicAnalysisData}
-              onClick={handleHexClick}
-              onPointerEnter={setHoveredHex}
-              onPointerLeave={setHoveredHex}
-            />
+            <React.Fragment key={`tile-frag-${tile.coord.q}-${tile.coord.r}`}>
+              <HexTile3D
+                tile={tile}
+                onClick={handleHexClick}
+                onPointerEnter={setHoveredHex}
+                onPointerLeave={setHoveredHex}
+              />
+              
+              {/* Overlays that are harder to instance simply */}
+              {tile.terrain === TerrainType.WATER && hasAdjacentSettlement && (
+                <Billboard position={[x, height + 0.2, z]}>
+                  <Text fontSize={0.6}>⛵</Text>
+                </Billboard>
+              )}
+              {isExtendedRange && (
+                <Billboard position={[x, height + 0.8, z]}>
+                  <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold">+</Text>
+                </Billboard>
+              )}
+              {showStrategicView && isHovered && (gameState.strategicAnalysis.opportunityMap[coordKey] > 0 || gameState.strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0) && (
+                <Billboard position={[x, height + 1.5, z]}>
+                  <Text fontSize={0.5} color="white" outlineWidth={0.02} outlineColor="black" maxWidth={3} textAlign="center">
+                    {`${gameState.strategicAnalysis.opportunityMap[coordKey] > 0 ? 'Opportunity: ' + Math.round(gameState.strategicAnalysis.opportunityMap[coordKey]) : ''}
+${gameState.strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0 ? 'Threat: ' + Math.round(gameState.strategicAnalysis.threatMap[coordKey].totalThreatValue) : ''}`}
+                  </Text>
+                </Billboard>
+              )}
+
+              {/* Settlements - Still individual but simplified? No, let's keep them here for now until we instance them */}
+              {tile.terrain === TerrainType.CASTLE && <CastleFeature position={[x, height, z]} playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'} />}
+              {tile.terrain === TerrainType.FORTRESS && <FortressFeature position={[x, height, z]} playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'} />}
+              {tile.terrain === TerrainType.VILLAGE && <VillageFeature position={[x, height, z]} playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'} isClaimed={tile.ownerId !== null} />}
+              {tile.terrain === TerrainType.GOLD_MINE && <GoldMineFeature position={[x, height, z]} />}
+            </React.Fragment>
           );
         })}
 
