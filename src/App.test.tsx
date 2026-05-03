@@ -43,8 +43,8 @@ describe('App Component', () => {
     expect(screen.getByText(/Hex Medieval/i)).toBeInTheDocument();
   });
 
-  it('renders the Start Conquest button', () => {
+  it('renders the Start button', () => {
     render(<App />);
-    expect(screen.getByText(/Start Conquest/i)).toBeInTheDocument();
+    expect(screen.getByText(/Start/i)).toBeInTheDocument();
   });
 });
