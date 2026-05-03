@@ -84,7 +84,8 @@ export function useGameActions(
 
       const newBoard = prev.board.map(tile => {
         if (tile.coord.q === target.q && tile.coord.r === target.r) {
-          if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+          const isCapturableSettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== prev.players[prev.currentPlayerIndex].id;
+          if (isCapturableSettlement) {
             return { ...tile, ownerId: prev.players[prev.currentPlayerIndex].id };
           }
         }
@@ -92,12 +93,13 @@ export function useGameActions(
       });
 
       const targetTile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
-      const isCapturingSettlement = targetTile && targetTile.ownerId === null && (
+      const isSettlement = targetTile && (
         targetTile.terrain === TerrainType.VILLAGE || 
         targetTile.terrain === TerrainType.FORTRESS || 
         targetTile.terrain === TerrainType.CASTLE || 
         targetTile.terrain === TerrainType.GOLD_MINE
       );
+      const isCapturingSettlement = isSettlement && targetTile.ownerId !== prev.players[prev.currentPlayerIndex].id;
 
       const cost = getDistance(unit.coord, target, prev.board);
       const newMovesLeft = isCapturingSettlement ? 0 : Math.max(0, unit.movesLeft - cost);

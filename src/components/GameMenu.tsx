@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Settings, Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music, X } from 'lucide-react';
+import { Settings, Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music, X, HelpCircle } from 'lucide-react';
 import { GameButton } from './GameButton';
 
 interface GameMenuProps {
@@ -11,6 +11,7 @@ interface GameMenuProps {
   onLoad: () => void;
   onSaveDemo: () => void;
   onLoadDemo: () => void;
+  onShowHelp: () => void;
   musicVolume: number;
   setMusicVolume: (vol: number) => void;
   effectsVolume: number;
@@ -25,13 +26,14 @@ export const GameMenu = ({
   onLoad,
   onSaveDemo,
   onLoadDemo,
+  onShowHelp,
   musicVolume,
   setMusicVolume,
   effectsVolume,
   setEffectsVolume
 }: GameMenuProps) => {
   React.useEffect(() => {
-    // Esc key handling remains relevant
+    // Esc key handling
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -44,156 +46,137 @@ export const GameMenu = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 z-[9999] overflow-y-auto pt-10 pb-20 px-4"
+      className="menu-overlay"
     >
-      <div className="min-h-full flex items-center justify-center">
-        <motion.div 
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          className="neo-brutalist-card-lg max-w-md w-full relative"
+      <motion.div 
+        initial={{ scale: 0.95, x: 40, opacity: 0 }}
+        animate={{ scale: 1, x: 0, opacity: 1 }}
+        exit={{ scale: 0.95, x: 40, opacity: 0 }}
+        className="menu-card"
+      >
+        <button 
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1.5 hover:bg-black/5 rounded-full transition-colors z-20"
+          aria-label="Close menu"
         >
-          <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
-              <button 
-                onClick={onClose}
-                className="absolute top-2 right-2 p-1 hover:bg-black/5 rounded-full transition-colors"
-                aria-label="Close menu"
-              >
-                <X size={24} />
-              </button>
-              <div className="grayscale opacity-40 pointer-events-none select-none">
-                <Settings size={75} />
+          <X size={20} />
+        </button>
+
+        <div className="flex items-center gap-3 mb-4 border-b-2 border-black pb-2">
+          <div>
+            <h2 className="text-xl font-black tracking-tight leading-none">Game menu</h2>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          {/* Volume Section */}
+          <div className="space-y-3 bg-black/5 p-3 rounded-xl border border-black/5">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm font-black tracking-normal">
+                <div className="flex items-center gap-1.5 opacity-60">
+                  <Music size={14} />
+                  <span>Music</span>
+                </div>
+                <span className="bg-white px-2 rounded border border-black/10 font-mono">{Math.round(musicVolume * 100)}%</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-center" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
-                Game Menu
-              </h2>
+              <input 
+                type="range" 
+                min="0" 
+                max="1" 
+                step="0.05" 
+                value={musicVolume}
+                onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                className="w-full h-2 bg-stone-300 rounded-full appearance-none cursor-pointer accent-black"
+              />
             </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm font-black tracking-normal">
+                <div className="flex items-center gap-1.5 opacity-60">
+                  <Volume2 size={14} />
+                  <span>Effects</span>
+                </div>
+                <span className="bg-white px-2 rounded border border-black/10 font-mono">{Math.round(effectsVolume * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max="1" 
+                step="0.05" 
+                value={effectsVolume}
+                onChange={(e) => setEffectsVolume(parseFloat(e.target.value))}
+                className="w-full h-2 bg-stone-300 rounded-full appearance-none cursor-pointer accent-black"
+              />
+            </div>
+          </div>
+
+          {/* Actions Grid */}
+          <div className="grid grid-cols-2 gap-2">
+            <GameButton onClick={onSave} variant="ghost" className="border-2 border-black py-2 !text-lg font-black bg-white" icon={<Save size={18} />}>
+              Save
+            </GameButton>
+            <GameButton onClick={onLoad} variant="ghost" className="border-2 border-black py-2 !text-lg font-black bg-white" icon={<Upload size={18} />}>
+              Load
+            </GameButton>
+            <GameButton onClick={onSaveDemo} variant="ghost" className="border-2 border-black py-2 text-sm font-bold bg-white/50" icon={<Save size={16} />}>
+              Save (.hexd)
+            </GameButton>
+            <GameButton onClick={onLoadDemo} variant="ghost" className="border-2 border-black py-2 text-sm font-bold bg-white/50" icon={<Upload size={16} />}>
+              Load (.hexd)
+            </GameButton>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-black/10">
+            <GameButton 
+              onClick={onShowHelp}
+              variant="ghost"
+              fullWidth
+              className="border-2 border-black justify-between py-2 px-4 bg-white hover:bg-stone-50"
+            >
+              <div className="flex items-center gap-2">
+                <HelpCircle size={18} />
+                <span className="text-base font-black">How to Play</span>
+              </div>
+              <ChevronRight size={18} />
+            </GameButton>
+
+            <GameButton 
+              onClick={onExitCurrent}
+              variant="ghost"
+              fullWidth
+              className="border-2 border-black justify-between py-2 px-4 bg-white hover:bg-stone-50"
+            >
+              <div className="flex items-center gap-2">
+                <RotateCcw size={18} />
+                <span className="text-base font-black">Exit player</span>
+              </div>
+              <ChevronRight size={18} />
+            </GameButton>
             
-            <div className="space-y-3">
-              {/* Volume Sliders */}
-              <div className="neo-brutalist-section mb-4 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm font-black tracking-widest gap-2">
-                    <div className="flex items-center gap-2">
-                      <Music size={18} />
-                      <span>Music volume</span>
-                    </div>
-                    <div className="flex-1" />
-                    <span>{Math.round(musicVolume * 100)}%</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.01" 
-                    value={musicVolume}
-                    onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-stone-300 rounded-none appearance-none cursor-pointer accent-black border border-black"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm font-black tracking-widest">
-                    <div className="flex items-center gap-2">
-                      <Volume2 size={18} />
-                      <span>Effects volume</span>
-                    </div>
-                    <span>{Math.round(effectsVolume * 100)}%</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.01" 
-                    value={effectsVolume}
-                    onChange={(e) => setEffectsVolume(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-stone-300 rounded-none appearance-none cursor-pointer accent-black border border-black"
-                  />
-                </div>
+            <GameButton 
+              onClick={onExitAll}
+              variant="danger"
+              fullWidth
+              className="border-2 border-black justify-between py-2 px-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <X size={18} />
+                <span className="text-base font-black">Quit Game</span>
               </div>
-
-              <GameButton 
-                onClick={onSave}
-                variant="ghost"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<Save size={25} />}
-              >
-                <span>Save game</span>
-                <ChevronRight size={25} />
-              </GameButton>
-
-              <GameButton 
-                onClick={onLoad}
-                variant="ghost"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<Upload size={25} />}
-              >
-                <span>Load game</span>
-                <ChevronRight size={25} />
-              </GameButton>
-
-              <div className="h-px bg-black/20 my-2" />
-
-              <GameButton 
-                onClick={onSaveDemo}
-                variant="ghost"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<Save size={20} />}
-              >
-                <span>Save demo (.hexd)</span>
-                <ChevronRight size={20} />
-              </GameButton>
-
-              <GameButton 
-                onClick={onLoadDemo}
-                variant="ghost"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<Upload size={20} />}
-              >
-                <span>Load demo (.hexd)</span>
-                <ChevronRight size={20} />
-              </GameButton>
-
-              <div className="h-px bg-black/20 my-2" />
-
-              <GameButton 
-                onClick={onExitCurrent}
-                variant="ghost"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<RotateCcw size={25} />}
-              >
-                <span>Exit current player</span>
-                <ChevronRight size={25} />
-              </GameButton>
-              
-              <GameButton 
-                onClick={onExitAll}
-                variant="danger"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<RotateCcw size={20} />}
-              >
-                <span>Exit all (reset game)</span>
-                <ChevronRight size={20} />
-              </GameButton>
-              
-              <GameButton 
-                onClick={onClose}
-                variant="primary"
-                fullWidth
-                className="border-2 border-black justify-between"
-                icon={<Play size={25} />}
-              >
-                <span>Return to game</span>
-                <ChevronRight size={25} />
-              </GameButton>
-            </div>
-          </motion.div>
+            </GameButton>
+            
+            <GameButton 
+              onClick={onClose}
+              variant="primary"
+              fullWidth
+              className="border-2 border-black py-3 mt-1 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+              icon={<Play size={20} />}
+            >
+              <span className="text-lg font-black tracking-tight">Resume</span>
+            </GameButton>
+          </div>
         </div>
       </motion.div>
-    );
-  };
+    </motion.div>
+  );
+};

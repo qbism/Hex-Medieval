@@ -494,9 +494,9 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-gradient-to-b from-[#43e3ff] via-[#0e5984] to-[#1f0606] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
-      <div className="h-full w-full flex flex-col lg:flex-row">
+      <div className="h-full w-full flex flex-col landscape:flex-row">
         {/* Main Game Area - Always visible */}
-        <div className="flex-1 relative bg-transparent order-2 lg:order-1" ref={stageContainerRef}>
+        <div className="flex-1 relative bg-transparent" ref={stageContainerRef}>
           <Game3D 
             gameState={gameState}
             hoveredHex={hoveredHex}
@@ -509,32 +509,9 @@ export default function App() {
           />
         </div>
 
-        {/* Game Over Overlay */}
-        {!setupMode && (
-          <GameOverOverlay 
-            gameState={gameState}
-            onExit={() => {
-              setSetupMode(true);
-              setGameState(createInitialState(playerConfigs));
-            }}
-            setGameState={setGameState}
-            triggerBarbarianInvasion={triggerBarbarianInvasion}
-          />
-        )}
-
         {/* Sidebar / Top Bar space */}
-        <AnimatePresence mode="wait">
-          {setupMode ? (
-            <SetupScreen 
-              key="setup"
-              playerConfigs={playerConfigs}
-              setPlayerConfigs={setPlayerConfigs}
-              startGame={handleStartGame}
-              handleLoadWithConfirmation={handleLoadWithConfirmation}
-              setShowInstructions={setShowInstructions}
-              COLORS={COLORS}
-            />
-          ) : (
+        <AnimatePresence>
+          {!setupMode && (
             <Sidebar 
               key="sidebar"
               gameState={gameState}
@@ -556,6 +533,65 @@ export default function App() {
       </div>
 
       {/* Global Overlays */}
+      {!setupMode && (
+        <GameOverOverlay 
+          gameState={gameState}
+          onExit={() => {
+            setSetupMode(true);
+            setGameState(createInitialState(playerConfigs));
+          }}
+          setGameState={setGameState}
+          triggerBarbarianInvasion={triggerBarbarianInvasion}
+        />
+      )}
+      <AnimatePresence>
+        {setupMode && (
+          <SetupScreen 
+            key="setup"
+            playerConfigs={playerConfigs}
+            setPlayerConfigs={setPlayerConfigs}
+            startGame={handleStartGame}
+            handleLoadWithConfirmation={handleLoadWithConfirmation}
+            setShowInstructions={setShowInstructions}
+            COLORS={COLORS}
+          />
+        )}
+        
+        {showMenu && !setupMode && (
+          <GameMenu 
+            key="game-menu"
+            onClose={() => setShowMenu(false)} 
+            onExitCurrent={handleExitCurrent}
+            onExitAll={handleExitAll}
+            onSave={handleSave}
+            onLoad={handleLoadWithConfirmation}
+            onSaveDemo={handleSaveDemo}
+            onLoadDemo={handleLoadDemoWithConfirmation}
+            onShowHelp={() => {
+              setShowInstructions(true);
+              setShowMenu(false);
+            }}
+            musicVolume={musicVolume}
+            setMusicVolume={setMusicVolume}
+            effectsVolume={effectsVolume}
+            setEffectsVolume={setEffectsVolume}
+          />
+        )}
+
+        {showInstructions && (
+          <HelpModal key="help-modal" onClose={() => setShowInstructions(false)} />
+        )}
+
+        {confirmation.isOpen && (
+          <ConfirmationDialog
+            key="conf-dialog"
+            onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+            onConfirm={confirmation.onConfirm}
+            title={confirmation.title}
+            message={confirmation.message}
+          />
+        )}
+      </AnimatePresence>
       {gameState?.isPlaybackMode && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-parchment border-4 border-black p-4 flex items-center gap-4 z-[100] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
           <div className="text-sm font-black tracking-widest mr-4">
@@ -580,43 +616,6 @@ export default function App() {
         </div>
       )}
 
-      <AnimatePresence key="instr-anim">
-        {showInstructions && (
-          <HelpModal key="help-modal" onClose={() => setShowInstructions(false)} />
-        )}
-      </AnimatePresence>
-      
-      <AnimatePresence key="menu-anim">
-        {showMenu && (
-          <GameMenu 
-            key="game-menu"
-            onClose={() => setShowMenu(false)} 
-            onExitCurrent={handleExitCurrent}
-            onExitAll={handleExitAll}
-            onSave={handleSave}
-            onLoad={handleLoadWithConfirmation}
-            onSaveDemo={handleSaveDemo}
-            onLoadDemo={handleLoadDemoWithConfirmation}
-            musicVolume={musicVolume}
-            setMusicVolume={setMusicVolume}
-            effectsVolume={effectsVolume}
-            setEffectsVolume={setEffectsVolume}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence key="confirm-anim">
-        {confirmation.isOpen && (
-          <ConfirmationDialog
-            key="conf-dialog"
-            onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
-            onConfirm={confirmation.onConfirm}
-            title={confirmation.title}
-            message={confirmation.message}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Error Dialog */}
       <AnimatePresence>
         {error && (
@@ -624,14 +623,13 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 z-[10000] overflow-y-auto py-8 px-4"
+            className="menu-overlay"
           >
-            <div className="min-h-full flex items-center justify-center">
-              <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                className="bg-parchment border-2 border-black p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative"
-              >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="menu-card max-w-md"
+            >
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-red-100 border-2 border-black">
                   <AlertTriangle className="text-red-600" size={32} />
@@ -650,8 +648,7 @@ export default function App() {
                 Dismiss
               </GameButton>
             </motion.div>
-          </div>
-        </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

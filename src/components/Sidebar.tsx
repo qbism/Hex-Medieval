@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import { 
   Volume2, 
   VolumeX, 
-  HelpCircle, 
   Settings, 
   Coins, 
   PlusCircle, 
@@ -49,7 +48,7 @@ export const Sidebar = ({
   currentPlayer,
   isMuted,
   setIsMuted,
-  setShowInstructions,
+  setShowInstructions: _setShowInstructions,
   setShowMenu,
   recruitUnit,
   upgradeSettlement,
@@ -61,99 +60,80 @@ export const Sidebar = ({
 }: SidebarProps) => {
   if (!currentPlayer) return null;
   return (
-    <div 
+    <motion.div 
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
       className={cn(
-        "z-20 bg-parchment border-black flex shadow-2xl transition-all duration-300 order-1 lg:order-2",
-        // Mobile: Top horizontal
-        "w-full h-44 flex-row overflow-x-auto border-b-2",
-        // Desktop: Right vertical
-        "lg:h-full lg:w-80 lg:flex-col lg:overflow-hidden lg:border-l-2 lg:border-b-0"
+        "z-[60] bg-parchment border-black flex transition-all duration-300",
+        // Portrait: Floating at top
+        "portrait:fixed portrait:top-0 portrait:left-0 portrait:right-0 portrait:h-32 portrait:flex portrait:flex-row portrait:items-stretch portrait:border-b-4 portrait:overflow-x-auto portrait:overflow-y-hidden portrait:shadow-xl portrait:px-2",
+        // Landscape: Side panel
+        "landscape:relative landscape:top-0 landscape:right-0 landscape:h-full landscape:w-64 landscape:flex-col landscape:border-b-0 landscape:border-l-4 landscape:overflow-hidden landscape:shadow-none landscape:px-0 landscape:mt-0"
       )}
       style={{
         clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px)'
       }}
     >
       {/* HUD Section */}
-      <div className="p-1.5 border-r lg:border-r-0 lg:border-b-2 border-black/10 bg-parchment/50 space-y-1 w-64 lg:w-full flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-black shadow-sm flex-shrink-0" style={{ backgroundColor: currentPlayer.color }} />
-            <div className="relative overflow-hidden neo-brutalist-card-sm bg-stone-100 px-2 py-0.5 flex flex-col items-center">
-              <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                <span className="text-[24px]">🏰</span>
-              </div>
-              <p className="relative text-sm font-black leading-none tracking-tight z-10" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
-                {COLOR_NAMES[currentPlayer.color]}
-              </p>
+      <div className="p-2 flex flex-row landscape:flex-col items-center landscape:items-stretch border-r landscape:border-r-0 landscape:border-b-2 border-black/10 bg-parchment/50 gap-3 landscape:gap-4 w-fit landscape:w-full flex-shrink-0">
+        <div className="flex flex-col landscape:w-full">
+          <div className="grid grid-cols-[auto_1fr_auto] gap-x-1.5 gap-y-1.5 landscape:gap-x-2 landscape:gap-y-2 items-center">
+            {/* Row 1: Identity, Treasury, Mute */}
+            <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-black shadow-sm bg-white" title="Your Color">
+              <div className="w-6 h-6 rounded-full border border-black/20" style={{ backgroundColor: currentPlayer.color }} />
             </div>
-          </div>
-          <div className="flex items-center gap-1">
+
+            <div className="flex items-center gap-1 p-1.5 neo-brutalist-card-sm bg-white flex-1 h-10 overflow-hidden" title="Treasury & Income">
+              <Coins size={16} className="text-amber-600 flex-shrink-0" />
+              <div className="flex items-baseline gap-1 min-w-0">
+                <span className="text-sm font-black truncate">{currentPlayer.gold}</span>
+                <span className="text-[10px] font-black text-green-700 whitespace-nowrap">
+                  +{calculateIncome(currentPlayer, gameState.board)}
+                </span>
+              </div>
+            </div>
+
             <GameButton 
               onClick={() => setIsMuted(!isMuted)}
               variant="ghost"
               size="icon"
-              className="p-1.5 border border-black/10 bg-white shadow-sm"
+              className="w-10 h-10 p-2 border border-black/10 bg-white shadow-sm hover:bg-stone-50"
               title={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </GameButton>
-            <GameButton 
-              onClick={() => setShowInstructions(true)}
-              variant="ghost"
-              size="icon"
-              className="p-1.5 text-stone-500 hover:text-black border border-black/10 bg-white shadow-sm"
-              title="Help"
-            >
-              <HelpCircle size={18} />
-            </GameButton>
+
+            {/* Row 2: Strategic View, Strength, Menu */}
             <GameButton 
               onClick={() => setShowStrategicView(!showStrategicView)}
-              variant="ghost"
+              variant={showStrategicView ? "primary" : "ghost"}
               size="icon"
               className={cn(
-                "p-1.5 border border-black/10 shadow-sm transition-colors",
-                showStrategicView ? "bg-blue-100 text-blue-900 border-blue-300" : "bg-white text-stone-700"
+                "w-10 h-10 p-2 border border-black/10 shadow-sm",
+                showStrategicView ? "bg-blue-600 text-white" : "bg-white hover:bg-stone-50"
               )}
-              title={showStrategicView ? "Hide Strategic View" : "Show Strategic View"}
+              title="Strategic View"
             >
               {showStrategicView ? <Eye size={18} /> : <EyeOff size={18} />}
             </GameButton>
+
+            <div className="flex items-center gap-1.5 p-1.5 neo-brutalist-card-sm bg-white flex-1 h-10 overflow-hidden" title="Military Strength">
+              <Sword size={16} className="text-red-600 flex-shrink-0" />
+              <span className="text-sm font-black truncate">
+                {calculateStrength(currentPlayer.id, gameState.units)}
+              </span>
+            </div>
+
             <GameButton 
               onClick={() => setShowMenu(true)}
               variant="ghost"
               size="icon"
-              className="p-1.5 text-stone-700 hover:text-black border border-black/10 bg-white shadow-sm"
+              className="w-10 h-10 p-2 text-stone-700 hover:text-black border border-black/10 bg-white shadow-sm hover:bg-stone-50"
               title="Game Menu"
             >
               <Settings size={18} />
             </GameButton>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5">
-          <div className="flex flex-col p-1 neo-brutalist-card-sm">
-            <div className="flex items-center gap-2">
-              <Coins size={18} className="text-amber-600" />
-              <span className="text-lg font-black">
-                {currentPlayer.gold}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <PlusCircle size={15} className="text-green-600" />
-              <span className="text-sm font-black text-green-700">
-                +{calculateIncome(currentPlayer, gameState.board)}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col p-1 neo-brutalist-card-sm">
-            <div className="flex items-center gap-2">
-              <Sword size={18} className="text-red-600" />
-              <span className="text-lg font-black">
-                {calculateStrength(currentPlayer.id, gameState.units)}
-              </span>
-            </div>
-            <p className="text-sm font-black opacity-50 leading-none">Power</p>
           </div>
         </div>
       </div>
@@ -185,22 +165,22 @@ export const Sidebar = ({
                         <div className="p-1 neo-brutalist-card-sm border-black/20">
                           <div className="flex items-center gap-2.5">
                             <div className="w-6 h-6 rounded-full border-2 border-black" style={{ backgroundColor: occupant.color }} />
-                            <p className="font-black text-sm tracking-tight" style={{ color: occupant.color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
+                            <p className="font-black text-base tracking-tight" style={{ color: occupant.color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                               {COLOR_NAMES[occupant.color]} Empire
                             </p>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2 mt-1">
                             <div className="flex flex-col">
-                              <div className="flex items-center gap-1 text-amber-700">
-                                <Coins size={14} />
-                                <span className="text-sm font-black">+{calculateIncome(occupant, gameState.board)}</span>
+                              <div className="flex items-center gap-1.5 text-amber-700">
+                                <Coins size={16} />
+                                <span className="text-base font-black">+{calculateIncome(occupant, gameState.board)}</span>
                               </div>
                               <p className="text-sm font-black opacity-40">Total income</p>
                             </div>
                             <div className="flex flex-col">
-                              <div className="flex items-center gap-1 text-red-700">
-                                <Sword size={15} />
-                                <span className="text-sm font-black">{calculateStrength(occupant.id, gameState.units)}</span>
+                              <div className="flex items-center gap-1.5 text-red-700">
+                                <Sword size={16} />
+                                <span className="text-base font-black">{calculateStrength(occupant.id, gameState.units)}</span>
                               </div>
                               <p className="text-sm font-black opacity-40">Power</p>
                             </div>
@@ -287,22 +267,22 @@ export const Sidebar = ({
                                 <div className="flex items-center gap-2">
                                   <span className="text-xl">{UNIT_ICONS[type]}</span>
                                   <div className="text-left">
-                                    <p className="font-black text-sm leading-none">{type}</p>
-                                    <div className="flex items-center gap-1.5">
+                                    <p className="font-black text-base leading-none">{type}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
                                       <div className="flex items-center gap-0.5">
-                                        <RotateCcw size={15} className="text-blue-600" />
+                                        <RotateCcw size={14} className="text-blue-600" />
                                         <span className="text-sm font-bold">{stats.moves}</span>
                                       </div>
                                       <div className="flex items-center gap-0.5">
-                                        <Sword size={15} className="text-red-600" />
+                                        <Sword size={14} className="text-red-600" />
                                         <span className="text-sm font-bold">{stats.range}</span>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex items-right gap-1 bg-amber-100 px-1.5 py-0.5 rounded-lg border-2 border-amber-300">
-                                  <Coins size={15} className="text-amber-700" />
-                                  <span className="text-sm font-black text-amber-900">{stats.cost}</span>
+                                <div className="flex items-right gap-1 bg-amber-100 px-2 py-1 rounded-lg border-2 border-amber-300">
+                                  <Coins size={16} className="text-amber-700" />
+                                  <span className="text-base font-black text-amber-900">{stats.cost}</span>
                                 </div>
                               </GameButton>
                             );
@@ -345,14 +325,14 @@ export const Sidebar = ({
                               )}
                             >
                               <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-white rounded-lg border-2 border-black flex items-center justify-center">
-                                  <PlusCircle size={20} className="text-blue-600" />
+                                <div className="w-8 h-8 bg-white rounded-lg border-2 border-black flex items-center justify-center">
+                                  <PlusCircle size={22} className="text-blue-600" />
                                 </div>
-                                <p className="font-black text-sm">{label}</p>
+                                <p className="font-black text-base">{label}</p>
                               </div>
-                              <div className="flex items-center gap-1 bg-amber-100 px-1.5 py-0.5 rounded-lg border-2 border-amber-300">
-                                <Coins size={14} className="text-amber-700" />
-                                <span className="text-sm font-black text-amber-900">{cost}</span>
+                              <div className="flex items-center gap-1 bg-amber-100 px-2 py-1 rounded-lg border-2 border-amber-300">
+                                <Coins size={16} className="text-amber-700" />
+                                <span className="text-base font-black text-amber-900">{cost}</span>
                               </div>
                             </GameButton>
                           );
@@ -365,16 +345,16 @@ export const Sidebar = ({
             </motion.div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-6">
-            <div className="text-5xl mb-3 grayscale">🏰</div>
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-4">
+            <div className="text-4xl mb-2 grayscale">🏰</div>
             <div>
-              <div className="relative overflow-hidden neo-brutalist-card-sm bg-stone-100 px-3 py-1.5 mb-2 flex flex-col items-center">
+              <div className="relative overflow-hidden neo-brutalist-card-sm bg-stone-100 px-2 py-1 mb-1.5 flex flex-col items-center">
                 <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                  <span className="text-[32px]">🏰</span>
+                  <span className="text-[24px]">🏰</span>
                 </div>
-                <p className="relative text-sm font-black tracking-widest z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
+                <p className="relative text-base font-black tracking-normal z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
               </div>
-              <p className="text-sm font-bold">Select a tile or unit to begin</p>
+              <p className="text-base font-bold whitespace-nowrap">Select tile or unit</p>
             </div>
           </div>
         )}
@@ -382,17 +362,17 @@ export const Sidebar = ({
 
       {/* Footer Actions */}
       {!gameState.isPlaybackMode && (
-        <div className="p-1 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 space-y-1 w-48 lg:w-full flex-shrink-0">
+        <div className="p-1 px-2 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 flex flex-row lg:flex-col landscape:flex-col items-center gap-1 lg:space-y-1 landscape:space-y-1 w-fit lg:w-full landscape:w-full flex-shrink-0">
           {!currentPlayer.isAutomaton && gameState.history && gameState.history.length > 0 && (
             <GameButton 
               onClick={undoMove}
               variant="parchment"
               size="sm"
               fullWidth
-              className="py-2 text-sm border-2 border-black"
-              icon={<RotateCcw size={15} />}
+              className="h-full lg:h-auto landscape:h-auto py-1 px-3 lg:py-2 landscape:py-2 text-sm border-2 border-black font-black"
+              icon={<RotateCcw size={14} />}
             >
-              Undo move
+              Undo
             </GameButton>
           )}
           {!currentPlayer.isAutomaton && (
@@ -402,10 +382,12 @@ export const Sidebar = ({
               variant="primary"
               size="md"
               fullWidth
-              className="py-3 text-sm"
+              className="h-full lg:h-auto landscape:h-auto py-1 px-5 lg:py-3 landscape:py-3 text-sm lg:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] lg:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] landscape:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
             >
-              {currentPlayer.isAutomaton ? automatonStatus : "End turn"}
-              {!currentPlayer.isAutomaton && <ChevronRight size={20} className="ml-2 inline" />}
+              <span className="whitespace-nowrap">
+                {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
+              </span>
+              {!currentPlayer.isAutomaton && <ChevronRight size={18} className="ml-1 inline" />}
             </GameButton>
           )}
           {currentPlayer.isAutomaton && (
@@ -414,13 +396,13 @@ export const Sidebar = ({
               variant="primary"
               size="md"
               fullWidth
-              className="py-3 text-sm"
+              className="h-full lg:h-auto landscape:h-auto py-1 px-5 lg:py-3 landscape:py-3 text-sm lg:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] lg:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] landscape:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
             >
-              {automatonStatus}
+              <span className="whitespace-nowrap">{automatonStatus}</span>
             </GameButton>
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

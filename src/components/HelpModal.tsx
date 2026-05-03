@@ -17,14 +17,13 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 z-[9999] overflow-y-auto py-8 px-4"
+      className="menu-overlay"
     >
-      <div className="min-h-full flex items-center justify-center">
-        <motion.div 
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          className="bg-parchment border-2 border-black p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative"
-        >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="menu-card max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
           <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
               <div className="grayscale opacity-40 pointer-events-none select-none">
                 <span className="text-[60px]">🏰</span>
@@ -229,7 +228,6 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
             </div>
           </div>
         </motion.div>
-      </div>
       <AnimatePresence>
         {isAutomatonModalOpen && (
           <AutomatonHelpModal 

@@ -102,21 +102,30 @@ In addition to the mathematical core, the AI uses several tuned heuristics:
 
 ---
 
-## Technical Notes: Expressive Music Engine (`src/services/musicEngine.ts`)
+## Technical Notes: Expressive Music Engine (`src/music-library/`)
 
-The game features a custom-built, real-time procedural music engine that simulates a full medieval quartet.
+The game features a custom-built, real-time procedural music engine powered by `webaudio-tinysynth`. It simulates an 8-channel medieval ensemble rather than static audio files.
 
-### 1. 4-Part Quartet Polyphony
-*   **Cantus (Lead):** High-register Lute or Shawm, carrying the main melodic themes.
-*   **Altus (Counter):** Mid-high Recorder, providing flowing counter-melodies.
-*   **Tenor (Harmonic):** Mid-low Recorder, supporting the harmony with sustained tones.
-*   **Bassus (Foundation):** Low-register Viol or Hurdy-Gurdy, providing the rhythmic and tonal anchor.
-*   **Percussion:** Background frame drums or tambourines that join during intense sections.
+### 1. Procedural Arrangement & Instrumentation
+*   **Melodic Core:** Features a rotating Lead (Lute/Shawm) and Counter (Recorder) that generate lyrical melodies using Markov-chain-influenced note selection.
+*   **Atmospheric Texture:** Uses a combination of Choir Pads (Tenor), Tremolo Strings, and Pipe Organ to provide harmonic depth.
+*   **Foundation:** A Bass Viol/Hurdy-Gurdy providing rhythmic anchoring alongside specialized Bell and Percussion tracks.
+*   **Musical Variety:** Instruments are dynamically shuffled, and structural parameters (tempo, density, modal scale) are randomized for every song.
 
-### 2. Structured Composition & Dynamic Shuffling
-*   **Song Structure:** Songs are generated with a clear architectural structure (e.g., A-B-A-C-A).
-*   **Musical Variety:** Instruments are dynamically shuffled and structural parameters (tempo, density, reverb) are randomized for every song, ensuring the soundtrack never sounds repetitive.
-*   **Historical Pieces:** The engine includes a library of public domain medieval melodies (e.g., "Palästinalied," "L'homme armé") which are served through a shuffled playlist system.
+### 2. Compositional Structure
+*   **Macro-Structure:** Songs are generated with a clear architectural layout (Intro -> Theme A -> Theme B -> Solo -> Duet -> Outro).
+*   **Modes & Grooves:** The engine automatically shifts between historical modes (Dorian, Aeolian, etc.) and rhythmic grooves (Driving March vs. Fluid Triple Meter).
+*   **Historical Integration:** Melodies are procedural but frequently reference a library of public domain medieval pieces (e.g., "Palästinalied," "L'homme armé") through specialized MIDI pattern injection.
+
+---
+
+## Technical Notes: Graphics & Visual FX (`src/components/WaterSurfaceEffect.tsx`)
+
+The visual style is "Retro-Brutalist 3D," utilizing modern rendering techniques to achieve a distinctive lo-fi feel.
+
+*   **Procedural Water Shader:** Water tiles use a custom GLSL material that calculates vertex displacement (sine-wave oscillation) and fragment-level noise. This creates a shimmering, animated surface with procedural "drip" particles and edge foam.
+*   **Instanced Mesh Pipeline:** To handle the potentially massive number of hexes, the engine uses **Instanced Rendering** for terrain and water. This allows the GPU to render thousands of identical geometries in a single draw call, maintaining a steady 60fps even on "Gargantuan" map sizes.
+*   **Strategic Overlay:** The graphics engine integrates directly with the AI's influence maps, allowing for the "Strategic View" overlay where terrain is tinted based on real-time threat perception.
 
 ---
 
