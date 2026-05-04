@@ -161,7 +161,8 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
     if (targetUnit) {
       const targetValue = UNIT_STATS[targetUnit.type].cost;
-      priority = targetValue;
+      // Always give a base reward for engaging enemy units to prevent the AI from ignoring them in favor of distant expansions
+      priority = targetValue + config.BASE_REWARD * 20.0;
       
       const potentialAttackers = otherFriendlyUnits.filter(u => {
         if (u.hasActed) return false;
@@ -858,7 +859,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
         const targetUnit = unitsMap.get(`${a.q},${a.r}`);
         const targetTile = boardMap.get(`${a.q},${a.r}`);
         let val = 0;
-        if (targetUnit) val = UNIT_STATS[targetUnit.type].cost;
+        if (targetUnit) val = UNIT_STATS[targetUnit.type].cost + config.BASE_REWARD * 20.0;
         else if (targetTile) val = SETTLEMENT_INCOME[targetTile.terrain as TerrainType] * HORIZON;
         
         if (val > maxVal) {

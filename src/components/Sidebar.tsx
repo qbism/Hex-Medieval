@@ -88,7 +88,7 @@ export const Sidebar = ({
               <Coins size={16} className="text-amber-600 flex-shrink-0" />
               <div className="flex items-baseline gap-1 min-w-0">
                 <span className="text-sm font-black truncate">{currentPlayer.gold}</span>
-                <span className="text-[10px] font-black text-green-700 whitespace-nowrap">
+                <span className="text-[1em] font-black text-green-700 whitespace-nowrap">
                   +{calculateIncome(currentPlayer, gameState.board)}
                 </span>
               </div>

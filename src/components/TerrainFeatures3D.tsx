@@ -1,100 +1,26 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-
-// Shared Geometries and Materials for Terrain Features
-export const forestCone1 = new THREE.ConeGeometry(0.2, 0.7, 5);
-export const forestCone2 = new THREE.ConeGeometry(0.28, 0.9, 5);
-export const forestCone3 = new THREE.ConeGeometry(0.18, 0.6, 5);
-export const forestMat = new THREE.MeshStandardMaterial({ color: "#044738" });
-const vineMat = new THREE.MeshStandardMaterial({ color: "#066342" });
-const thornGeo = new THREE.ConeGeometry(0.02, 0.08, 3);
-
-export const mountainCone1 = new THREE.ConeGeometry(0.69, 1.15, 4);
-export const mountainMat = new THREE.ShaderMaterial({
-  uniforms: {
-    colorBase: { value: new THREE.Color("#676767") },
-    colorSnow: { value: new THREE.Color("#f0f0f0") }
-  },
-  vertexShader: `
-    varying vec3 vPosition;
-    void main() {
-      vPosition = position;
-      #ifdef USE_INSTANCING
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-      #else
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      #endif
-    }
-  `,
-  fragmentShader: `
-    uniform vec3 colorBase;
-    uniform vec3 colorSnow;
-    varying vec3 vPosition;
-    void main() {
-      // mountainCone1 height is 1.15, centered at origin
-      float h = vPosition.y; 
-      // Reduced snow: start higher and blend later
-      float snow = smoothstep(-0.1, 0.35, h);
-      vec3 color = mix(colorBase, colorSnow, snow);
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `
-});
-
-const castleWallGeo = new THREE.BoxGeometry(0.65, 0.5, 0.15);
-const castleMat = new THREE.MeshStandardMaterial({ color: "#d1d5db" });
-const castleTowerGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.8, 6);
-const castleTowerMat = new THREE.MeshStandardMaterial({ color: "#9ca3af" });
-const castleRoofGeo = new THREE.ConeGeometry(0.2, 0.4, 6);
-const castleRoofMat = new THREE.MeshStandardMaterial({ color: "#b45309" });
-const flagPoleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.4, 4);
-const flagGeo = new THREE.PlaneGeometry(0.3, 0.2, 4, 4);
-
-const fortressWallGeo = new THREE.BoxGeometry(0.65, 0.25, 0.15);
-const fortressTowerGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.4, 6);
-const fortressMat = new THREE.MeshStandardMaterial({ color: "#d1d5db" });
-
-const villageBox1 = new THREE.BoxGeometry(0.3, 0.4, 0.3);
-const villageBox2 = new THREE.BoxGeometry(0.25, 0.3, 0.25);
-const villageMat1 = new THREE.MeshStandardMaterial({ color: "#d1d5db" });
-const villageCone1 = new THREE.ConeGeometry(0.25, 0.3, 4);
-const villageCone2 = new THREE.ConeGeometry(0.2, 0.25, 4);
-const villageTowerGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.5, 6);
-const villageMat2 = new THREE.MeshStandardMaterial({ color: "#873e06" });
-
-const mineBox = new THREE.BoxGeometry(0.2, 0.3, 0.2);
-const mineMat1 = new THREE.MeshStandardMaterial({ color: "#1c1917" });
-const mineDodec1 = new THREE.DodecahedronGeometry(0.1);
-const mineDodec2 = new THREE.DodecahedronGeometry(0.08);
-const mineMat2 = new THREE.MeshStandardMaterial({ color: "#fbbf24", metalness: 0.8, roughness: 0.2 });
-
-const playerBasicMaterials: Record<string, THREE.MeshBasicMaterial> = {};
-export const getPlayerBasicMaterial = (color: string) => {
-  if (!playerBasicMaterials[color]) {
-    playerBasicMaterials[color] = new THREE.MeshBasicMaterial({ color });
-  }
-  return playerBasicMaterials[color];
-};
+import { GEOMETRIES, MATERIALS } from '../services/graphicsLibrary';
 
 export const ForestFeature = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     {/* Main Trees - more irregular heights and rotations */}
     <group position={[-0.2, 0.35, -0.2]} rotation={[0.1, 0, 0.1]}>
-      <mesh geometry={forestCone1} material={forestMat} />
+      <mesh geometry={GEOMETRIES.forestCone1} material={MATERIALS.forest} />
       {/* Thorns */}
-      <mesh position={[0.1, 0, 0]} rotation={[0, 0, Math.PI/2]} geometry={thornGeo} material={vineMat} />
-      <mesh position={[-0.1, 0.1, 0]} rotation={[0, 0, -Math.PI/2]} geometry={thornGeo} material={vineMat} />
+      <mesh position={[0.1, 0, 0]} rotation={[0, 0, Math.PI/2]} geometry={GEOMETRIES.thorn} material={MATERIALS.vine} />
+      <mesh position={[-0.1, 0.1, 0]} rotation={[0, 0, -Math.PI/2]} geometry={GEOMETRIES.thorn} material={MATERIALS.vine} />
     </group>
     
     <group position={[0.3, 0.45, 0.1]} rotation={[-0.1, 0.5, 0]}>
-      <mesh geometry={forestCone2} material={forestMat} />
-      <mesh position={[0.12, -0.1, 0]} rotation={[0, 0, Math.PI/2]} geometry={thornGeo} material={vineMat} />
+      <mesh geometry={GEOMETRIES.forestCone2} material={MATERIALS.forest} />
+      <mesh position={[0.12, -0.1, 0]} rotation={[0, 0, Math.PI/2]} geometry={GEOMETRIES.thorn} material={MATERIALS.vine} />
     </group>
  
     <group position={[-0.1, 0.3, 0.3]} rotation={[0, -0.3, -0.1]}>
-      <mesh geometry={forestCone3} material={forestMat} />
-      <mesh position={[0, 0.1, 0.1]} rotation={[Math.PI/2, 0, 0]} geometry={thornGeo} material={vineMat} />
+      <mesh geometry={GEOMETRIES.forestCone3} material={MATERIALS.forest} />
+      <mesh position={[0, 0.1, 0.1]} rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.thorn} material={MATERIALS.vine} />
     </group>
  
     {/* Twisted Vines */}
@@ -113,7 +39,7 @@ export const ForestFeature = ({ position }: { position: [number, number, number]
 
 export const MountainFeature = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
-    <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone1} material={mountainMat} />
+    <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={GEOMETRIES.mountainCone1} material={MATERIALS.mountain} />
   </group>
 );
 
@@ -134,7 +60,7 @@ export const CastleFeature = ({ position, playerColor }: { position: [number, nu
         const angle = (i * Math.PI) / 3 + Math.PI / 6;
         const tx = Math.cos(angle) * 0.52;
         const tz = Math.sin(angle) * 0.52;
-        return <mesh key={`wall-${i}`} position={[tx, 0.25, tz]} rotation={[0, -angle + Math.PI / 2, 0]} geometry={castleWallGeo} material={castleMat} />;
+        return <mesh key={`wall-${i}`} position={[tx, 0.25, tz]} rotation={[0, -angle + Math.PI / 2, 0]} geometry={GEOMETRIES.castleWall} material={MATERIALS.castle} />;
       })}
       {/* Towers at the 6 corners of the hexagon */}
       {Array.from({ length: 6 }).map((_, i) => {
@@ -144,13 +70,13 @@ export const CastleFeature = ({ position, playerColor }: { position: [number, nu
         const isMainTower = i === 0;
         return (
           <group key={i} position={[tx, 0.4, tz]}>
-            <mesh geometry={castleTowerGeo} material={castleTowerMat} />
+            <mesh geometry={GEOMETRIES.castleTower} material={MATERIALS.castleTower} />
             {isMainTower && (
               <group position={[0, 0.4, 0]}>
-                <mesh position={[0, 0.2, 0]} geometry={castleRoofGeo} material={castleRoofMat} />
+                <mesh position={[0, 0.2, 0]} geometry={GEOMETRIES.castleRoof} material={MATERIALS.castleRoof} />
                 <group position={[0, 0.4, 0]}>
-                  <mesh position={[0, 0.2, 0]} geometry={flagPoleGeo} material={castleTowerMat} />
-                  <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)} />
+                  <mesh position={[0, 0.2, 0]} geometry={GEOMETRIES.flagPole} material={MATERIALS.castleTower} />
+                  <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={GEOMETRIES.flag} material={MATERIALS.getPlayerBasic(playerColor)} />
                 </group>
               </group>
             )}
@@ -178,7 +104,7 @@ export const FortressFeature = ({ position, playerColor }: { position: [number, 
         const angle = (i * Math.PI) / 3 + Math.PI / 6;
         const tx = Math.cos(angle) * 0.52;
         const tz = Math.sin(angle) * 0.52;
-        return <mesh key={`wall-${i}`} position={[tx, 0.125, tz]} rotation={[0, -angle + Math.PI / 2, 0]} geometry={fortressWallGeo} material={fortressMat} />;
+        return <mesh key={`wall-${i}`} position={[tx, 0.125, tz]} rotation={[0, -angle + Math.PI / 2, 0]} geometry={GEOMETRIES.fortressWall} material={MATERIALS.castle} />;
       })}
       {/* Short towers at the 6 corners */}
       {Array.from({ length: 6 }).map((_, i) => {
@@ -188,11 +114,11 @@ export const FortressFeature = ({ position, playerColor }: { position: [number, 
         const isMainTower = i === 0;
         return (
           <group key={i} position={[tx, 0.2, tz]}>
-            <mesh geometry={fortressTowerGeo} material={castleTowerMat} />
+            <mesh geometry={GEOMETRIES.fortressTower} material={MATERIALS.castleTower} />
             {isMainTower && (
               <group position={[0, 0.2, 0]}>
-                <mesh position={[0, 0.2, 0]} geometry={flagPoleGeo} material={castleTowerMat} />
-                <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)} />
+                <mesh position={[0, 0.2, 0]} geometry={GEOMETRIES.flagPole} material={MATERIALS.castleTower} />
+                <mesh ref={flagRef} position={[0.15, 0.3, 0]} geometry={GEOMETRIES.flag} material={MATERIALS.getPlayerBasic(playerColor)} />
               </group>
             )}
           </group>
@@ -214,16 +140,16 @@ export const VillageFeature = ({ position, playerColor, isClaimed }: { position:
 
   return (
     <group position={position}>
-      <mesh position={[-0.2, 0.2, -0.2]} geometry={villageBox1} material={villageMat1} />
-      <mesh position={[-0.2, 0.5, -0.2]} rotation={[0, Math.PI/4, 0]} geometry={villageCone1} material={villageMat2} />
-      <mesh position={[0.2, 0.15, 0.2]} geometry={villageBox2} material={villageMat1} />
-      <mesh position={[0.2, 0.4, 0.2]} rotation={[0, Math.PI/4, 0]} geometry={villageCone2} material={villageMat2} />
+      <mesh position={[-0.2, 0.2, -0.2]} geometry={GEOMETRIES.villageBox1} material={MATERIALS.castle} />
+      <mesh position={[-0.2, 0.5, -0.2]} rotation={[0, Math.PI/4, 0]} geometry={GEOMETRIES.villageCone1} material={MATERIALS.villageWood} />
+      <mesh position={[0.2, 0.15, 0.2]} geometry={GEOMETRIES.villageBox2} material={MATERIALS.castle} />
+      <mesh position={[0.2, 0.4, 0.2]} rotation={[0, Math.PI/4, 0]} geometry={GEOMETRIES.villageCone2} material={MATERIALS.villageWood} />
       {/* Claimed village gets a third building with a flag */}
       {isClaimed && (
         <group position={[0, 0, 0.3]}>
-          <mesh position={[0, 0.25, 0]} geometry={villageTowerGeo} material={villageMat1} />
-          <mesh position={[0, 0.5, 0]} geometry={flagPoleGeo} material={castleTowerMat} />
-          <mesh ref={flagRef} position={[0.15, 0.6, 0]} geometry={flagGeo} material={getPlayerBasicMaterial(playerColor)} />
+          <mesh position={[0, 0.25, 0]} geometry={GEOMETRIES.villageTower} material={MATERIALS.castle} />
+          <mesh position={[0, 0.5, 0]} geometry={GEOMETRIES.flagPole} material={MATERIALS.castleTower} />
+          <mesh ref={flagRef} position={[0.15, 0.6, 0]} geometry={GEOMETRIES.flag} material={MATERIALS.getPlayerBasic(playerColor)} />
         </group>
       )}
     </group>
@@ -233,17 +159,17 @@ export const VillageFeature = ({ position, playerColor, isClaimed }: { position:
 export const GoldMineFeature = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     {/* Mountain Base */}
-    <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={mountainCone1} material={mountainMat} />
+    <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={GEOMETRIES.mountainCone1} material={MATERIALS.mountain} />
     {/* Mine Opening 1 */}
     <group position={[0.23, 0.1725, 0.345]} rotation={[0, Math.PI/4, 0]} scale={[1.15, 1.15, 1.15]}>
-      <mesh geometry={mineBox} material={mineMat1} />
-      <mesh position={[0, -0.1, 0.1]} geometry={mineDodec1} material={mineMat2} />
-      <mesh position={[0.1, -0.1, 0.05]} geometry={mineDodec2} material={mineMat2} />
+      <mesh geometry={GEOMETRIES.mineBox} material={MATERIALS.mineBase} />
+      <mesh position={[0, -0.1, 0.1]} geometry={GEOMETRIES.mineDodec1} material={MATERIALS.gold} />
+      <mesh position={[0.1, -0.1, 0.05]} geometry={GEOMETRIES.mineDodec2} material={MATERIALS.gold} />
     </group>
     {/* Mine Opening 2 */}
     <group position={[-0.345, 0.1725, -0.23]} rotation={[0, -Math.PI/4, 0]} scale={[1.15, 1.15, 1.15]}>
-      <mesh geometry={mineBox} material={mineMat1} />
-      <mesh position={[0, -0.1, 0.1]} geometry={mineDodec1} material={mineMat2} />
+      <mesh geometry={GEOMETRIES.mineBox} material={MATERIALS.mineBase} />
+      <mesh position={[0, -0.1, 0.1]} geometry={GEOMETRIES.mineDodec1} material={MATERIALS.gold} />
     </group>
   </group>
 );

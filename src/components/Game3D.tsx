@@ -12,14 +12,9 @@ import {
   CastleFeature, 
   FortressFeature, 
   VillageFeature, 
-  GoldMineFeature,
-  forestCone1,
-  forestCone2,
-  forestCone3,
-  forestMat,
-  mountainCone1,
-  mountainMat
+  GoldMineFeature
 } from './TerrainFeatures3D';
+import { GEOMETRIES, MATERIALS, TERRAIN_HEIGHTS, getTileGeometry, getPulsatingOpacity } from '../services/graphicsLibrary';
 
 interface Game3DProps {
   gameState: GameState;
@@ -31,64 +26,6 @@ interface Game3DProps {
   clearAnimation: (animId: string) => void;
   showStrategicView: boolean;
 }
-
-const TERRAIN_HEIGHTS: Record<TerrainType, number> = {
-  [TerrainType.WATER]: 0.1,
-  [TerrainType.PLAINS]: 0.2,
-  [TerrainType.FOREST]: 0.3,
-  [TerrainType.MOUNTAIN]: 0.4,
-  [TerrainType.VILLAGE]: 0.25,
-  [TerrainType.FORTRESS]: 0.4,
-  [TerrainType.CASTLE]: 0.5,
-  [TerrainType.GOLD_MINE]: 0.4,
-};
-
-// Geometry and Material Caches for Memory Efficiency
-const tileGeometries: Record<number, THREE.CylinderGeometry> = {};
-const getTileGeometry = (height: number) => {
-  if (!tileGeometries[height]) {
-    const geo = new THREE.CylinderGeometry(0.92, 0.92, height, 6);
-    // Optimization: Don't render bottom cap (last 18 indices for a 6-segment cylinder)
-    geo.setDrawRange(0, 54); 
-    tileGeometries[height] = geo;
-  }
-  return tileGeometries[height];
-};
-
-const possibleMoveGeo = new THREE.CircleGeometry(0.4, 32);
-const possibleMoveMat = new THREE.MeshBasicMaterial({ color: "white", transparent: true, opacity: 0.5 });
-
-const forestMoveGeo = new THREE.BoxGeometry(0.4, 0.4, 0.01);
-const forestMoveMat = new THREE.MeshBasicMaterial({ color: '#22c55e', transparent: true, opacity: 0.8 });
-const _possibleAttackGeo = new THREE.RingGeometry(0.75, 0.9, 6);
-const _possibleAttackMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-const _attackRangeMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.15, side: THREE.DoubleSide });
-const attackRangeGeo = new THREE.CircleGeometry(0.85, 6);
-
-// Shared Geometries and Materials for Units
-const unitConeGeo = new THREE.ConeGeometry(0.4, 0.6, 16);
-const infantryGeo = new THREE.BoxGeometry(0.4, 0.8, 0.4);
-const archerGeo = new THREE.ConeGeometry(0.3, 1, 8);
-const knightGeo1 = new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8);
-const knightGeo2 = new THREE.BoxGeometry(0.3, 0.4, 0.4);
-
-const catapultGeo1 = new THREE.BoxGeometry(0.6, 0.3, 0.6);
-const catapultGeo2 = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8);
-
-const actionDotGeo = new THREE.SphereGeometry(0.15, 16, 16);
-const actionDotMat = new THREE.MeshBasicMaterial({ color: "#22c55e" });
-
-const playerMaterials: Record<string, THREE.MeshStandardMaterial> = {};
-const getPlayerMaterial = (color: string) => {
-  if (!playerMaterials[color]) {
-    playerMaterials[color] = new THREE.MeshStandardMaterial({ color });
-  }
-  return playerMaterials[color];
-};
-
-const attackIndicatorMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.5, side: THREE.DoubleSide });
-const attackTargetMat = new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.2, wireframe: true });
-const attackTargetGeo = new THREE.SphereGeometry(0.8, 16, 16);
 
 // 3D Hex Tile
 // PulsatingAttackIndicator removed - replaced by AttackIndicatorsInstanced
@@ -152,8 +89,7 @@ const AttackIndicatorsInstanced = React.memo(({ coords }: { coords: {q: number, 
 
   useFrame(() => {
     if (!meshRef.current || coords.length === 0) return;
-    const t = performance.now() / 1000;
-    const opacity = 0.25 + 0.5 * (Math.sin(t * 3) * 0.5 + 0.5);
+    const opacity = getPulsatingOpacity();
     (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
   });
 
@@ -162,7 +98,7 @@ const AttackIndicatorsInstanced = React.memo(({ coords }: { coords: {q: number, 
   return (
     <instancedMesh 
       ref={meshRef} 
-      args={[attackRangeGeo, attackIndicatorMat, coords.length]} 
+      args={[GEOMETRIES.attackRange, MATERIALS.attackIndicator, coords.length]} 
     />
   );
 });
@@ -204,8 +140,8 @@ const PossibleMovesInstanced = React.memo(({ moves, boardMap }: { moves: {q: num
 
   return (
     <group>
-      {plainsMoves.length > 0 && <instancedMesh ref={plainsMeshRef} args={[possibleMoveGeo, possibleMoveMat, plainsMoves.length]} />}
-      {forestMoves.length > 0 && <instancedMesh ref={forestMeshRef} args={[forestMoveGeo, forestMoveMat, forestMoves.length]} />}
+      {plainsMoves.length > 0 && <instancedMesh ref={plainsMeshRef} args={[GEOMETRIES.possibleMove, MATERIALS.possibleMove, plainsMoves.length]} />}
+      {forestMoves.length > 0 && <instancedMesh ref={forestMeshRef} args={[GEOMETRIES.forestMove, MATERIALS.forestMove, forestMoves.length]} />}
     </group>
   );
 });
@@ -265,8 +201,8 @@ const StrategicIndicatorsInstanced = React.memo(({ analysis, board }: { analysis
 
   return (
     <group>
-      <instancedMesh ref={oppMeshRef} args={[new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: "#22c55e", transparent: true, opacity: 0.6 }), entries.filter(e => e.opp > 0).length]} />
-      <instancedMesh ref={threatMeshRef} args={[new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: "#ef4444", transparent: true, opacity: 0.6 }), entries.filter(e => e.threat > 0).length]} />
+      <instancedMesh ref={oppMeshRef} args={[GEOMETRIES.sphere, MATERIALS.opportunity, entries.filter(e => e.opp > 0).length]} />
+      <instancedMesh ref={threatMeshRef} args={[GEOMETRIES.sphere, MATERIALS.threat, entries.filter(e => e.threat > 0).length]} />
     </group>
   );
 });
@@ -492,28 +428,28 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
       {/* Unit Support Cone */}
       <mesh 
         position={[0, 0.3, 0]} 
-        geometry={unitConeGeo} 
-        material={getPlayerMaterial(playerColor)} 
+        geometry={GEOMETRIES.unitCone} 
+        material={MATERIALS.getPlayer(playerColor)} 
       />
 
       {/* Unit Body */}
       <Billboard position={[0, 0.6, 0]}>
         {unit.type === UnitType.INFANTRY && (
-          <mesh position={[0, 0.4, 0]} geometry={infantryGeo} material={getPlayerMaterial(playerColor)} />
+          <mesh position={[0, 0.4, 0]} geometry={GEOMETRIES.infantry} material={MATERIALS.getPlayer(playerColor)} />
         )}
         {unit.type === UnitType.ARCHER && (
-          <mesh position={[0, 0.5, 0]} geometry={archerGeo} material={getPlayerMaterial(playerColor)} />
+          <mesh position={[0, 0.5, 0]} geometry={GEOMETRIES.archer} material={MATERIALS.getPlayer(playerColor)} />
         )}
         {unit.type === UnitType.KNIGHT && (
           <group position={[0, 0.4, 0]}>
-            <mesh rotation={[Math.PI/2, 0, 0]} geometry={knightGeo1} material={getPlayerMaterial(playerColor)} />
-            <mesh position={[0, 0.4, 0.3]} geometry={knightGeo2} material={getPlayerMaterial(playerColor)} />
+            <mesh rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.knightBody} material={MATERIALS.getPlayer(playerColor)} />
+            <mesh position={[0, 0.4, 0.3]} geometry={GEOMETRIES.knightHead} material={MATERIALS.getPlayer(playerColor)} />
           </group>
         )}
         {unit.type === UnitType.CATAPULT && (
           <group position={[0, 0.3, 0]}>
-            <mesh position={[0, 0, 0]} geometry={catapultGeo1} material={getPlayerMaterial(playerColor)} />
-            <mesh position={[0, 0.4, 0.2]} rotation={[Math.PI/4, 0, 0]} geometry={catapultGeo2} material={getPlayerMaterial(playerColor)} />
+            <mesh position={[0, 0, 0]} geometry={GEOMETRIES.catapultBase} material={MATERIALS.getPlayer(playerColor)} />
+            <mesh position={[0, 0.4, 0.2]} rotation={[Math.PI/4, 0, 0]} geometry={GEOMETRIES.catapultArm} material={MATERIALS.getPlayer(playerColor)} />
           </group>
         )}
       </Billboard>
@@ -521,26 +457,32 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
       {/* Icon */}
       <Billboard position={[0, 1.8, 0]}>
         {isOnWater && (
-          <Text position={[-0.5, 0, 0]} fontSize={0.6}>
+          <Text position={[-0.5, 0, 0]} fontSize={0.6} color="black">
             🛶
           </Text>
         )}
-        <Text position={[0, 0, 0]} fontSize={0.8} color="white" outlineWidth={0.05} outlineColor="black">
+        <Text 
+          position={[0, 0, 0]} 
+          fontSize={0.8} 
+          color={isOnWater ? "black" : "white"} 
+          outlineWidth={0.05} 
+          outlineColor={isOnWater ? "white" : "black"}
+        >
           {UNIT_ICONS[unit.type as UnitType]}
         </Text>
       </Billboard>
 
       {/* Action Dot */}
       {canMove && !isSelected && (
-        <mesh position={[0, 2.3, 0]} geometry={actionDotGeo} material={actionDotMat} />
+        <mesh position={[0, 2.3, 0]} geometry={GEOMETRIES.actionDot} material={MATERIALS.actionDot} />
       )}
 
       {/* Attack Target Indicator */}
       {isPossibleAttackTarget && (
         <mesh 
           position={[0, 0.5, 0]} 
-          geometry={attackTargetGeo}
-          material={attackTargetMat}
+          geometry={GEOMETRIES.attackTarget}
+          material={MATERIALS.attackTarget}
         />
       )}
 
@@ -618,50 +560,21 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
     <group>
       {forests.length > 0 && (
         <>
-          <instancedMesh ref={forestRefs[0]} args={[forestCone1, forestMat, forests.length]} />
-          <instancedMesh ref={forestRefs[1]} args={[forestCone2, forestMat, forests.length]} />
-          <instancedMesh ref={forestRefs[2]} args={[forestCone3, forestMat, forests.length]} />
+          <instancedMesh ref={forestRefs[0]} args={[GEOMETRIES.forestCone1, MATERIALS.forest, forests.length]} />
+          <instancedMesh ref={forestRefs[1]} args={[GEOMETRIES.forestCone2, MATERIALS.forest, forests.length]} />
+          <instancedMesh ref={forestRefs[2]} args={[GEOMETRIES.forestCone3, MATERIALS.forest, forests.length]} />
         </>
       )}
       {mountains.length > 0 && (
-        <instancedMesh ref={mountainRef} args={[mountainCone1, mountainMat, mountains.length]} />
+        <instancedMesh ref={mountainRef} args={[GEOMETRIES.mountainCone1, MATERIALS.mountain, mountains.length]} />
       )}
     </group>
   );
 });
-const skySphereGeo = new THREE.SphereGeometry(800, 32, 32);
-const skySphereMat = new THREE.ShaderMaterial({
-  side: THREE.BackSide,
-  uniforms: {
-    colorTop: { value: new THREE.Color('#94E2FF') }, // Brighter Sky Blue (+10%)
-    colorBottom: { value: new THREE.Color('#7A4F44') }, // Terra Cotta (+25% saturation, adjusted brightness)
-  },
-  vertexShader: `
-    varying vec3 vWorldPosition;
-    void main() {
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      vWorldPosition = worldPosition.xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform vec3 colorTop;
-    uniform vec3 colorBottom;
-    varying vec3 vWorldPosition;
 
-    void main() {
-      vec3 direction = normalize(vWorldPosition);
-      // Align midpoint to 35% latitude from bottom
-      // Total range -1..1 (diff 2). 35% of 2 is 0.7. -1 + 0.7 = -0.3.
-      // So midpoint should be at y = -0.3.
-      // For smoothstep(A, B, y) to have midpoint at -0.3, (A+B)/2 = -0.3.
-      // Let's use A = -1.0, B = 0.4. (-1 + 0.4)/2 = -0.3.
-      float h = smoothstep(-1.0, 0.4, direction.y);
-      vec3 color = mix(colorBottom, colorTop, h);
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `
-});
+const SkySphere = () => (
+  <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} />
+);
 
 const GlobalSceneUpdates = () => {
   useFrame(() => {
@@ -1054,8 +967,8 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
     <div className="w-full h-full relative">
       <Canvas>
         <GlobalSceneUpdates />
-        {/* Epic Ambient Sky Sphere */}
-        <mesh geometry={skySphereGeo} material={skySphereMat} />
+        {/* Environmental */}
+        <SkySphere />
         
         {/* Background Animated Elements */}
         <BackgroundElements />
@@ -1210,7 +1123,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
               {/* Overlays that are harder to instance simply */}
               {tile.terrain === TerrainType.WATER && hasAdjacentSettlement && (
                 <Billboard position={[x, height + 0.2, z]}>
-                  <Text fontSize={0.6}>⛵</Text>
+                  <Text fontSize={0.6} color="black">⛵</Text>
                 </Billboard>
               )}
               {isExtendedRange && (

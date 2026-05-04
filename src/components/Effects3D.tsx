@@ -3,17 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
 
-const sparkGeo = new THREE.SphereGeometry(0.12, 4, 4);
-const sparkMat = new THREE.MeshBasicMaterial({ color: "#fbbf24", transparent: true, opacity: 0.9 });
-
-const smokeGeo = new THREE.SphereGeometry(0.3, 8, 8);
-
-const boulderGeo = new THREE.DodecahedronGeometry(0.3, 0);
-const boulderMat = new THREE.MeshStandardMaterial({ color: "#444444" });
-
-const arrowGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.9, 8);
-arrowGeo.rotateX(Math.PI / 2); // Align with Z axis for lookAt
-const arrowMat = new THREE.MeshStandardMaterial({ color: "#8b4513" });
+import { GEOMETRIES, MATERIALS } from '../services/graphicsLibrary';
 
 export const MissEffect3D = ({ x, z, onComplete }: any) => {
   const textRef = useRef<THREE.Group>(null);
@@ -101,9 +91,7 @@ export const SmokeEffect3D = ({ x, z, onComplete }: any) => {
   return (
     <group ref={groupRef} position={[x, 0.5, z]}>
       {particles.map((_p, i) => (
-        <mesh key={i} geometry={smokeGeo}>
-          <meshStandardMaterial color="#555555" transparent opacity={0.6} />
-        </mesh>
+        <mesh key={i} geometry={GEOMETRIES.smoke} material={MATERIALS.smoke} />
       ))}
     </group>
   );
@@ -155,7 +143,7 @@ export const Projectile3D = ({ from, to, type, onComplete }: any) => {
   });
 
   return (
-    <mesh ref={meshRef} geometry={type === 'boulder' ? boulderGeo : arrowGeo} material={type === 'boulder' ? boulderMat : arrowMat} />
+    <mesh ref={meshRef} geometry={type === 'boulder' ? GEOMETRIES.boulder : GEOMETRIES.arrow} material={type === 'boulder' ? MATERIALS.boulder : MATERIALS.arrow} />
   );
 };
 
@@ -198,7 +186,7 @@ export const Sparks3D = ({ x, z, onComplete }: any) => {
   return (
     <group ref={groupRef} position={[x, 1, z]}>
       {particles.map((_p, i) => (
-        <mesh key={i} geometry={sparkGeo} material={sparkMat} />
+        <mesh key={i} geometry={GEOMETRIES.spark} material={MATERIALS.spark} />
       ))}
     </group>
   );
