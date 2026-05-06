@@ -194,6 +194,31 @@ export default function App() {
     }
   };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
+
+  // Reactive Strategic Analysis to keep the UI snappy
+  useEffect(() => {
+    if (!gameState || gameState.winnerId !== null || (gameState.animations && gameState.animations.length > 0)) return;
+
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (!currentPlayer) return;
+
+    // Use a small timeout to allow the initial state change to render first
+    const timer = setTimeout(() => {
+       const analysis = calculateStrategicAnalysis(gameState, currentPlayer.id);
+       
+       setGameState(prev => {
+         if (!prev) return prev;
+         // Avoid unnecessary state updates if analysis hasn't changed or isn't needed
+         if (prev.strategicAnalysis && JSON.stringify(prev.strategicAnalysis.opportunityMap) === JSON.stringify(analysis.opportunityMap)) {
+           return prev;
+         }
+         return { ...prev, strategicAnalysis: analysis };
+       });
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [gameState?.board, gameState?.units, gameState?.currentPlayerIndex, gameState?.selectedUnitId]);
+
   const stageContainerRef = useRef<HTMLDivElement>(null);
   const _stageRef = useRef<any>(null);
 
@@ -411,31 +436,27 @@ export default function App() {
     
     // Toggle selection: if clicking the same hex, deselect
     if (gameState.selectedHex && gameState.selectedHex.q === coord.q && gameState.selectedHex.r === coord.r) {
-      const newState: GameState = {
+      setGameState({
         ...gameState,
         selectedUnitId: null,
         selectedHex: null,
         possibleMoves: [],
         possibleAttacks: [],
         attackRange: [],
-      };
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
-      setGameState(newState);
+      });
       return;
     }
 
     // If it's the AI's turn, only allow inspection
     if (currentPlayer.isAutomaton) {
-      const newState: GameState = {
+      setGameState({
         ...gameState,
         selectedUnitId: null,
         selectedHex: coord,
         possibleMoves: [],
         possibleAttacks: [],
         attackRange: [],
-      };
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
-      setGameState(newState);
+      });
       return;
     }
 
@@ -470,7 +491,6 @@ export default function App() {
         possibleAttacks: attacks,
         attackRange: range,
       };
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
       setGameState(newState);
     } else {
       const newState: GameState = {
@@ -481,7 +501,6 @@ export default function App() {
         possibleAttacks: [],
         attackRange: [],
       };
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, currentPlayer.id);
       setGameState(newState);
     }
   }, [gameState, moveUnit, attackUnit, setGameState]);

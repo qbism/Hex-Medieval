@@ -229,11 +229,11 @@ export const createWaterSurfaceMaterial = () => {
         vSelection = selection;
         
         vec3 pos = position;
-        // Wavier displacement: Higher amplitude (0.025) and multiple octaves
+        // Wavier displacement: Higher amplitude (0.08) and multiple octaves
         // Scale increased 2x (frequencies halved: 12->6, 24->12)
         float w1 = sin(pos.x * 6.0 + time * 0.8) * cos(pos.y * 6.0 + time * 0.8);
         float w2 = sin(pos.x * 12.0 - time * 0.4) * cos(pos.y * 12.0 - time * 0.4) * 0.5;
-        pos.z += (w1 + w2) * 0.04;
+        pos.z += (w1 + w2) * 0.08;
         
         gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
       }
@@ -268,10 +268,6 @@ export const createWaterSurfaceMaterial = () => {
         float streak = random(vec2(floor(uv.x * 15.0), floor(uv.y * 15.0)));
         finalColor += mix(vec3(0.0), vec3(0.15), smoothstep(0.7, 1.0, streak));
 
-        // Highlight peaks (whitecaps) - farther apart and larger
-        float whitecap = smoothstep(0.5, 1.2, wave);
-        finalColor = mix(finalColor, vec3(1.0), whitecap * 0.8);
-        
         // Surface sparkles - bigger pixels (40->20, 20->10)
         float drip = random(vec2(floor(uv.x * 20.0), mod(floor(uv.y * 10.0), 1000.0)));
         if (drip > 0.97) {
@@ -496,6 +492,84 @@ export const MATERIALS = {
     if (!materialCache.castleTower) materialCache.castleTower = new THREE.MeshStandardMaterial({ color: "#9ca3af" });
     return materialCache.castleTower as THREE.MeshStandardMaterial;
   },
+  getColoredCastle(colorValue: string) {
+    const key = `castle_${colorValue}`;
+    if (!materialCache[key]) {
+      materialCache[key] = new THREE.ShaderMaterial({
+        uniforms: { color: { value: new THREE.Color(colorValue) } },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 color;
+          varying vec2 vUv;
+          float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+          void main() {
+            vec2 uv = vUv * 6.0;
+            vec2 id = floor(uv);
+            vec2 f = fract(uv);
+            float d = 1.0;
+            for(int y=-1; y<=1; y++) {
+              for(int x=-1; x<=1; x++) {
+                vec2 g = vec2(float(x), float(y));
+                vec2 o = vec2(hash(id+g), hash(id+g+vec2(0.123, 0.456)));
+                vec2 r = g + o - f;
+                d = min(d, dot(r, r));
+              }
+            }
+            float stone = smoothstep(0.0, 0.1, sqrt(d));
+            float var = hash(id) * 0.1;
+            vec3 stoneColor = color + vec3(var - 0.05);
+            gl_FragColor = vec4(mix(color * 0.7, stoneColor, stone), 1.0);
+          }
+        `
+      });
+    }
+    return materialCache[key] as THREE.ShaderMaterial;
+  },
+  getColoredCastleTower(colorValue: string) {
+    const key = `castleTower_${colorValue}`;
+    if (!materialCache[key]) {
+      materialCache[key] = new THREE.ShaderMaterial({
+        uniforms: { color: { value: new THREE.Color(colorValue).multiplyScalar(0.8) } },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 color;
+          varying vec2 vUv;
+          float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+          void main() {
+            vec2 uv = vUv * vec2(4.0, 8.0);
+            vec2 id = floor(uv);
+            vec2 f = fract(uv);
+            float d = 1.0;
+            for(int y=-1; y<=1; y++) {
+              for(int x=-1; x<=1; x++) {
+                vec2 g = vec2(float(x), float(y));
+                vec2 o = vec2(hash(id+g), hash(id+g+vec2(0.321, 0.654)));
+                vec2 r = g + o - f;
+                d = min(d, dot(r, r));
+              }
+            }
+            float stone = smoothstep(0.0, 0.1, sqrt(d));
+            float var = hash(id) * 0.1;
+            vec3 stoneColor = color + vec3(var - 0.05);
+            gl_FragColor = vec4(mix(color * 0.7, stoneColor, stone), 1.0);
+          }
+        `
+      });
+    }
+    return materialCache[key] as THREE.ShaderMaterial;
+  },
   get castleRoof() {
     if (!materialCache.castleRoof) materialCache.castleRoof = new THREE.MeshStandardMaterial({ color: "#b45309" });
     return materialCache.castleRoof as THREE.MeshStandardMaterial;
@@ -519,8 +593,7 @@ export const MATERIALS = {
 /**
  * Calculates current opacity for a pulsating effect.
  */
-export const getPulsatingOpacity = (frequency = 3, minOpacity = 0.25, maxOpacity = 0.75) => {
-  const t = performance.now() / 1000;
+export const getPulsatingOpacity = (t: number, frequency = 3, minOpacity = 0.25, maxOpacity = 0.75) => {
   const range = maxOpacity - minOpacity;
   return minOpacity + range * (Math.sin(t * frequency) * 0.5 + 0.5);
 };

@@ -81,73 +81,122 @@ export function calculateInfluenceMap(state: GameState, currentPlayerId: number)
   return influenceMap;
 }
 
+export function getThreatAtCoord(coord: HexCoord, state: GameState, currentPlayerId: number, boardMap?: Map<string, HexTile>): ThreatInfo {
+  const tKey = `${coord.q},${coord.r}`;
+  // We should ideally use a cached matrix, but for individual lookups (like in TacticalSearch),
+  // we do a quick check.
+  let eminentThreatValue = 0;
+  let eminentAttackerCount = 0;
+  let totalThreatValue = 0;
+  let attackerCount = 0;
+  let minTurns = Infinity;
+
+  const statsCache = new Map<UnitType, any>();
+  const internalBoardMap = boardMap || getBoardMap(state.board);
+
+  for (const u of state.units) {
+    if (u.ownerId === currentPlayerId) continue;
+    
+    let stats = statsCache.get(u.type);
+    if (!stats) {
+      stats = UNIT_STATS[u.type];
+      statsCache.set(u.type, stats);
+    }
+    
+    const dist = getDistance(u.coord, coord, state.board);
+    const range = getUnitRange(u, state.board);
+    const moves = stats.moves;
+
+    // Can hit this turn
+    if (dist <= range) {
+      if (u.type === UnitType.CATAPULT) {
+        const targetTile = internalBoardMap.get(tKey);
+        if (targetTile?.terrain === TerrainType.FOREST) continue;
+      }
+      
+      eminentThreatValue += stats.cost;
+      eminentAttackerCount++;
+      minTurns = 1;
+    } 
+    // Can hit next turn (move + range)
+    // For traps, we check if they can reach an ADJACENT tile and then hit
+    else if (dist <= moves + range) {
+      // Basic terrain check: if distance is moves+range, and there's forest, they probably can't reach
+      // This is a heuristic to avoid full BFS here
+      let effectiveMoves = moves;
+      const targetTile = internalBoardMap.get(tKey);
+      if (targetTile?.terrain === TerrainType.FOREST) effectiveMoves = Math.max(1, moves - 1);
+      
+      if (dist <= effectiveMoves + range) {
+        totalThreatValue += stats.cost;
+        attackerCount++;
+        if (minTurns > 1) minTurns = 2;
+      }
+    }
+  }
+
+  return {
+    minTurns: minTurns === Infinity ? 0 : minTurns,
+    totalThreatValue: totalThreatValue + eminentThreatValue,
+    attackerCount: attackerCount + eminentAttackerCount,
+    eminentThreatValue,
+    eminentAttackerCount
+  };
+}
+
 export function calculateThreatMatrix(state: GameState, currentPlayerId: number): Map<string, ThreatInfo> {
   const threatMatrix = new Map<string, ThreatInfo>();
   const boardMap = getBoardMap(state.board);
-  const unitsByCoord = new Map<string, Unit>();
-  state.units.forEach(un => unitsByCoord.set(`${un.coord.q},${un.coord.r}`, un));
-  
-  const safety = new LoopSafety('calculateThreatMatrix', 100000);
+  const enemies = state.units.filter(u => u.ownerId !== currentPlayerId);
+  if (enemies.length === 0) return threatMatrix;
 
-  for (const u of state.units) {
+  const safety = new LoopSafety('calculateThreatMatrix', 50000);
+
+  // Pre-calculate reach for each enemy unit to build the matrix efficiently
+  for (const u of enemies) {
     if (safety.tick()) break;
-    // Only calculate threats FROM enemies TO the player
-    // IMPORTANT: Settlements do not contribute threat. Only units are processed here.
-    if (u.ownerId === currentPlayerId) continue;
-
     const stats = UNIT_STATS[u.type];
     const range = getUnitRange(u, state.board);
     const moves = stats.moves;
-    const threatValue = stats.cost;
 
-    // 1. Precise Eminent Targets (tiles hit THIS turn from CURRENT standing position)
-    const eminentTargetKeys = new Set<string>();
-    for (let dq = -range; dq <= range; dq++) {
-      for (let dr = Math.max(-range, -dq - range); dr <= Math.min(range, -dq + range); dr++) {
-        const dist = (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
-        if (dist > range) continue; // Hex distance check
-        
-        const tKey = `${u.coord.q + dq},${u.coord.r + dr}`;
-        const tTile = boardMap.get(tKey);
-        if (!tTile) continue;
-        if (u.type === UnitType.CATAPULT && tTile.terrain === TerrainType.FOREST) continue;
-        eminentTargetKeys.add(tKey);
+    // 1. Eminent threat (Range reach from current pos)
+    // Using a simple radius check is faster than board.filter
+    const eminentRadius = range;
+    for (let q = -eminentRadius; q <= eminentRadius; q++) {
+      for (let r = Math.max(-eminentRadius, -q - eminentRadius); r <= Math.min(eminentRadius, -q + eminentRadius); r++) {
+        const tCoord = { q: u.coord.q + q, r: u.coord.r + r };
+        const tKey = `${tCoord.q},${tCoord.r}`;
+        const tile = boardMap.get(tKey);
+        if (!tile) continue;
+
+        if (u.type === UnitType.CATAPULT && tile.terrain === TerrainType.FOREST) continue;
+
+        const current = threatMatrix.get(tKey) || { minTurns: 0, totalThreatValue: 0, attackerCount: 0, eminentThreatValue: 0, eminentAttackerCount: 0 };
+        current.eminentThreatValue += stats.cost;
+        current.eminentAttackerCount++;
+        current.totalThreatValue += stats.cost;
+        current.attackerCount++;
+        current.minTurns = 1;
+        threatMatrix.set(tKey, current);
       }
     }
 
-    // 2. Potential Threat (Movement + Range reach for strategic scoring)
+    // 2. Potential threat (Reachable tiles + Range)
+    // We use a small BFS for movement
     const reachable = new Set<string>();
     const queue: { q: number, r: number, cost: number }[] = [{ q: u.coord.q, r: u.coord.r, cost: 0 }];
     const visited = new Map<string, number>();
-    const startKey = `${u.coord.q},${u.coord.r}`;
-    visited.set(startKey, 0);
-    reachable.add(startKey);
+    visited.set(`${u.coord.q},${u.coord.r}`, 0);
 
     let head = 0;
     while (head < queue.length) {
-      if (safety.tick()) break;
       const { q, r, cost } = queue[head++];
       const neighbors = getNeighbors({ q, r, s: -q - r });
-      
       for (const n of neighbors) {
         const nKey = `${n.q},${n.r}`;
         const nTile = boardMap.get(nKey);
-        if (!nTile) continue;
+        if (!nTile || nTile.terrain === TerrainType.MOUNTAIN || nTile.terrain === TerrainType.WATER) continue;
         
-        if (nTile.terrain === TerrainType.WATER) {
-           const currentTile = boardMap.get(`${q},${r}`);
-           if (currentTile && currentTile.terrain !== TerrainType.WATER) {
-             const hasAdj = getNeighbors(n).some(nn => {
-               const nt = boardMap.get(`${nn.q},${nn.r}`);
-               return nt && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(nt.terrain);
-             });
-             if (!hasAdj) continue;
-           }
-        }
-        
-        const blocker = unitsByCoord.get(nKey);
-        if (blocker && blocker.ownerId === currentPlayerId) continue;
-
         const stepCost = nTile.terrain === TerrainType.FOREST ? 2 : 1;
         const total = cost + stepCost;
         if (total <= moves) {
@@ -160,32 +209,28 @@ export function calculateThreatMatrix(state: GameState, currentPlayerId: number)
       }
     }
 
-    const potentialRadius = range + moves + 1;
-    for (let dq = -potentialRadius; dq <= potentialRadius; dq++) {
-      for (let dr = Math.max(-potentialRadius, -dq - potentialRadius); dr <= Math.min(potentialRadius, -dq + potentialRadius); dr++) {
-        const tKey = `${u.coord.q + dq},${u.coord.r + dr}`;
-        const tTile = boardMap.get(tKey);
-        if (!tTile) continue;
+    // For every reachable tile, mark everything in range as threatened (minTurns=2)
+    for (const rKey of reachable) {
+      const rc = rKey.split(',').map(Number);
+      for (let q = -range; q <= range; q++) {
+        for (let r = Math.max(-range, -q - range); r <= Math.min(range, -q + range); r++) {
+          const tCoord = { q: rc[0] + q, r: rc[1] + r };
+          const tKey = `${tCoord.q},${tCoord.r}`;
+          if (threatMatrix.get(tKey)?.minTurns === 1) continue; // Already eminent
 
-        const isEminent = eminentTargetKeys.has(tKey);
-        const current = threatMatrix.get(tKey) || {
-          minTurns: 2,
-          totalThreatValue: 0,
-          attackerCount: 0,
-          eminentThreatValue: 0,
-          eminentAttackerCount: 0
-        };
+          const tile = boardMap.get(tKey);
+          if (!tile) continue;
 
-        threatMatrix.set(tKey, {
-          minTurns: isEminent ? 1 : Math.min(current.minTurns, 2),
-          totalThreatValue: current.totalThreatValue + threatValue,
-          attackerCount: current.attackerCount + 1,
-          eminentThreatValue: current.eminentThreatValue + (isEminent ? threatValue : 0),
-          eminentAttackerCount: current.eminentAttackerCount + (isEminent ? 1 : 0)
-        });
+          const current = threatMatrix.get(tKey) || { minTurns: 0, totalThreatValue: 0, attackerCount: 0, eminentThreatValue: 0, eminentAttackerCount: 0 };
+          current.totalThreatValue += stats.cost;
+          current.attackerCount++;
+          if (current.minTurns === 0 || current.minTurns > 2) current.minTurns = 2;
+          threatMatrix.set(tKey, current);
+        }
       }
     }
   }
+
   return threatMatrix;
 }
 
@@ -333,7 +378,10 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
   return hvt;
 }
 
-export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean): boolean {
+export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean, isLaggingStrength: boolean = false): boolean {
+  // If military is weak, we MUST NOT save for a mine - survival first!
+  if (isLaggingStrength && currentPlayer.gold < 300) return false;
+  
   const cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
   if (currentPlayer.gold >= cost) return false;
   
@@ -363,7 +411,10 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   });
 }
 
-export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean): boolean {
+export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean, isLaggingStrength: boolean = false): boolean {
+  // If military is weak, we MUST NOT save for a village - survival first!
+  if (isLaggingStrength && currentPlayer.gold < 200) return false;
+
   const cost = UPGRADE_COSTS[TerrainType.VILLAGE];
   if (currentPlayer.gold >= cost) return false;
 

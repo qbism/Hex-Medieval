@@ -1,12 +1,12 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { PerspectiveCamera, OrbitControls, Text, useCursor, Billboard } from '@react-three/drei';
+import { PerspectiveCamera, OrbitControls, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, getDistance, UNIT_STATS } from '../types';
 import { TERRAIN_COLORS } from '../constants/colors';
 import { Sparks3D, SmokeEffect3D, Projectile3D, MissEffect3D } from './Effects3D';
-import { WaterfallsInstanced } from './WaterfallEffect';
 import { WaterBasesInstanced, updateWaterTime } from './WaterSurfaceEffect';
+import { WaterfallsInstanced, updateWaterfallTime } from './WaterfallEffect';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { 
   CastleFeature, 
@@ -14,7 +14,7 @@ import {
   VillageFeature, 
   GoldMineFeature
 } from './TerrainFeatures3D';
-import { GEOMETRIES, MATERIALS, TERRAIN_HEIGHTS, getTileGeometry, getPulsatingOpacity } from '../services/graphicsLibrary';
+import { GEOMETRIES, MATERIALS, TERRAIN_HEIGHTS, getPulsatingOpacity } from '../services/graphicsLibrary';
 
 interface Game3DProps {
   gameState: GameState;
@@ -29,46 +29,6 @@ interface Game3DProps {
 
 // 3D Hex Tile
 // PulsatingAttackIndicator removed - replaced by AttackIndicatorsInstanced
-
-const HexTile3D = React.memo(({ tile, onClick, onPointerEnter, onPointerLeave }: any) => {
-  const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
-  const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
-  const isWater = tile.terrain === TerrainType.WATER;
-  const depth = 2.0; 
-  const totalHeight = height + depth;
-  
-  const [hovered, setHovered] = useState(false);
-  
-  useCursor(hovered);
-
-  const handlePointerEnter = (e: any) => {
-    e.stopPropagation();
-    setHovered(true);
-    onPointerEnter(tile.coord);
-  };
-
-  const handlePointerLeave = (e: any) => {
-    e.stopPropagation();
-    setHovered(false);
-    onPointerLeave(null);
-  };
-
-  if (isWater) return null;
-
-  return (
-    <mesh 
-      position={[x, height - totalHeight / 2, z]}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.(tile.coord.q, tile.coord.r);
-      }}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-      geometry={getTileGeometry(totalHeight)}
-      visible={false} 
-    />
-  );
-});
 
 const AttackIndicatorsInstanced = React.memo(({ coords }: { coords: {q: number, r: number}[] }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -87,9 +47,9 @@ const AttackIndicatorsInstanced = React.memo(({ coords }: { coords: {q: number, 
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [coords]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!meshRef.current || coords.length === 0) return;
-    const opacity = getPulsatingOpacity();
+    const opacity = getPulsatingOpacity(clock.getElapsedTime());
     (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
   });
 
@@ -160,7 +120,7 @@ const StrategicIndicatorsInstanced = React.memo(({ analysis, board }: { analysis
         coord: t.coord,
         terrain: t.terrain,
         opp: analysis.opportunityMap[key] || 0,
-        threat: analysis.threatMap[key]?.totalThreatValue || 0
+        threat: analysis.threatMap[key]?.eminentThreatValue || 0
       };
     }).filter(e => e.opp > 0 || e.threat > 0);
   }, [analysis, board]);
@@ -207,16 +167,24 @@ const StrategicIndicatorsInstanced = React.memo(({ analysis, board }: { analysis
   );
 });
 
-// Map Bases Instanced for performance
-const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex, onClick }: { board: any[], players: any[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void }) => {
+const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hoveredHex, onClick, onPointerEnter }: { board: any[], playerColors: string[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void, onPointerEnter?: (coord: HexCoord | null) => void }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   const hoverAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
+  const mountainAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
+  const settlementAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   
-  // Only instance non-water tiles to handle water shader separately or keep it simple
+  // Only instance non-water tiles - stable layout
   const nonWaterTiles = useMemo(() => board.filter(t => t.terrain !== TerrainType.WATER), [board]);
   const selectionStates = useRef(new Float32Array(nonWaterTiles.length));
   const hoverStates = useRef(new Float32Array(nonWaterTiles.length));
+  
+  // These attributes only need to update when board layout changes
+  const mountainStates = useMemo(() => new Float32Array(nonWaterTiles.map(t => t.terrain === TerrainType.MOUNTAIN ? 1.0 : 0.0)), [nonWaterTiles]);
+  // Note: settlement status can change if a village is upgraded, but the "cobblestone" look is the same
+  const settlementStates = useMemo(() => new Float32Array(nonWaterTiles.map(t => 
+    [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain as any) ? 1.0 : 0.0
+  )), [nonWaterTiles]);
 
   const unitHexGeo = useMemo(() => {
     const geo = new THREE.CylinderGeometry(0.92, 0.92, 1, 6);
@@ -230,8 +198,14 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
       shader.vertexShader = `
         attribute float selection;
         attribute float hover;
+        attribute float isMountain;
+        attribute float isSettlement;
         varying float vSelection;
         varying float vHover;
+        varying float vLocalY;
+        varying float vIsMountain;
+        varying float vIsSettlement;
+        varying vec2 vUv;
         ${shader.vertexShader}
       `.replace(
         '#include <begin_vertex>',
@@ -239,17 +213,77 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
         #include <begin_vertex>
         vSelection = selection;
         vHover = hover;
+        vIsMountain = isMountain;
+        vIsSettlement = isSettlement;
+        vLocalY = position.y;
+        vUv = uv;
         `
       );
       
       shader.fragmentShader = `
         varying float vSelection;
         varying float vHover;
+        varying float vLocalY;
+        varying float vIsMountain;
+        varying float vIsSettlement;
+        varying vec2 vUv;
+        
+        float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
         ${shader.fragmentShader}
       `.replace(
         '#include <color_fragment>',
         `
         #include <color_fragment>
+        
+        // Bedrock gradient logic
+        // Higher threshold for gradient transition (moved 25% up)
+        float bedrockFade = smoothstep(-0.05, 0.55, vLocalY);
+        
+        // Further desaturated and refined grayish brown
+        vec3 bedrockBase = vec3(0.1, 0.09, 0.08); 
+        
+        // Coarser bedrock texture scale (divided multipliers by 3 for 300% larger features)
+        float streak = hash(vec2(floor(vUv.y * 21.3), 0.0));
+        float blocks = hash(vec2(floor(vUv.x * 26.6), floor(vUv.y * 32.0)));
+        
+        float brightness = 0.7 + 0.4 * smoothstep(0.2, 0.8, streak);
+        if (blocks > 0.92) brightness += 0.3;
+        
+        vec3 finalBedrock = bedrockBase * brightness;
+
+        // Apply bedrock to sides, or entire tile if mountain
+        if (vNormal.y < 0.5 || vIsMountain > 0.5) {
+            diffuseColor.rgb = mix(finalBedrock, diffuseColor.rgb, bedrockFade * (1.0 - vIsMountain));
+            if (vIsMountain > 0.5) {
+               // Mountains are purely bedrock texture
+               diffuseColor.rgb = finalBedrock;
+            }
+        }
+        
+        // Cobblestone overlay for settlements (top face only)
+        if (vNormal.y > 0.5 && vIsSettlement > 0.5) {
+            // Finer cobblestone texture (multiplied by 4 for 25% scale / 4x detail density)
+            vec2 stoneUv = vUv * 24.0;
+            vec2 id = floor(stoneUv);
+            vec2 f = fract(stoneUv);
+            float d = 1.0;
+            for(int y=-1; y<=1; y++) {
+                for(int x=-1; x<=1; x++) {
+                    vec2 g = vec2(float(x), float(y));
+                    vec2 o = vec2(hash(id+g), hash(id+g+vec2(0.123, 0.456)));
+                    vec2 r = g + o - f;
+                    d = min(d, dot(r, r));
+                }
+            }
+            float stone = smoothstep(0.0, 0.1, sqrt(d));
+            float var = hash(id) * 0.1;
+            vec3 stoneColor = diffuseColor.rgb + vec3(var - 0.05);
+            diffuseColor.rgb = mix(diffuseColor.rgb * 0.7, stoneColor, stone);
+        }
+
         // Neutral highlights: selection #444444 (vec3(0.27)), hover #222222 (vec3(0.13))
         diffuseColor.rgb += vSelection * vec3(0.27) + vHover * vec3(0.13);
         `
@@ -272,11 +306,16 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
       let baseColor = TERRAIN_COLORS[tile.terrain as TerrainType];
       // Graphics update: settlements show owner color on the base tile
       if (tile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(tile.terrain as any)) {
-        baseColor = players[tile.ownerId].color;
+        baseColor = playerColors[tile.ownerId];
       }
 
       dummy.scale.set(1, totalHeight, 1);
       dummy.position.set(x, height - totalHeight / 2, z);
+      
+      // Random rotation in 60 degree increments
+      const rotationIndex = Math.floor(Math.abs(Math.sin(tile.coord.q * 123 + tile.coord.r * 456) * 100)) % 6;
+      dummy.rotation.y = rotationIndex * (Math.PI / 3);
+      
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
 
@@ -285,13 +324,51 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
     });
 
     meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [nonWaterTiles]);
+
+  // Separate effect for colors which can change when settlements are claimed/upgraded
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const color = new THREE.Color();
+    
+    // Create a lookup map for faster processing (O(N) instead of O(N^2))
+    const currentBoardMap = new Map<string, any>();
+    board.forEach(t => currentBoardMap.set(`${t.coord.q},${t.coord.r}`, t));
+
+    nonWaterTiles.forEach((tile, i) => {
+      const effectiveTile = currentBoardMap.get(`${tile.coord.q},${tile.coord.r}`) || tile;
+
+      let baseColor = TERRAIN_COLORS[effectiveTile.terrain as TerrainType];
+      if (effectiveTile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(effectiveTile.terrain as any)) {
+        baseColor = playerColors[effectiveTile.ownerId];
+      }
+      color.set(baseColor);
+      meshRef.current!.setColorAt(i, color);
+    });
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  }, [nonWaterTiles, players]);
+  }, [board, playerColors]); // Depend on full board to catch upgrades
+
+  const lastSelectedHex = useRef<HexCoord | null>(null);
+  const lastHoveredHex = useRef<HexCoord | null>(null);
+  const isTransitioning = useRef(false);
 
   useFrame((_state, delta) => {
     if (!meshRef.current || !selectionAttrRef.current || !hoverAttrRef.current) return;
     
+    const hexChanged = lastSelectedHex.current?.q !== selectedHex?.q || lastSelectedHex.current?.r !== selectedHex?.r ||
+                       lastHoveredHex.current?.q !== hoveredHex?.q || lastHoveredHex.current?.r !== hoveredHex?.r;
+
+    if (hexChanged) {
+      lastSelectedHex.current = selectedHex;
+      lastHoveredHex.current = hoveredHex;
+      isTransitioning.current = true;
+    }
+
+    if (!isTransitioning.current) return;
+
     let needsUpdate = false;
+    let anyStillMoving = false;
+
     nonWaterTiles.forEach((tile, i) => {
       // Selection
       const isSelected = selectedHex?.q === tile.coord.q && selectedHex?.r === tile.coord.r;
@@ -306,6 +383,7 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
         }
         selectionAttrRef.current!.setX(i, selectionStates.current[i]);
         needsUpdate = true;
+        anyStillMoving = true;
       }
 
       // Hover
@@ -321,8 +399,11 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
         }
         hoverAttrRef.current!.setX(i, hoverStates.current[i]);
         needsUpdate = true;
+        anyStillMoving = true;
       }
     });
+
+    isTransitioning.current = anyStillMoving;
 
     if (needsUpdate) {
       selectionAttrRef.current.needsUpdate = true;
@@ -337,10 +418,20 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
       onClick={(e) => {
         e.stopPropagation();
         const instanceId = e.instanceId;
-        if (instanceId !== undefined) {
+        if (instanceId !== undefined && nonWaterTiles[instanceId]) {
           const tile = nonWaterTiles[instanceId];
           onClick(tile.coord.q, tile.coord.r);
         }
+      }}
+      onPointerMove={(e) => {
+        e.stopPropagation();
+        const instanceId = e.instanceId;
+        if (instanceId !== undefined && nonWaterTiles[instanceId]) {
+          onPointerEnter?.(nonWaterTiles[instanceId].coord);
+        }
+      }}
+      onPointerOut={() => {
+         onPointerEnter?.(null);
       }}
     >
       <instancedBufferAttribute 
@@ -353,6 +444,16 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
         attach="geometry-attributes-hover"
         args={[hoverStates.current, 1]}
       />
+      <instancedBufferAttribute 
+        ref={mountainAttrRef}
+        attach="geometry-attributes-isMountain"
+        args={[mountainStates, 1]}
+      />
+      <instancedBufferAttribute 
+        ref={settlementAttrRef}
+        attach="geometry-attributes-isSettlement"
+        args={[settlementStates, 1]}
+      />
     </instancedMesh>
   );
 });
@@ -360,63 +461,72 @@ const MapBasesInstanced = React.memo(({ board, players, selectedHex, hoveredHex,
 // 3D Unit
 const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnimationEnd, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget }: any) => {
   const { x, y: z } = hexToPixel(unit.coord.q, unit.coord.r);
-  
-  const targetX = anim?.to ? hexToPixel(anim.to.q, anim.to.r).x : x;
-  const targetZ = anim?.to ? hexToPixel(anim.to.q, anim.to.r).y : z;
-  
   const baseHeight = tileHeight + 0.1;
 
   const groupRef = useRef<THREE.Group>(null);
   const animTimeRef = useRef(0);
   const animDoneRef = useRef(false);
+  const lastAnimRef = useRef<string | null>(null);
 
+  const targetX = useMemo(() => anim?.to ? hexToPixel(anim.to.q, anim.to.r).x : x, [anim?.to, x]);
+  const targetZ = useMemo(() => anim?.to ? hexToPixel(anim.to.q, anim.to.r).y : z, [anim?.to, z]);
+
+  // Sync state when anim changes
+  if (anim && lastAnimRef.current !== anim.id) {
+    animTimeRef.current = 0;
+    animDoneRef.current = false;
+    lastAnimRef.current = anim.id;
+  } else if (!anim && lastAnimRef.current !== null) {
+    lastAnimRef.current = null;
+  }
+
+  // Use useEffect to firmly snap position when animation state clears
   useEffect(() => {
-    if (anim) {
-      animTimeRef.current = 0;
-      animDoneRef.current = false;
+    if (!anim && groupRef.current) {
+      groupRef.current.position.set(x, baseHeight, z);
     }
-  }, [anim]);
+  }, [anim, x, z, baseHeight]);
 
   useFrame((_state, delta) => {
     if (!groupRef.current) return;
 
     if (anim) {
       animTimeRef.current += delta;
-      
       const duration = 0.4;
       const progress = Math.min(animTimeRef.current / duration, 1);
-      
-      // Easing function (easeInOutQuad)
       const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
       if (anim.type === 'move') {
         groupRef.current.position.x = THREE.MathUtils.lerp(x, targetX, ease);
         groupRef.current.position.z = THREE.MathUtils.lerp(z, targetZ, ease);
-        // Parabolic arc for movement
         groupRef.current.position.y = baseHeight + Math.sin(progress * Math.PI) * 1.0;
       } else if (anim.type === 'attack') {
         if (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) {
-          // Small hop in place for ranged units
           groupRef.current.position.y = baseHeight + Math.sin(progress * Math.PI) * 0.5;
         } else {
-          // Bump forward and back for melee units
           const bumpProgress = progress < 0.5 ? progress * 2 : (1 - progress) * 2;
           const bumpEase = bumpProgress < 0.5 ? 2 * bumpProgress * bumpProgress : 1 - Math.pow(-2 * bumpProgress + 2, 2) / 2;
-          
           groupRef.current.position.x = THREE.MathUtils.lerp(x, (x + targetX) / 2, bumpEase);
           groupRef.current.position.z = THREE.MathUtils.lerp(z, (z + targetZ) / 2, bumpEase);
           groupRef.current.position.y = baseHeight;
         }
       }
 
-      if (progress >= 1 && !animDoneRef.current) {
-        animDoneRef.current = true;
-        onAnimationEnd?.();
+      if (progress >= 1) {
+        groupRef.current.position.x = targetX;
+        groupRef.current.position.z = targetZ;
+        groupRef.current.position.y = baseHeight;
+
+        if (!animDoneRef.current) {
+          animDoneRef.current = true;
+          setTimeout(onAnimationEnd, 0);
+        }
       }
     } else {
-      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, x, 0.1);
-      groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, z, 0.1);
-      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, baseHeight, 0.1);
+      // Firmly stay at current grid position
+      groupRef.current.position.x = x;
+      groupRef.current.position.z = z;
+      groupRef.current.position.y = baseHeight;
     }
   });
 
@@ -499,6 +609,7 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
 });
 
 const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
+  // More stable filtering for terrain features that don't change type in this game
   const forests = useMemo(() => board.filter(t => t.terrain === TerrainType.FOREST), [board]);
   const mountains = useMemo(() => board.filter(t => t.terrain === TerrainType.MOUNTAIN), [board]);
 
@@ -572,140 +683,258 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
   );
 });
 
-const SkySphere = () => (
+const SkySphere = React.memo(() => (
   <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} />
-);
+));
 
-const GlobalSceneUpdates = () => {
-  useFrame(() => {
-    updateWaterTime();
-  });
-  return null;
+const BIRD_BODY_GEO = new THREE.BoxGeometry(0.1, 0.05, 0.3);
+const BIRD_WING_GEO = new THREE.BoxGeometry(0.4, 0.01, 0.15);
+const BAT_BODY_GEO = new THREE.BoxGeometry(0.15, 0.1, 0.3);
+const BAT_WING_GEO = new THREE.BoxGeometry(0.6, 0.01, 0.25);
+
+const FlightShader = {
+  vertexShader: `
+    attribute vec4 instanceData; // x: radius, y: posY, z: speed, w: offset
+    attribute float instanceType; // 0 for bird, 1 for bat
+    uniform float uTime;
+    varying vec2 vUv;
+    varying float vType;
+    
+    void main() {
+      vUv = uv;
+      vType = instanceType;
+      
+      float t = uTime * instanceData.z + instanceData.w;
+      vec3 pos = position;
+      
+      // Size reduction (0.5 scale from previous JS)
+      pos *= 0.5;
+
+      // Roll around central Z axis (reduced for requested horizontal orientation)
+      // 0.5236 rad = 30 degrees (was 1.0472 / 60 deg)
+      float r = 0.5236; 
+      if (instanceType <= 0.5) r += 3.14159; // upside down white birds
+      float cr = cos(r);
+      float sr = sin(r);
+      mat2 mRoll = mat2(cr, -sr, sr, cr);
+      pos.xy = mRoll * pos.xy;
+      
+      // Face flight direction (tangent of circular path + 180 correction)
+      float angle = t + 1.5708 + 3.14159; 
+      float c = cos(angle);
+      float s = sin(angle);
+      mat2 rot = mat2(c, -s, s, c);
+      
+      vec2 rotatedPos = rot * pos.xz;
+      pos.xz = rotatedPos;
+      
+      vec3 worldOffset = vec3(cos(t) * instanceData.x, instanceData.y + sin(uTime * 2.0) * 0.5, sin(t) * instanceData.x);
+      
+      vec4 mvPosition = modelViewMatrix * vec4(pos + worldOffset, 1.0);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    varying float vType;
+    uniform vec3 colorBird;
+    uniform vec3 colorBat;
+    
+    void main() {
+      vec3 color = vType > 0.5 ? colorBat : colorBird;
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `
 };
 
-const birdGeo = new THREE.BoxGeometry(0.1, 0.05, 0.3);
-const wingGeo = new THREE.BoxGeometry(0.4, 0.01, 0.15);
-const birdMat = new THREE.MeshStandardMaterial({ color: "white" });
+// Refined Wing Shader to handle flapping
+const WingShader = {
+  vertexShader: `
+    attribute vec4 instanceData; // x: radius, y: posY, z: speed, w: offset
+    attribute float side; // 1 for left, -1 for right
+    attribute float instanceType; 
+    uniform float uTime;
+    varying float vType;
+    
+    void main() {
+      vType = instanceType;
+      float t = uTime * instanceData.z + instanceData.w;
+      vec3 pos = position;
+      pos *= 0.5;
+       float flapFreq = instanceType > 0.5 ? 18.0 : 12.0;
+      float flapAmp = instanceType > 0.5 ? 0.9 : 0.6;
+      float flap = sin(uTime * flapFreq + instanceData.w * 10.0) * flapAmp;
+      
+      // Pivot offset: move wing so its edge is at the origin before rotation
+      float halfWidth = instanceType > 0.5 ? 0.15 : 0.1;
+      float bodyHalfWidth = instanceType > 0.5 ? 0.0375 : 0.025;
+      
+      // Move wing hinge to Origin
+      pos.x += halfWidth; 
+      
+      // Flap rotation around Z axis + Open Spread Offset (0.4 rad approx 23 deg)
+      float openOffset = 0.4;
+      float angleZ = flap + openOffset;
+      float cz = cos(angleZ);
+      float sz = sin(angleZ);
+      mat2 rotZ = mat2(cz, -sz, sz, cz);
+      pos.xy = rotZ * pos.xy; 
+      
+      // Mirror and Shift to side of body
+      pos.x *= side;
+      pos.x += side * bodyHalfWidth;
 
-const batGeo = new THREE.BoxGeometry(0.15, 0.1, 0.3);
-const batWingGeo = new THREE.BoxGeometry(0.6, 0.01, 0.25);
-const batMat = new THREE.MeshStandardMaterial({ color: "#2a0505" });
-const batWingMat = new THREE.MeshStandardMaterial({ color: "#450a0a" });
+      // Apply the same roll as body
+      float r = 0.5236; 
+      if (instanceType <= 0.5) r += 3.14159; // upside down white birds
+      float cr = cos(r);
+      float sr = sin(r);
+      mat2 mRoll = mat2(cr, -sr, sr, cr);
+      pos.xy = mRoll * pos.xy;
+
+      // Face flight direction (tangent + 180 correction)
+      float angleY = t + 1.5708 + 3.14159; 
+      float cy = cos(angleY);
+      float sy = sin(angleY);
+      mat2 rotY = mat2(cy, -sy, sy, cy);
+      vec2 rotatedXZ = rotY * pos.xz;
+      pos.xz = rotatedXZ;
+
+      vec3 worldOffset = vec3(cos(t) * instanceData.x, instanceData.y + sin(uTime * 2.0) * 0.5, sin(t) * instanceData.x);
+      
+      vec4 mvPosition = modelViewMatrix * vec4(pos + worldOffset, 1.0);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 colorBird;
+    uniform vec3 colorBat;
+    varying float vType;
+    void main() {
+      vec3 color = vType > 0.5 ? colorBat : colorBird;
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `
+};
 
 const BackgroundElements = React.memo(() => {
-  const birdMeshRef = useRef<THREE.InstancedMesh>(null);
-  const birdLeftWingRef = useRef<THREE.InstancedMesh>(null);
-  const birdRightWingRef = useRef<THREE.InstancedMesh>(null);
+  const birdCount = 5;
+  const batCount = 3;
 
-  const batMeshRef = useRef<THREE.InstancedMesh>(null);
-  const batLeftWingRef = useRef<THREE.InstancedMesh>(null);
-  const batRightWingRef = useRef<THREE.InstancedMesh>(null);
-
-  // Reuse Object3D instances to avoid GC pressure
-  const dummyObject = useMemo(() => new THREE.Object3D(), []);
-  const wingLObject = useMemo(() => new THREE.Object3D(), []);
-  const wingRObject = useMemo(() => new THREE.Object3D(), []);
-
-  const entities = useMemo(() => {
-    const data = [];
-    for (let i = 0; i < 10; i++) {
-       data.push({
-         x: (Math.random() - 0.5) * 100,
-         y: 8 + Math.random() * 4,
-         z: (Math.random() - 0.5) * 100,
-         speed: 2 + Math.random() * 3,
-         offset: Math.random() * 100,
-         type: 'bird'
-       });
-    }
-    for (let i = 0; i < 6; i++) {
-      data.push({
-        x: (Math.random() - 0.5) * 120,
-        y: -12 - Math.random() * 8,
-        z: (Math.random() - 0.5) * 120,
-        speed: 3 + Math.random() * 4,
-        offset: Math.random() * 100,
-        type: 'bat'
-      });
+  const birdData = useMemo(() => {
+    const data = new Float32Array(birdCount * 4);
+    for (let i = 0; i < birdCount; i++) {
+       data[i * 4 + 0] = 24 + Math.random() * 24; // radius
+       data[i * 4 + 1] = 10 + Math.random() * 5;  // y
+       data[i * 4 + 2] = 0.0375 + Math.random() * 0.05; // speed
+       data[i * 4 + 3] = Math.random() * Math.PI * 2; // offset
     }
     return data;
   }, []);
 
-  useFrame(({ clock }) => {
-    let birdIdx = 0;
-    let batIdx = 0;
+  const batData = useMemo(() => {
+    const data = new Float32Array(batCount * 4);
+    for (let i = 0; i < batCount; i++) {
+      data[i * 4 + 0] = 19.2 + Math.random() * 19.2;
+      data[i * 4 + 1] = 12 + Math.random() * 6;
+      data[i * 4 + 2] = -0.1 - Math.random() * 0.125;
+      data[i * 4 + 3] = Math.random() * Math.PI * 2;
+    }
+    return data;
+  }, []);
 
-    entities.forEach((e) => {
-      const t = clock.getElapsedTime() + e.offset;
-      const x = e.x + (e.type === 'bird' ? Math.sin(t * 0.1) * 30 : Math.cos(t * 0.15) * 40);
-      let z = e.z + t * e.speed;
-      const boundary = e.type === 'bird' ? 80 : 100;
-      if (z > boundary) z = -boundary;
-      const y = e.y + (e.type === 'bird' ? Math.sin(t * 2) * 0.2 : Math.sin(t * 5) * 0.3);
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    colorBird: { value: new THREE.Color("white") },
+    colorBat: { value: new THREE.Color("#2a0505") }
+  }), []);
 
-      dummyObject.position.set(x, y, z);
-      dummyObject.updateMatrix();
+  const batWingUniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    colorBird: { value: new THREE.Color("white") },
+    colorBat: { value: new THREE.Color("#450a0a") } 
+  }), []);
 
-      if (e.type === 'bird') {
-        if (birdMeshRef.current) birdMeshRef.current.setMatrixAt(birdIdx, dummyObject.matrix);
-        
-        const flap = Math.sin(t * 12) * 0.6;
-        wingLObject.position.set(x + 0.2, y, z);
-        wingLObject.rotation.z = flap;
-        wingLObject.updateMatrix();
-        if (birdLeftWingRef.current) birdLeftWingRef.current.setMatrixAt(birdIdx, wingLObject.matrix);
+  const birdWingData = useMemo(() => {
+    const data = new Float32Array(birdCount * 2 * 4);
+    for (let i = 0; i < birdCount; i++) {
+       const base = i * 4;
+       const targetA = i * 2 * 4;
+       const targetB = (i * 2 + 1) * 4;
+       for(let j=0; j<4; j++) {
+         data[targetA + j] = birdData[base + j];
+         data[targetB + j] = birdData[base + j];
+       }
+    }
+    return data;
+  }, [birdData]);
 
-        wingRObject.position.set(x - 0.2, y, z);
-        wingRObject.rotation.z = -flap;
-        wingRObject.updateMatrix();
-        if (birdRightWingRef.current) birdRightWingRef.current.setMatrixAt(birdIdx, wingRObject.matrix);
-        
-        birdIdx++;
-      } else {
-        if (batMeshRef.current) batMeshRef.current.setMatrixAt(batIdx, dummyObject.matrix);
-        
-        const flap = Math.sin(t * 18) * 0.9;
-        wingLObject.position.set(x + 0.3, y, z);
-        wingLObject.rotation.z = flap;
-        wingLObject.updateMatrix();
-        if (batLeftWingRef.current) batLeftWingRef.current.setMatrixAt(batIdx, wingLObject.matrix);
+  const batWingData = useMemo(() => {
+    const data = new Float32Array(batCount * 2 * 4);
+    for (let i = 0; i < batCount; i++) {
+       const base = i * 4;
+       const targetA = i * 2 * 4;
+       const targetB = (i * 2 + 1) * 4;
+       for(let j=0; j<4; j++) {
+         data[targetA + j] = batData[base + j];
+         data[targetB + j] = batData[base + j];
+       }
+    }
+    return data;
+  }, [batData]);
 
-        wingRObject.position.set(x - 0.3, y, z);
-        wingRObject.rotation.z = -flap;
-        wingRObject.updateMatrix();
-        if (batRightWingRef.current) batRightWingRef.current.setMatrixAt(batIdx, wingRObject.matrix);
-        
-        batIdx++;
-      }
-    });
+  const birdWingSideData = useMemo(() => {
+    const data = new Float32Array(birdCount * 2);
+    for(let i=0; i<birdCount; i++) {
+      data[i*2] = 1;      // Right
+      data[i*2 + 1] = -1; // Left
+    }
+    return data;
+  }, [birdCount]);
 
-    if (birdMeshRef.current) birdMeshRef.current.instanceMatrix.needsUpdate = true;
-    if (birdLeftWingRef.current) birdLeftWingRef.current.instanceMatrix.needsUpdate = true;
-    if (birdRightWingRef.current) birdRightWingRef.current.instanceMatrix.needsUpdate = true;
-    if (batMeshRef.current) batMeshRef.current.instanceMatrix.needsUpdate = true;
-    if (batLeftWingRef.current) batLeftWingRef.current.instanceMatrix.needsUpdate = true;
-    if (batRightWingRef.current) batRightWingRef.current.instanceMatrix.needsUpdate = true;
-  });
+  const batWingSideData = useMemo(() => {
+    const data = new Float32Array(batCount * 2);
+    for(let i=0; i<batCount; i++) {
+      data[i*2] = 1;
+      data[i*2 + 1] = -1;
+    }
+    return data;
+  }, [batCount]);
 
-  const birdCount = entities.filter(e => e.type === 'bird').length;
-  const batCount = entities.filter(e => e.type === 'bat').length;
+  const birdWingTypeData = useMemo(() => new Float32Array(birdCount * 2).fill(0), [birdCount]);
+  const batWingTypeData = useMemo(() => new Float32Array(batCount * 2).fill(1), [batCount]);
+
+  const birdTypeData = useMemo(() => new Float32Array(birdCount).fill(0), [birdCount]);
+  const batTypeData = useMemo(() => new Float32Array(batCount).fill(1), [batCount]);
 
   return (
     <group>
-      {birdCount > 0 && (
-        <>
-          <instancedMesh ref={birdMeshRef} args={[birdGeo, birdMat, birdCount]} />
-          <instancedMesh ref={birdLeftWingRef} args={[wingGeo, birdMat, birdCount]} />
-          <instancedMesh ref={birdRightWingRef} args={[wingGeo, birdMat, birdCount]} />
-        </>
-      )}
-      {batCount > 0 && (
-        <>
-          <instancedMesh ref={batMeshRef} args={[batGeo, batMat, batCount]} />
-          <instancedMesh ref={batLeftWingRef} args={[batWingGeo, batWingMat, batCount]} />
-          <instancedMesh ref={batRightWingRef} args={[batWingGeo, batWingMat, batCount]} />
-        </>
-      )}
+      <EnvironmentalManager birdUniforms={uniforms} batWingUniforms={batWingUniforms} />
+      {/* BIRDS */}
+      <instancedMesh args={[BIRD_BODY_GEO, null, birdCount]}>
+        <shaderMaterial attach="material" {...FlightShader} uniforms={uniforms} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[birdData, 4]} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceType" args={[birdTypeData, 1]} />
+      </instancedMesh>
+      <instancedMesh args={[BIRD_WING_GEO, null, birdCount * 2]}>
+        <shaderMaterial attach="material" {...WingShader} uniforms={uniforms} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[birdWingData, 4]} />
+        <instancedBufferAttribute attach="geometry-attributes-side" args={[birdWingSideData, 1]} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceType" args={[birdWingTypeData, 1]} />
+      </instancedMesh>
+ 
+      {/* BATS */}
+      <instancedMesh args={[BAT_BODY_GEO, null, batCount]}>
+        <shaderMaterial attach="material" {...FlightShader} uniforms={uniforms} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[batData, 4]} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceType" args={[batTypeData, 1]} />
+      </instancedMesh>
+      <instancedMesh args={[BAT_WING_GEO, null, batCount * 2]}>
+        <shaderMaterial attach="material" {...WingShader} uniforms={batWingUniforms} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[batWingData, 4]} />
+        <instancedBufferAttribute attach="geometry-attributes-side" args={[batWingSideData, 1]} />
+        <instancedBufferAttribute attach="geometry-attributes-instanceType" args={[batWingTypeData, 1]} />
+      </instancedMesh>
     </group>
   );
 });
@@ -920,6 +1149,212 @@ const SunLight = () => {
   );
 };
 
+const RecruitHint = React.memo(({ q, r, boardMap, unitsMap, currentPlayerId, playerColor }: { q: number, r: number, boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number, playerColor: string }) => {
+  const tile = boardMap.get(`${q},${r}`);
+  if (!tile) return null;
+  
+  const isEligible = !unitsMap.has(`${q},${r}`) && 
+                    tile.ownerId === currentPlayerId && 
+                    (tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.VILLAGE);
+  
+  if (!isEligible) return null;
+  
+  const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
+  const { x, y: z } = hexToPixel(q, r);
+
+  return (
+    <Billboard position={[x, height + 0.5, z]}>
+      <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">
+        ⊕
+      </Text>
+    </Billboard>
+  );
+});
+
+const RecruitmentLayer = React.memo(({ recruitmentCoords, boardMap, unitsMap, currentPlayerId, playerColor }: { recruitmentCoords: HexCoord[], boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number, playerColor: string }) => {
+  return (
+    <group>
+      {recruitmentCoords.map((coord) => (
+        <RecruitHint 
+          key={`recruit-${coord.q}-${coord.r}`}
+          q={coord.q}
+          r={coord.r}
+          boardMap={boardMap}
+          unitsMap={unitsMap}
+          currentPlayerId={currentPlayerId}
+          playerColor={playerColor}
+        />
+      ))}
+    </group>
+  );
+});
+
+const SettlementFeature = React.memo(({ q, r, boardMap, playerColors }: { q: number, r: number, boardMap: Map<string, any>, playerColors: string[] }) => {
+  const tile = boardMap.get(`${q},${r}`);
+  if (!tile) return null;
+  
+  const terrain = tile.terrain;
+  const ownerId = tile.ownerId;
+  const playerColor = ownerId !== null ? playerColors[ownerId] : '#000';
+  
+  const { x, y: z } = useMemo(() => hexToPixel(q, r), [q, r]);
+  const height = TERRAIN_HEIGHTS[terrain] || 0.4;
+  
+  return (
+    <>
+      {terrain === TerrainType.CASTLE && <CastleFeature position={[x, height, z]} playerColor={playerColor} />}
+      {terrain === TerrainType.FORTRESS && <FortressFeature position={[x, height, z]} playerColor={playerColor} />}
+      {terrain === TerrainType.VILLAGE && <VillageFeature position={[x, height, z]} playerColor={playerColor} isClaimed={ownerId !== null} />}
+      {terrain === TerrainType.GOLD_MINE && <GoldMineFeature position={[x, height, z]} />}
+    </>
+  );
+});
+
+const SettlementsLayer = React.memo(({ settlementCoords, boardMap, playerColors }: { settlementCoords: HexCoord[], boardMap: Map<string, any>, playerColors: string[] }) => {
+  return (
+    <group>
+      {settlementCoords.map((coord) => (
+        <SettlementFeature 
+          key={`settlement-${coord.q}-${coord.r}`} 
+          q={coord.q}
+          r={coord.r}
+          boardMap={boardMap}
+          playerColors={playerColors} 
+        />
+      ))}
+    </group>
+  );
+});
+
+const OverlaysLayer = React.memo(({ 
+  board, 
+  hoveredHex, 
+  possibleAttacksSet, 
+  selectedUnit, 
+  gameState, 
+  showStrategicView, 
+  hasAdjacentSettlementMap 
+}: any) => {
+  const overlays = useMemo(() => {
+    return board.filter(t => {
+      const coordKey = `${t.coord.q},${t.coord.r}`;
+      const isHovered = hoveredHex?.q === t.coord.q && hoveredHex?.r === t.coord.r;
+      const isPossibleAttack = possibleAttacksSet.has(coordKey);
+      
+      const hasBoat = t.terrain === TerrainType.WATER && hasAdjacentSettlementMap.get(coordKey);
+      const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, t.coord) > UNIT_STATS[selectedUnit.type].range;
+      const hasStrategicInfo = showStrategicView && isHovered && (gameState.strategicAnalysis.opportunityMap[coordKey] > 0 || (gameState.strategicAnalysis.threatMap[coordKey]?.eminentThreatValue || 0) > 0);
+      
+      return hasBoat || isExtendedRange || hasStrategicInfo;
+    });
+  }, [board, hoveredHex, possibleAttacksSet, selectedUnit, showStrategicView, gameState.strategicAnalysis, hasAdjacentSettlementMap]);
+
+  return (
+    <group>
+      {overlays.map((tile) => {
+        const coordKey = `${tile.coord.q},${tile.coord.r}`;
+        const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
+        const isPossibleAttack = possibleAttacksSet.has(coordKey);
+        const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord) > UNIT_STATS[selectedUnit.type].range;
+        
+        const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
+        const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
+
+        return (
+          <group key={`overlays-${tile.coord.q}-${tile.coord.r}`}>
+            {tile.terrain === TerrainType.WATER && hasAdjacentSettlementMap.get(coordKey) && (
+              <Billboard position={[x, height + 0.2, z]}>
+                <Text fontSize={0.6} color="black">⛵</Text>
+              </Billboard>
+            )}
+            {isExtendedRange && (
+              <Billboard position={[x, height + 0.8, z]}>
+                <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold">+</Text>
+              </Billboard>
+            )}
+            {showStrategicView && isHovered && (gameState.strategicAnalysis.opportunityMap[coordKey] > 0 || (gameState.strategicAnalysis.threatMap[coordKey]?.eminentThreatValue || 0) > 0) && (
+              <Billboard position={[x, height + 1.5, z]}>
+                <Text fontSize={0.5} color="white" outlineWidth={0.02} outlineColor="black" maxWidth={3} textAlign="center">
+                  {`${gameState.strategicAnalysis.opportunityMap[coordKey] > 0 ? 'Opportunity: ' + Math.round(gameState.strategicAnalysis.opportunityMap[coordKey]) : ''}
+${gameState.strategicAnalysis.threatMap[coordKey]?.eminentThreatValue > 0 ? 'Peril: ' + Math.round(gameState.strategicAnalysis.threatMap[coordKey].eminentThreatValue) : ''}`}
+                </Text>
+              </Billboard>
+            )}
+          </group>
+        );
+      })}
+    </group>
+  );
+});
+
+const UnitsLayer = React.memo(({ 
+  units, 
+  playerColors, 
+  selectedUnitId, 
+  currentPlayerId, 
+  animationsMap, 
+  boardMap, 
+  possibleAttacksSet, 
+  attackRangeSet,
+  isSelectedCatapult,
+  onFinalizeMove,
+  onFinalizeAttack
+}: any) => {
+  return (
+    <group>
+      {units.map((unit: any) => {
+        const anim = animationsMap.get(unit.id);
+        const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
+        const coordKey = `${displayCoord.q},${displayCoord.r}`;
+        const tile = boardMap.get(coordKey);
+        const isOnWater = tile?.terrain === TerrainType.WATER;
+        const tileHeight = tile ? (TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4) : 0.4;
+        
+        const isAttackRange = attackRangeSet.has(`${unit.coord.q},${unit.coord.r}`);
+        const isProhibitedTarget = isSelectedCatapult && tile?.terrain === TerrainType.FOREST && isAttackRange && unit.ownerId !== currentPlayerId;
+
+        return (
+          <React.Fragment key={unit.id}>
+            <AnimatedUnit3D
+              unit={unit}
+              playerColor={playerColors[unit.ownerId]}
+              isSelected={selectedUnitId === unit.id}
+              canMove={unit.ownerId === currentPlayerId && unit.movesLeft > 0}
+              anim={anim}
+              isOnWater={isOnWater}
+              tileHeight={tileHeight}
+              isPossibleAttackTarget={possibleAttacksSet.has(`${unit.coord.q},${unit.coord.r}`)}
+              isProhibitedTarget={isProhibitedTarget}
+              onAnimationEnd={() => {
+                if (anim?.type === 'move') onFinalizeMove(unit.id, anim.to!);
+                if (anim?.type === 'attack') onFinalizeAttack(unit.id, anim.to!);
+              }}
+            />
+            {anim?.type === 'attack' && (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) && (
+              <Projectile3D 
+                from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
+                to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
+                type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </group>
+  );
+});
+
+const EnvironmentalManager = React.memo(({ birdUniforms, batWingUniforms }: any) => {
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    updateWaterTime(t);
+    updateWaterfallTime(t);
+    if (birdUniforms) birdUniforms.uTime.value = t;
+    if (batWingUniforms) batWingUniforms.uTime.value = t;
+  });
+  return null;
+});
+
 export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHoveredHex, handleHexClick, finalizeMove, finalizeAttack, clearAnimation, showStrategicView }) => {
   const [controls, setControls] = useState<any>(null);
   const rotationActive = useRef({ left: false, right: false, up: false, down: false });
@@ -931,6 +1366,10 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
   // Pre-calculate lookups for performance
   const possibleAttacksSet = useMemo(() => new Set(gameState.possibleAttacks.map(a => `${a.q},${a.r}`)), [gameState.possibleAttacks]);
   const attackRangeSet = useMemo(() => new Set(gameState.attackRange.map(r => `${r.q},${r.r}`)), [gameState.attackRange]);
+  const playerColors = useMemo(() => {
+    return (gameState.players || []).map(p => p.color);
+  }, [JSON.stringify(gameState.players.map(p => p.color))]);
+
   const unitsMap = useMemo(() => {
     const map = new Map<string, any>();
     (gameState.units || []).forEach(u => map.set(`${u.coord.q},${u.coord.r}`, u));
@@ -942,6 +1381,18 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
     (gameState.board || []).forEach(t => map.set(`${t.coord.q},${t.coord.r}`, t));
     return map;
   }, [gameState.board]);
+  
+  const settlementCoords = useMemo(() => {
+    return gameState.board
+      .filter(t => [TerrainType.CASTLE, TerrainType.FORTRESS, TerrainType.VILLAGE, TerrainType.GOLD_MINE].includes(t.terrain as any))
+      .map(t => t.coord);
+  }, [gameState.board]); // Depend on full board to catch terrain changes from upgrades
+
+  const recruitmentCoords = useMemo(() => {
+    return gameState.board
+      .filter(t => t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE)
+      .map(t => t.coord);
+  }, [gameState.board]); // Depend on full board to catch terrain changes from upgrades
 
   const animationsMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -963,14 +1414,29 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
     return () => window.removeEventListener('resize', handleResize);
   }, [controls]);
 
+  const hasAdjacentSettlementMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    gameState.board.filter(t => t.terrain === TerrainType.WATER).forEach(tile => {
+      const neighbors = getNeighbors(tile.coord);
+      const hasAdj = neighbors.some(n => {
+        const neighborTile = boardMap.get(`${n.q},${n.r}`);
+        return neighborTile && (
+          neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORTRESS || 
+          neighborTile.terrain === TerrainType.CASTLE || neighborTile.terrain === TerrainType.GOLD_MINE
+        );
+      });
+      map.set(`${tile.coord.q},${tile.coord.r}`, hasAdj);
+    });
+    return map;
+  }, [gameState.board, boardMap]);
+
   return (
     <div className="w-full h-full relative">
       <Canvas>
-        <GlobalSceneUpdates />
         {/* Environmental */}
         <SkySphere />
         
-        {/* Background Animated Elements */}
+        {/* Background Animated Elements - contains environmental timers */}
         <BackgroundElements />
 
         <PerspectiveCamera 
@@ -1037,10 +1503,11 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         {/* Render Board Bases (Instanced) */}
         <MapBasesInstanced 
           board={gameState.board} 
-          players={gameState.players}
+          playerColors={playerColors}
           selectedHex={gameState.selectedHex}
           hoveredHex={hoveredHex}
           onClick={handleHexClick} 
+          onPointerEnter={setHoveredHex}
         />
 
         {/* Water Surface (Instanced for GPU Efficiency) */}
@@ -1055,21 +1522,22 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
         {/* Waterfalls (Instanced) */}
         <WaterfallsInstanced board={gameState.board} />
 
-        {/* Render Board Features (Instanced) */}
+        {/* Board Features and Infrastructure Layers */}
         <FeaturesInstanced board={gameState.board} />
+        
+        <SettlementsLayer 
+          settlementCoords={settlementCoords}
+          boardMap={boardMap} 
+          playerColors={playerColors} 
+        />
 
-        {/* Recruitment Hints (Billboards) - still individual as they have text, but limited to settlements */}
-        {gameState.board.filter(t => !unitsMap.has(`${t.coord.q},${t.coord.r}`) && t.ownerId === currentPlayer.id && (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE)).map(t => {
-           const { x, y: z } = hexToPixel(t.coord.q, t.coord.r);
-           const height = TERRAIN_HEIGHTS[t.terrain as TerrainType];
-           return (
-             <Billboard key={`recruit-${t.coord.q}-${t.coord.r}`} position={[x, height + 0.5, z]}>
-               <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">
-                 ⊕
-               </Text>
-             </Billboard>
-           );
-        })}
+        <RecruitmentLayer 
+          recruitmentCoords={recruitmentCoords}
+          boardMap={boardMap} 
+          unitsMap={unitsMap} 
+          currentPlayerId={currentPlayer.id} 
+          playerColor={currentPlayer.color}
+        />
 
         {/* Global Attack Indicators */}
         <AttackIndicatorsInstanced 
@@ -1088,107 +1556,31 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           board={gameState.board}
         />
 
-        {/* Render Board */}
-        {gameState.board.map((tile) => {
-          const coordKey = `${tile.coord.q},${tile.coord.r}`;
-          const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
-          const isPossibleAttack = possibleAttacksSet.has(coordKey);
-          const isExtendedRange = isPossibleAttack && selectedUnit && getDistance(selectedUnit.coord, tile.coord, gameState.board) > UNIT_STATS[selectedUnit.type].range;
-          
-          let hasAdjacentSettlement = false;
-          const height = TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4;
-          
-          if (tile.terrain === TerrainType.WATER) {
-            const neighbors = getNeighbors(tile.coord);
-            hasAdjacentSettlement = neighbors.some(n => {
-              const neighborTile = boardMap.get(`${n.q},${n.r}`);
-              return neighborTile && (
-                neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORTRESS || 
-                neighborTile.terrain === TerrainType.CASTLE || neighborTile.terrain === TerrainType.GOLD_MINE
-              );
-            });
-          }
-
-          const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
-
-          return (
-            <React.Fragment key={`tile-frag-${tile.coord.q}-${tile.coord.r}`}>
-              <HexTile3D
-                tile={tile}
-                onClick={handleHexClick}
-                onPointerEnter={setHoveredHex}
-                onPointerLeave={setHoveredHex}
-              />
-              
-              {/* Overlays that are harder to instance simply */}
-              {tile.terrain === TerrainType.WATER && hasAdjacentSettlement && (
-                <Billboard position={[x, height + 0.2, z]}>
-                  <Text fontSize={0.6} color="black">⛵</Text>
-                </Billboard>
-              )}
-              {isExtendedRange && (
-                <Billboard position={[x, height + 0.8, z]}>
-                  <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold">+</Text>
-                </Billboard>
-              )}
-              {showStrategicView && isHovered && (gameState.strategicAnalysis.opportunityMap[coordKey] > 0 || gameState.strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0) && (
-                <Billboard position={[x, height + 1.5, z]}>
-                  <Text fontSize={0.5} color="white" outlineWidth={0.02} outlineColor="black" maxWidth={3} textAlign="center">
-                    {`${gameState.strategicAnalysis.opportunityMap[coordKey] > 0 ? 'Opportunity: ' + Math.round(gameState.strategicAnalysis.opportunityMap[coordKey]) : ''}
-${gameState.strategicAnalysis.threatMap[coordKey]?.totalThreatValue > 0 ? 'Threat: ' + Math.round(gameState.strategicAnalysis.threatMap[coordKey].totalThreatValue) : ''}`}
-                  </Text>
-                </Billboard>
-              )}
-
-              {/* Settlements - Still individual but simplified? No, let's keep them here for now until we instance them */}
-              {tile.terrain === TerrainType.CASTLE && <CastleFeature position={[x, height, z]} playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'} />}
-              {tile.terrain === TerrainType.FORTRESS && <FortressFeature position={[x, height, z]} playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'} />}
-              {tile.terrain === TerrainType.VILLAGE && <VillageFeature position={[x, height, z]} playerColor={tile.ownerId !== null ? gameState.players[tile.ownerId].color : '#000'} isClaimed={tile.ownerId !== null} />}
-              {tile.terrain === TerrainType.GOLD_MINE && <GoldMineFeature position={[x, height, z]} />}
-            </React.Fragment>
-          );
-        })}
+        {/* Overlay Objects (Isolated from interaction layer) */}
+        <OverlaysLayer 
+          board={gameState.board}
+          hoveredHex={hoveredHex}
+          possibleAttacksSet={possibleAttacksSet}
+          selectedUnit={selectedUnit}
+          gameState={gameState}
+          showStrategicView={showStrategicView}
+          hasAdjacentSettlementMap={hasAdjacentSettlementMap}
+        />
 
         {/* Render Units */}
-        {gameState.units.map((unit) => {
-          const anim = animationsMap.get(unit.id);
-          const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
-          const coordKey = `${displayCoord.q},${displayCoord.r}`;
-          const tile = boardMap.get(coordKey);
-          const isOnWater = tile?.terrain === TerrainType.WATER;
-          const tileHeight = tile ? (TERRAIN_HEIGHTS[tile.terrain as TerrainType] || 0.4) : 0.4;
-          
-          const isAttackRange = attackRangeSet.has(`${unit.coord.q},${unit.coord.r}`);
-          const isProhibitedTarget = isSelectedCatapult && tile?.terrain === TerrainType.FOREST && isAttackRange && unit.ownerId !== currentPlayer.id;
-
-          return (
-            <React.Fragment key={unit.id}>
-              <AnimatedUnit3D
-                unit={unit}
-                playerColor={gameState.players[unit.ownerId].color}
-                isSelected={gameState.selectedUnitId === unit.id}
-                canMove={unit.ownerId === currentPlayer.id && unit.movesLeft > 0}
-                anim={anim}
-                isOnWater={isOnWater}
-                tileHeight={tileHeight}
-                isPossibleAttackTarget={possibleAttacksSet.has(`${unit.coord.q},${unit.coord.r}`)}
-                isProhibitedTarget={isProhibitedTarget}
-                onAnimationEnd={() => {
-                  if (anim?.type === 'move') finalizeMove(unit.id, anim.to!);
-                  if (anim?.type === 'attack') finalizeAttack(unit.id, anim.to!);
-                }}
-              />
-              {/* Projectiles for ranged attacks */}
-              {anim?.type === 'attack' && (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) && (
-                <Projectile3D 
-                  from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
-                  to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
-                  type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
+        <UnitsLayer 
+          units={gameState.units}
+          playerColors={playerColors}
+          selectedUnitId={gameState.selectedUnitId}
+          currentPlayerId={currentPlayer.id}
+          animationsMap={animationsMap}
+          boardMap={boardMap}
+          possibleAttacksSet={possibleAttacksSet}
+          attackRangeSet={attackRangeSet}
+          isSelectedCatapult={isSelectedCatapult}
+          onFinalizeMove={finalizeMove}
+          onFinalizeAttack={finalizeAttack}
+        />
 
           {/* Damage Popups and Sparks */}
           {(gameState.animations || []).filter(a => a.type === 'damage' || a.type === 'miss').map(anim => {

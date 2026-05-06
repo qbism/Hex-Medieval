@@ -54,11 +54,22 @@ export function getUpgradeAction(
   isLaggingIncome: boolean,
   isCriticallyLaggingLargeEconomy: boolean,
   threatMatrix: Map<string, ThreatInfo>,
-  isBarbarian: boolean = false
+  isBarbarian: boolean = false,
+  isLaggingStrength: boolean = false
 ) {
   // Barbarians only build villages if they have enough gold
   // The 1/3 expansion budget is managed in getRecruitmentAction
   if (isBarbarian && currentPlayer.gold < UPGRADE_COSTS[TerrainType.VILLAGE]) return null;
+
+  // CRITICAL DEFENSE RULE: If we are critically outnumbered or under direct threat, 
+  // we strictly penalize purely economic upgrades (Villas, Mines).
+  const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
+  const unitToSettlementRatio = myUnits.length / Math.max(1, numSettlements);
+  
+  // If we have fewer than 1.0 units per settlement, we should focus on units first
+  const densityPenalty = unitToSettlementRatio < 1.0 ? (1.0 - unitToSettlementRatio) * 5.0 : 0;
+  
+  const econPenalty = (isUnderThreat ? 1.5 : 0) + (isLaggingStrength ? 2.0 : 0) + densityPenalty;
 
   const upgradeableTiles = state.board.filter(t => {
     if (t.ownerId === currentPlayer.id) return true;
@@ -77,12 +88,12 @@ export function getUpgradeAction(
 
     if (tile.terrain === TerrainType.MOUNTAIN && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
-      baseScore = BASE_REWARD * UPGRADE_GOLD_MINE_BONUS; // Priority 1: Maximize income (increased significantly)
+      baseScore = BASE_REWARD * (UPGRADE_GOLD_MINE_BONUS - econPenalty); // Priority 1: Maximize income (penalized if weak)
       if (isLaggingIncome) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
       if (isCriticallyLaggingLargeEconomy) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 6; // Extreme priority for large economy gaps
        } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
-      baseScore = BASE_REWARD * UPGRADE_VILLAGE_BONUS; // Same priority for barbarians
+      baseScore = BASE_REWARD * (UPGRADE_VILLAGE_BONUS - econPenalty); // Same priority for barbarians
       if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
       if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 4;
       

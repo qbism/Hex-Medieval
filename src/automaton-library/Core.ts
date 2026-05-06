@@ -140,12 +140,19 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
   const isEarlyGame = state.turnNumber <= 15;
   const numSettlements = mySettlements.length;
 
-  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome);
-  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy);
+  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength);
+  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength);
 
-  // 1. Try to upgrade settlements (Civilized players only)
-  const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix) : null;
-  if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
+  // --- REBALANCED PRIORITY ---
+  // If we are under threat or our military is lagging behind neighbors, 
+  // recruitment becomes Priority 1. Otherwise, upgrades remain Priority 1.
+  const defenseIsPriority = isUnderThreat || isLaggingStrength;
+
+  if (!defenseIsPriority) {
+    // 1. Try to upgrade settlements (Normal/Economic bias)
+    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength) : null;
+    if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
+  }
 
   // 2. Try to recruit
   const recruitmentAction = getRecruitmentAction(
@@ -169,6 +176,12 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
     config
   );
   if (recruitmentAction) return { ...recruitmentAction, matrix: opportunityPerilMatrix };
+
+  if (defenseIsPriority) {
+    // 3. Try to upgrade settlements (Secondary priority if we couldn't recruit anyway or have excess gold)
+    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength) : null;
+    if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
+  }
 
   // 3. Move/Attack with units
   if (isBarbarian) {

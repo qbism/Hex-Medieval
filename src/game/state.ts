@@ -364,8 +364,5 @@ export function processTurnTransition(state: GameState): GameState {
     attackRange: [],
   };
 
-  // Add Global Strategic Analysis for the new current player
-  resultState.strategicAnalysis = calculateStrategicAnalysis(resultState, nextPlayer.id);
-
   return resultState;
 }

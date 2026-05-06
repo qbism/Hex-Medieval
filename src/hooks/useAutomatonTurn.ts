@@ -1,6 +1,5 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { GameState } from '../types';
-import { getAutomatonBestAction } from '../automaton-library';
 import { GameActions } from './useGameActions';
 
 interface UseAutomatonTurnProps {
@@ -21,6 +20,17 @@ export function useAutomatonTurn({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const actionsTakenRef = useRef(0);
   const lastPlayerKeyRef = useRef("");
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    // Initialize worker once
+    workerRef.current = new Worker(new URL('../automaton-library/worker.ts', import.meta.url), { type: 'module' });
+    
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
 
   // Memoize the parts of the state that actually matter for AI decisions
   const meaningfulState = useMemo(() => {
@@ -45,7 +55,7 @@ export function useAutomatonTurn({
   ]);
 
   useEffect(() => {
-    if (!meaningfulState || setupMode || meaningfulState.winnerId !== null || gameState?.isPlaybackMode) {
+    if (!meaningfulState || setupMode || meaningfulState.winnerId !== null || gameState?.isPlaybackMode || !workerRef.current) {
       isProcessingRef.current = false;
       return;
     }
@@ -70,7 +80,7 @@ export function useAutomatonTurn({
     if (isProcessingRef.current) return;
     
     // Reset action counter if player or turn changed
-    const playerKey = `${meaningfulState.turnNumber}-${meaningfulState.currentPlayerIndex}`;
+  const playerKey = `${meaningfulState.turnNumber}-${meaningfulState.currentPlayerIndex}`;
     if (playerKey !== lastPlayerKeyRef.current) {
       actionsTakenRef.current = 0;
       lastPlayerKeyRef.current = playerKey;
@@ -87,14 +97,20 @@ export function useAutomatonTurn({
     if (meaningfulState.animations && meaningfulState.animations.length > 0) return;
 
     isProcessingRef.current = true;
+    const worker = workerRef.current;
+    let active = true;
 
-    // Use a Web Worker to keep the UI responsive during heavy AI computation
-    const worker = new Worker(new URL('../automaton-library/worker.ts', import.meta.url), { type: 'module' });
+    const handleMessage = (e: MessageEvent) => {
+      if (!active) {
+        isProcessingRef.current = false;
+        return;
+      }
+      
+      worker.removeEventListener('message', handleMessage);
+      worker.removeEventListener('error', handleError);
 
-    worker.onmessage = (e) => {
       if (!gameState) {
         isProcessingRef.current = false;
-        worker.terminate();
         return;
       }
 
@@ -102,7 +118,6 @@ export function useAutomatonTurn({
         console.error('Automaton worker error:', e.data.error);
         actions.endTurn();
         isProcessingRef.current = false;
-        worker.terminate();
         return;
       }
 
@@ -150,7 +165,7 @@ export function useAutomatonTurn({
             break;
           }
           case 'barbarianSurrender':
-            setAutomatonStatus("Barbarian forces surrendering to your might!");
+            setAutomatonStatus("Barbarian forces surrendering!");
             actions.barbarianSurrender();
             break;
         }
@@ -160,34 +175,63 @@ export function useAutomatonTurn({
       }
       
       isProcessingRef.current = false;
-      worker.terminate();
     };
 
-    worker.onerror = (error) => {
-      console.error('Worker failed to initialize:', error);
-      // Fallback to synchronous if worker fails
-      try {
-        const action = getAutomatonBestAction(gameState as GameState);
-        if (action.matrix) actions.updateAIMatrix(action.matrix);
-        actions.endTurn(); 
-      } catch (e) {
-        actions.endTurn();
+    const handleError = (error: ErrorEvent) => {
+      if (!active) {
+        isProcessingRef.current = false;
+        return;
       }
+      worker.removeEventListener('message', handleMessage);
+      worker.removeEventListener('error', handleError);
+      console.error('Worker failed to initialize or execute:', error);
+      actions.endTurn();
       isProcessingRef.current = false;
-      worker.terminate();
     };
 
-    // Post message to worker with a timeout delay to allow the "Analyzing battlefield..." status to render
+    worker.addEventListener('message', handleMessage);
+    worker.addEventListener('error', handleError);
+
+    // Post message to worker with a timeout delay to allow the status to render
     timerRef.current = setTimeout(() => {
-      worker.postMessage({ state: meaningfulState, config: (gameState as any).config || undefined });
+      if (!active) return;
+      try {
+        // Only clone the necessary data, avoid structuredClone if the object is too deep/complex
+        // or if we can just take a snapshot of the raw data.
+        // We also prune the board to minimize transfer size.
+        const prunedBoard = meaningfulState.board.map(t => ({
+          coord: t.coord,
+          terrain: t.terrain,
+          ownerId: t.ownerId
+        }));
+        
+        const workerState = {
+          ...meaningfulState,
+          board: prunedBoard
+        };
+        
+        worker.postMessage({ state: workerState, config: (gameState as any).config || undefined });
+      } catch (_e) {
+        // Last resort fallback
+        try {
+          const workerState = JSON.parse(JSON.stringify(meaningfulState));
+          worker.postMessage({ state: workerState, config: (gameState as any).config || undefined });
+        } catch (innerE) {
+          console.error("Failed to post to worker:", innerE);
+          isProcessingRef.current = false;
+        }
+      }
     }, 150);
 
     return () => {
+      active = false;
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      worker.terminate();
+      worker.removeEventListener('message', handleMessage);
+      worker.removeEventListener('error', handleError);
+      // Reset processing flag so next effect run can start
       isProcessingRef.current = false;
     };
 

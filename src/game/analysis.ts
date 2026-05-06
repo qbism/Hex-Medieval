@@ -36,7 +36,19 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
     influenceMap[key] = 0;
   }
 
-  // Step 0: Pre-calculate enemy capacity (how many friendly units an enemy can target)
+  // Step 0: Pre-calculate settlement locations
+  const enemySettlements: any[] = [];
+  const neutralSettlements: any[] = [];
+  const friendlySettlements: any[] = [];
+  for (const t of state.board) {
+    const isSettlement = [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain as any);
+    if (!isSettlement) continue;
+    if (t.ownerId === playerId) friendlySettlements.push(t);
+    else if (t.ownerId === null) neutralSettlements.push(t);
+    else enemySettlements.push(t);
+  }
+
+  // Step 0.2: Pre-calculate enemy capacity
   const enemyCapacityMap = new Map<string, number>();
   for (const enemy of state.units) {
     if (enemy.ownerId !== playerId) {
@@ -44,7 +56,7 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
       let targetsInReach = 0;
       for (const friendly of state.units) {
         if (friendly.ownerId === playerId) {
-          const d = getDistance(enemy.coord, friendly.coord, state.board);
+          const d = getDistance(enemy.coord, friendly.coord);
           if (d <= range) targetsInReach++;
         }
       }
@@ -80,15 +92,17 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
     const moves = stats.moves;
     const power = stats.cost;
 
-    // Influence Map (Global rhythm) - Still uses unit cost/power
-    for (const tile of state.board) {
-      const dist = (Math.abs(u.coord.q - tile.coord.q) + Math.abs(u.coord.r - tile.coord.r) + Math.abs(u.coord.s - tile.coord.s)) / 2;
-      const influence = power / Math.pow(dist + 1, 1.5);
-      const key = `${tile.coord.q},${tile.coord.r}`;
-      if (u.ownerId === playerId) {
-        influenceMap[key] += influence;
-      } else {
-        influenceMap[key] -= influence;
+    // Influence Map (Optimized radius)
+    const iRadius = 10;
+    const basePower = power;
+    for (let dq = -iRadius; dq <= iRadius; dq++) {
+      for (let dr = Math.max(-iRadius, -dq - iRadius); dr <= Math.min(iRadius, -dq + iRadius); dr++) {
+        const tKey = `${u.coord.q + dq},${u.coord.r + dr}`;
+        if (!(tKey in influenceMap)) continue;
+        const dist = (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+        const influenceValue = basePower / Math.pow(dist + 1, 1.5);
+        if (u.ownerId === playerId) influenceMap[tKey] += influenceValue;
+        else influenceMap[tKey] -= influenceValue;
       }
     }
 
@@ -159,32 +173,30 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
       opportunity += 200 + UNIT_STATS[unitOnTile.type].cost;
     }
 
-    // C: Terrain Modifiers (User requested)
-    const isNavigableWater = tile.terrain === TerrainType.WATER && state.board.some(t => 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE) && 
-      getDistance(tile.coord, t.coord, state.board) <= 1
+    // C: Terrain Modifiers (Optimized check)
+    const isNavigableWater = tile.terrain === TerrainType.WATER && (
+      neutralSettlements.some(s => getDistance(tile.coord, s.coord) <= 1) ||
+      enemySettlements.some(s => getDistance(tile.coord, s.coord) <= 1) ||
+      friendlySettlements.some(s => getDistance(tile.coord, s.coord) <= 1)
     );
 
     if (tile.terrain === TerrainType.WATER) {
-      opportunity = isNavigableWater ? (opportunity / 5) * 10 : 0; // Navigable water x10
+      opportunity = isNavigableWater ? (opportunity / 5) * 10 : 0; 
     } else if (tile.terrain === TerrainType.PLAINS) {
       opportunity += 50; 
       opportunity /= 5; 
       
-      // Safe Staging Bonus: 2x if just outside immediate threat range
       const threat = threatMap[key];
       if (threat.eminentAttackerCount === 0 && threat.attackerCount > 0) {
         opportunity *= 2;
       }
       
-      opportunity *= 10; // Plains x10
+      opportunity *= 10; 
     } else if (tile.terrain === TerrainType.FOREST) {
-      opportunity += 50; 
       let isAdjacentToEnemyCatapult = false;
       const neighbors = getNeighbors(tile.coord);
       for (const nb of neighbors) {
         const u = unitsByCoord.get(`${nb.q},${nb.r}`);
-        // Tactical bonus for Forest only if adjacent to an ENEMY Catapult
         if (u && u.ownerId !== playerId && u.type === UnitType.CATAPULT) {
           isAdjacentToEnemyCatapult = true;
           break;
@@ -192,20 +204,12 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
       }
       
       if (isAdjacentToEnemyCatapult) {
-        opportunity *= 5; 
-      } else {
-        opportunity /= 40; 
+        opportunity += 50; 
       }
-      opportunity *= 0.3; // Local refinement
-      opportunity *= 10; // Forest x10
     }
 
     // D: Settlement Attack Range Tactical Bonus (Triple bonus for tiles in range 1-2 of enemy settlements)
-    const isNearEnemySettlement = state.board.some(t => 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
-      t.ownerId !== null && t.ownerId !== playerId &&
-      getDistance(tile.coord, t.coord, state.board) <= 2
-    );
+    const isNearEnemySettlement = enemySettlements.some(s => getDistance(tile.coord, s.coord) <= 2);
     if (isNearEnemySettlement) {
       opportunity *= 3;
     }
@@ -244,13 +248,19 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
   }
 
   // 3. Diffuse Opportunity Map
+  const topOpportunities = Object.entries(rawOpportunityMap)
+    .filter(([_, val]) => val > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15);
+
   for (const tile of state.board) {
     const key = `${tile.coord.q},${tile.coord.r}`;
     
     // Hard check: non-navigable water has zero opportunity
-    const isNavigableWater = tile.terrain === TerrainType.WATER && state.board.some(t => 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE) && 
-      getDistance(tile.coord, t.coord, state.board) <= 1
+    const isNavigableWater = tile.terrain === TerrainType.WATER && (
+      neutralSettlements.some(s => getDistance(tile.coord, s.coord) <= 1) ||
+      enemySettlements.some(s => getDistance(tile.coord, s.coord) <= 1) ||
+      friendlySettlements.some(s => getDistance(tile.coord, s.coord) <= 1)
     );
 
     if (tile.terrain === TerrainType.WATER && !isNavigableWater) {
@@ -262,11 +272,6 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
 
     let diffusedScore = rawOpportunityMap[key];
     
-    const topOpportunities = Object.entries(rawOpportunityMap)
-      .filter(([_, val]) => val > 0)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 15);
-
     for (const [tKey, tVal] of topOpportunities) {
       if (tKey === key) continue;
       const tTile = boardMap.get(tKey)!;

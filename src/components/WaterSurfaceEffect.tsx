@@ -6,8 +6,8 @@ import { GEOMETRIES, createWaterSurfaceMaterial } from '../services/graphicsLibr
 
 const sharedWaterMaterial = createWaterSurfaceMaterial();
 
-export const updateWaterTime = () => {
-  (sharedWaterMaterial as THREE.ShaderMaterial).uniforms.time.value = performance.now() / 1000;
+export const updateWaterTime = (t: number) => {
+  (sharedWaterMaterial as THREE.ShaderMaterial).uniforms.time.value = t;
 };
 
 export const WaterBasesInstanced = ({ 
@@ -26,7 +26,7 @@ export const WaterBasesInstanced = ({
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   
-  const waterTiles = useMemo(() => board.filter(t => t.terrain === 'Water'), [board]);
+  const waterTiles = useMemo(() => board.filter(t => t.terrain === 'Water'), [board.length]);
   const selectionStates = useRef(new Float32Array(waterTiles.length));
 
   useEffect(() => {
@@ -47,12 +47,26 @@ export const WaterBasesInstanced = ({
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [waterTiles]);
 
+  const lastSelectedHex = useRef<{q: number, r: number} | null>(null);
+  const isTransitioning = useRef(false);
+
   useFrame((_state, delta) => {
     if (!meshRef.current || !selectionAttrRef.current) return;
-    (sharedWaterMaterial as THREE.ShaderMaterial).uniforms.time.value = performance.now() / 1000;
+
+    const hexChanged = lastSelectedHex.current?.q !== selectedHex?.q || lastSelectedHex.current?.r !== selectedHex?.r;
+    
+    if (!hexChanged && !isTransitioning.current) return;
+
+    if (hexChanged) {
+      lastSelectedHex.current = selectedHex;
+      isTransitioning.current = true;
+    }
 
     let needsUpdate = false;
-    waterTiles.forEach((tile, i) => {
+    let anyStillMoving = false;
+
+    for (let i = 0; i < waterTiles.length; i++) {
+      const tile = waterTiles[i];
       const isSelected = selectedHex?.q === tile.coord.q && selectedHex?.r === tile.coord.r;
       const target = isSelected ? 1.0 : 0.0;
       const current = selectionStates.current[i];
@@ -65,8 +79,11 @@ export const WaterBasesInstanced = ({
         }
         selectionAttrRef.current!.setX(i, selectionStates.current[i]);
         needsUpdate = true;
+        anyStillMoving = true;
       }
-    });
+    }
+
+    isTransitioning.current = anyStillMoving;
 
     if (needsUpdate) {
       selectionAttrRef.current.needsUpdate = true;

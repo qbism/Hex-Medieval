@@ -130,6 +130,7 @@ export function getRecruitmentAction(
     if (recruitSafety.tick()) break;
 
     const { dist: distToNearestEnemy } = findNearestTarget(t.coord, state, currentPlayer.id);
+    const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord, state.board) <= DEFENSE_DISTANCE_THRESHOLD);
 
     const allowedUnitTypes = (Object.keys(UNIT_STATS) as UnitType[]);
 
@@ -183,9 +184,6 @@ export function getRecruitmentAction(
            turnsToAct += (dist - stats.moves); // Simulate "Leapfrog" delay
         }
         
-        // Bonus for defending own territory
-        const isNearMyBase = eminentThreatBases.some(b => getDistance(t.coord, b.coord, state.board) <= DEFENSE_DISTANCE_THRESHOLD);
-
         // Strict Recruitment Constraints Based on Unit Type
         let isValidImmediateNeed = false;
         const isEdgeSpawn = distToNearestEnemy !== Infinity && distToNearestEnemy <= 4;
@@ -274,7 +272,8 @@ export function getRecruitmentAction(
         let frontPriorityBonus = 0;
         const isNearThreatenedFront = eminentThreatBases.some(b => getDistance(t.coord, b.coord, state.board) <= 3);
         if (isNearThreatenedFront) {
-          frontPriorityBonus += BASE_REWARD * 10.0;
+          // Scaling bonus by the severity of the front situation
+          frontPriorityBonus += BASE_REWARD * 10.0 * Math.max(1, threatenedBasesCount);
         }
 
         if (score + influenceBonus + heatBonus + frontPriorityBonus > bestUnitScore) {
@@ -308,12 +307,18 @@ export function getRecruitmentAction(
       
       if (isTileInEminentPeril) {
         // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
-        bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS;
+        bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS * 2.0;
         
         // Favor cheaper units for "sacrificial" defense to buy time
         if (stats.cost <= 100) {
-          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS;
+          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS * 2.0;
         }
+      }
+
+      // Military Lag Bonus: If we are weak, give an extra nudge to recruit units near ANY base, 
+      // not just those currently under eminent threat.
+      if (isLaggingStrength && isNearMyBase) {
+        bestUnitScore += BASE_REWARD * config.DEFENSE_URGENCY_BONUS;
       }
 
       if (threatLevel <= 2 && !isBarbarian) {
@@ -330,10 +335,19 @@ export function getRecruitmentAction(
   }
 
   // Minimum score threshold to actually recruit
-  let minThreshold = isUnderThreat ? MIN_RECRUIT_THRESHOLD_THREAT : MIN_RECRUIT_THRESHOLD_NORMAL;
+  let minThreshold = (isUnderThreat || isLaggingStrength) ? MIN_RECRUIT_THRESHOLD_THREAT : MIN_RECRUIT_THRESHOLD_NORMAL;
   
-  // Heat Map Logic: If heat is low, we need a higher score to justify recruitment (unless barbarian)
-  if (bestAction && !isBarbarian) {
+  // Extra low threshold if critically lagging strength
+  if (isLaggingStrength && currentPlayer.gold > 200) {
+    minThreshold -= 100; 
+  }
+  
+  const myUnitsCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
+  
+  if (myUnitsCount === 0) {
+    minThreshold = -Infinity;
+  } else if (bestAction && !isBarbarian) {
+    // Heat Map Logic: If heat is low, we need a higher score to justify recruitment (unless barbarian)
     const tileKey = `${bestAction.coord.q},${bestAction.coord.r}`;
     const heat = heatMap.get(tileKey) || 0;
     if (heat < HEAT_MAP_SAVINGS_THRESHOLD) {

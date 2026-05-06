@@ -104,15 +104,18 @@ export function useGameActions(
         };
       }
 
-      const newBoard = prev.board.map(t => {
-        if (t.coord.q === target.q && t.coord.r === target.r) {
-          const isCapturableSettlement = (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) && t.ownerId !== prev.players[prev.currentPlayerIndex].id;
-          if (isCapturableSettlement) {
+      const targetTile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
+      const isCapturableSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE) && targetTile.ownerId !== prev.players[prev.currentPlayerIndex].id;
+
+      let newBoard = prev.board;
+      if (isCapturableSettlement) {
+        newBoard = prev.board.map(t => {
+          if (t.coord.q === target.q && t.coord.r === target.r) {
             return { ...t, ownerId: prev.players[prev.currentPlayerIndex].id };
           }
-        }
-        return t;
-      });
+          return t;
+        });
+      }
 
       const cost = getDistance(unit.coord, target, prev.board);
       const hasMoved = cost > 0;
@@ -141,7 +144,6 @@ export function useGameActions(
         animations: prev.animations.filter(a => a.unitId !== unitId)
       };
 
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
       return newState;
     });
   }, [setGameState]);
@@ -206,10 +208,13 @@ export function useGameActions(
         return u;
       }).filter(u => !(currentDefender && u.id === currentDefender.id));
 
-      const newBoard = prev.board.map(tile => {
-        if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== currentAttacker.ownerId) {
-          const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
-          if (isSettlement && !currentDefender) {
+      const targetTile = prev.board.find(tile => tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r);
+      const isCapturableSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE) && !currentDefender;
+      
+      let newBoard = prev.board;
+      if (isCapturableSettlement) {
+        newBoard = prev.board.map(tile => {
+          if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== currentAttacker.ownerId) {
             // Enemy settlements become neutral or downgraded when defeated
             if (tile.terrain === TerrainType.CASTLE) {
               return { ...tile, terrain: TerrainType.FORTRESS };
@@ -219,9 +224,9 @@ export function useGameActions(
               return { ...tile, ownerId: null };
             }
           }
-        }
-        return tile;
-      });
+          return tile;
+        });
+      }
 
       const isAutomaton = prev.players[prev.currentPlayerIndex].isAutomaton;
 
@@ -236,7 +241,6 @@ export function useGameActions(
         animations: prev.animations.filter(a => a.unitId !== attackerId)
       };
 
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
       return newState;
     });
   }, [setGameState]);
@@ -281,7 +285,6 @@ export function useGameActions(
         attackRange: []
       };
       
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, player.id);
       return newState;
     });
   }, [setGameState]);
@@ -298,9 +301,7 @@ export function useGameActions(
     }
     setGameState(prev => {
       if (!prev) return prev;
-      const newState = upgradeSettlement(prev, coord);
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
-      return newState;
+      return upgradeSettlement(prev, coord);
     });
   }, [setGameState, gameState]);
 
@@ -332,7 +333,6 @@ export function useGameActions(
         attackRange: []
       };
       
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, newState.players[newState.currentPlayerIndex].id);
       return newState;
     });
   }, [setGameState]);
@@ -362,7 +362,6 @@ export function useGameActions(
         attackRange: []
       };
       
-      newState.strategicAnalysis = calculateStrategicAnalysis(newState, prev.players[prev.currentPlayerIndex].id);
       return newState;
     });
   }, [setGameState]);

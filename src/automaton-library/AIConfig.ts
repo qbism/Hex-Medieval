@@ -22,6 +22,7 @@ export interface AIConfig {
   SIEGE_OVERRIDE_BONUS: number;
   GOLD_RESERVE_TARGET: number;
   LETHALITY_WEIGHT_BONUS: number;
+  DEFENSE_URGENCY_BONUS: number;
 }
 
 export const DEFAULT_AI_CONFIG: AIConfig = {
@@ -46,4 +47,5 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   SIEGE_OVERRIDE_BONUS: 40.0,
   GOLD_RESERVE_TARGET: 100.0,
   LETHALITY_WEIGHT_BONUS: 30.0,
+  DEFENSE_URGENCY_BONUS: 20.0,
 };

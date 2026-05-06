@@ -92,60 +92,94 @@ export function getUnitAction(
     attacks: getValidAttacks(u, state.board, state.units, true)
   }));
 
+  // --- Coordination and Sequencing Analysis ---
+  // Identify units with restricted targets and targets with multiple potential attackers
+  const unitTargetCounts = new Map<string, number>();
+  const targetAttackerIds = new Map<string, string[]>();
+
+  for (const f of friendlyFollowUpPotential) {
+    unitTargetCounts.set(f.id, f.attacks.length);
+    for (const t of f.attacks) {
+      const key = `${t.q},${t.r}`;
+      const attackers = targetAttackerIds.get(key) || [];
+      attackers.push(f.id);
+      targetAttackerIds.set(key, attackers);
+    }
+  }
+
+  const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== myUnits[0].id); 
+  const context: UnitActionContext = {
+    state,
+    currentPlayer,
+    threatMatrix,
+    influenceMap,
+    evaluationMap,
+    eminentThreatBases,
+    possibleThreatBases,
+    playerStrengths,
+    myStrength,
+    focusOnLeader,
+    leaderId,
+    empireCenter,
+    hvt,
+    isSavingForMine,
+    isSavingForVillage,
+    isLagging,
+    isCriticallyLaggingLargeEconomy,
+    isBarbarian,
+    cachedData,
+    primaryAggressorId,
+    threatenedBasesCount,
+    unitsMap: cachedData.unitsMap,
+    boardMap: cachedData.boardMap,
+    mySettlements,
+    enemySettlements,
+    myCatapults: state.units.filter(u => u.ownerId === currentPlayer.id && u.type === UnitType.CATAPULT),
+    otherFriendlyUnits,
+    friendlyFollowUpPotential,
+    globalAggression: cachedData.globalAggression,
+    globalUnitRatio: cachedData.globalUnitRatio,
+    isRich: cachedData.isRich,
+    config: cachedData.config || DEFAULT_AI_CONFIG
+  };
+
+  // --- Aggressive Priority Phases ---
+  
+  // Pre-calculate target partitioning for all acting units
+  const actingUnitsTargets = myUnits.map(u => {
+    const allTargets = getValidAttacks(u, state.board, state.units, true);
+    const unitTargetCoords = allTargets.filter(t => cachedData.unitsMap.has(`${t.q},${t.r}`));
+    const settlementTargetCoords = allTargets.filter(t => {
+      const tile = cachedData.boardMap.get(`${t.q},${t.r}`);
+      return tile && tile.ownerId !== null && tile.ownerId !== currentPlayer.id && 
+             [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(tile.terrain as any);
+    });
+    return { unit: u, unitTargetCoords, settlementTargetCoords };
+  });
+
+  const createAttackAction = (unit: Unit, target: HexCoord) => ({
+    type: 'attack' as const,
+    payload: { unitId: unit.id, target }
+  });
+
+  // COMBINED PHASE: Evaluate all attacks and moves for all units, and pick the best one globally.
   const possibleActions: { unit: Unit, action: any, score: number }[] = [];
 
   for (const unitToAct of myUnits) {
-    const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== unitToAct.id);
-
-    const context: UnitActionContext = {
-      state,
-      currentPlayer,
-      threatMatrix,
-      influenceMap,
-      evaluationMap,
-      eminentThreatBases,
-      possibleThreatBases,
-      playerStrengths,
-      myStrength,
-      focusOnLeader,
-      leaderId,
-      empireCenter,
-      hvt,
-      isSavingForMine,
-      isSavingForVillage,
-      isLagging,
-      isCriticallyLaggingLargeEconomy,
-      isBarbarian,
-      cachedData,
-      primaryAggressorId,
-      threatenedBasesCount,
-      unitsMap: cachedData.unitsMap,
-      boardMap: cachedData.boardMap,
-      mySettlements,
-      enemySettlements,
-      myCatapults: state.units.filter(u => u.ownerId === currentPlayer.id && u.type === UnitType.CATAPULT),
-      otherFriendlyUnits,
-      friendlyFollowUpPotential,
-      globalAggression: cachedData.globalAggression,
-      globalUnitRatio: cachedData.globalUnitRatio,
-      isRich: cachedData.isRich,
-      config: cachedData.config || DEFAULT_AI_CONFIG
-    };
-
+    // Score all valid attacks for this unit
     const attackEval = evaluateAttacks(unitToAct, context);
     if (attackEval) {
       possibleActions.push({ unit: unitToAct, action: attackEval.action, score: attackEval.score });
     }
 
+    // Score all valid moves for this unit
     const moveEval = evaluateMoves(unitToAct, context);
     if (moveEval) {
       possibleActions.push({ unit: unitToAct, action: moveEval.action, score: moveEval.score });
     }
   }
 
-  // Combinatorial Logic: Prioritize combos
-  // 1. Catapult Neutralizing -> Knight Capturing
-  // We check if a Catapult can attack an enemy settlement AND a Knight can move into that same settlement.
+  // Combinatorial Logic: Catapult/Knight combos (still useful for high-priority capture)
   const catapultAction = possibleActions.find(pa => 
     pa.unit.type === UnitType.CATAPULT && 
     pa.action.type === 'attack' &&

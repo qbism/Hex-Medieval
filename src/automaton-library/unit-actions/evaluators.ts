@@ -143,6 +143,7 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
   const unitCurrentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
   const isUnitInPeril = unitCurrentThreat ? unitCurrentThreat.minTurns === 1 : false;
+  const isUnitDoomed = unitCurrentThreat ? (unitCurrentThreat.eminentThreatValue >= UNIT_STATS[unitToAct.type].cost * 1.5) : false;
 
   const attackSafety = new LoopSafety('evaluateAttacks', 1000);
   for (const a of attacks) {
@@ -156,13 +157,15 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
     const evaluation = context.evaluationMap.get(coordKey);
     if (evaluation) {
-      priority += evaluation.score;
+      priority += evaluation.score * 8.0;
     }
 
     if (targetUnit) {
       const targetValue = UNIT_STATS[targetUnit.type].cost;
-      // Always give a base reward for engaging enemy units to prevent the AI from ignoring them in favor of distant expansions
-      priority = targetValue + config.BASE_REWARD * 20.0;
+      // Always give a base reward for engaging enemy units
+      // If unit is in peril or doomed, increase priority to "take them with you"
+      const meatShieldBonus = (isUnitInPeril ? 1.5 : 1.0) * (isUnitDoomed ? 2.0 : 1.0);
+      priority = (targetValue + config.BASE_REWARD * 20.0) * meatShieldBonus;
       
       const potentialAttackers = otherFriendlyUnits.filter(u => {
         if (u.hasActed) return false;
@@ -242,6 +245,25 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
       const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
       if (isOccupyingMySettlement) priority += BASE_REWARD * 2.0;
+
+      // --- NEW: Target Rarity and Coordination ---
+      // "coordinate attacks to hit the most number of enemy units as possible per turn"
+      const othersWhoCanHitThis = friendlyFollowUpPotential.filter(f => f.id !== unitToAct.id && f.attacks.some((at: any) => at.q === a.q && at.r === a.r));
+      if (othersWhoCanHitThis.length === 0) {
+        // I am the ONLY unit that can hit this target. Definitely prioritize it!
+        priority += config.BASE_REWARD * 20.0;
+      } else {
+        // Others can hit it too. Check if they have other options.
+        // If all others who can hit this have NO other targets, I should probably leave it for them if I have other targets.
+        const myOtherTargets = attacks.length - 1;
+        const othersTargetsCounts = othersWhoCanHitThis.map(f => f.attacks.length);
+        const othersAreRestricted = othersTargetsCounts.every(count => count === 1);
+        
+        if (othersAreRestricted && myOtherTargets > 0) {
+          // I have other options, and my buddies only have THIS one. I should wait/pick something else.
+          priority -= config.BASE_REWARD * 15.0;
+        }
+      }
 
       // SIEGE PRIORITY: Catapults should focus on cracking enemy fortifications
       if (unitToAct.type === UnitType.CATAPULT && targetTile && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE)) {
@@ -409,11 +431,6 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       const minDistToMySettlement = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord, state.board))) : 0;
       if (minDistToMySettlement >= stats.moves && tile.terrain === TerrainType.PLAINS && tile.ownerId === null) {
         score += BASE_REWARD * 10.0;
-      }
-      const fallbackAttacks = getValidAttacks(unitToAct, state.board, state.units);
-      if (fallbackAttacks.length > 0) {
-        score += 200;
-        if (isUnitDoomed) score += 1000; // Doomed units REALLY want to attack something
       }
       const targetSettlementBeingNetted = moveTargets.some(t => 
         t.isSettlement && t.ownerId !== null && t.ownerId !== currentPlayer.id &&
@@ -697,6 +714,12 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       const eminentValue = threat.eminentThreatValue;
       const eminentCount = threat.eminentAttackerCount;
       let penaltyMult = threatenedVillages.length > 0 ? THREAT_PENALTY_SACRIFICE_MULT : 1.0;
+      
+      const isOnOurSettlement = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE);
+      
+      // If we are defending our own settlement, we are willing to take risks.
+      if (isOnOurSettlement) penaltyMult *= 0.3; // Much lower penalty for defending home
+      
       if (isUnitInPeril) penaltyMult *= 0.5; 
       if (isUnitDoomed) penaltyMult = 0; // If you're doomed, threat penalties don't matter as long as you're acting.
 
@@ -710,7 +733,9 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
           if (supportScore > maxSupportScore) maxSupportScore = supportScore;
         }
         
-        if (maxSupportScore <= 0 && !isBarbarian) score -= 10000;
+        // If we're on our own settlement, don't just abandon it because it's threatened
+        if (maxSupportScore <= 0 && !isBarbarian && !isOnOurSettlement) score -= 10000;
+        else if (maxSupportScore <= 0 && !isBarbarian && isOnOurSettlement) score -= 2000; // Still a penalty, but not a total veto
         else score += Math.max(0, maxSupportScore);
 
         let bestTradeValue = 0;
@@ -742,6 +767,9 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
           if (eminentCount >= 4) penalty *= 1.5;
         }
         score -= penalty * penaltyMult;
+      } else if (threatLevel === 2) {
+        // Potential Trap Awareness: Small penalty for moving into range of an enemy move+attack
+        score -= (myValue * 0.5) * penaltyMult;
       }
     }
 
@@ -764,7 +792,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     }
 
     // Sacrifice/Screening logic: Infantry moving to protect assets
-    if (unitToAct.type === UnitType.INFANTRY) {
+    if (unitToAct.type === UnitType.INFANTRY || unitToAct.type === UnitType.ARCHER) {
       // Is this tile adjacent to an asset we want to protect?
       const adjacentAssets = otherFriendlyUnits.filter(u => 
         (u.type === UnitType.KNIGHT || u.type === UnitType.CATAPULT) && 
@@ -778,7 +806,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
           const distAssetToEnemy = getDistance(adjacentAssets[0].coord, enemy.coord, state.board);
           const distMeToEnemy = getDistance(m, enemy.coord, state.board);
           if (distMeToEnemy < distAssetToEnemy) {
-            score += BASE_REWARD * SCREENING_BONUS * 2.0;
+            score += BASE_REWARD * SCREENING_BONUS * 5.0; // Increased
           }
         }
       }
@@ -786,10 +814,19 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       // Explicitly rotate into threatened settlement tiles
       if (tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE)) {
         const baseThreat = threatMatrix.get(`${tile.coord.q},${tile.coord.r}`);
-        if (baseThreat && baseThreat.minTurns === 1) {
-          score += BASE_REWARD * SACRIFICE_BONUS * 2.0;
+        if (baseThreat && baseThreat.minTurns <= 2) { 
+          // Reduced from 15.0 to 1.5 to allow self-preservation to matter
+          score += BASE_REWARD * SACRIFICE_BONUS * 1.5; 
         }
       }
+    }
+
+    // Self-preservation: Penalty for moving into higher peril
+    const destinationThreat = threatMatrix.get(`${m.q},${m.r}`);
+    
+    if (destinationThreat && (!currentThreat || destinationThreat.eminentThreatValue > currentThreat.eminentThreatValue)) {
+      // Moving into more danger than we are currently in
+      score -= (destinationThreat.eminentThreatValue + 100) * 2.0;
     }
 
     const isBuildablePlains = tile.terrain === TerrainType.PLAINS && (tile.ownerId === null || tile.ownerId === currentPlayer.id);
@@ -851,27 +888,6 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
   }
 
   if (bestMove.q === unitToAct.coord.q && bestMove.r === unitToAct.coord.r) {
-    const anyAttacks = getValidAttacks(unitToAct, state.board, state.units);
-    if (anyAttacks.length > 0) {
-      let bestTarget = anyAttacks[0];
-      let maxVal = -1;
-      for (const a of anyAttacks) {
-        const targetUnit = unitsMap.get(`${a.q},${a.r}`);
-        const targetTile = boardMap.get(`${a.q},${a.r}`);
-        let val = 0;
-        if (targetUnit) val = UNIT_STATS[targetUnit.type].cost + config.BASE_REWARD * 20.0;
-        else if (targetTile) val = SETTLEMENT_INCOME[targetTile.terrain as TerrainType] * HORIZON;
-        
-        if (val > maxVal) {
-          maxVal = val;
-          bestTarget = a;
-        }
-      }
-      return { 
-        action: { type: 'attack' as const, payload: { unitId: unitToAct.id, target: bestTarget } },
-        score: maxScore + maxVal
-      };
-    }
     return { 
       action: { type: 'skipUnit' as const, payload: { unitId: unitToAct.id } },
       score: maxScore 

@@ -6,15 +6,15 @@ import { GEOMETRIES, createWaterfallMaterial } from '../services/graphicsLibrary
 
 const sharedWaterfallMaterial = createWaterfallMaterial();
 
-export const updateWaterfallTime = () => {
-  (sharedWaterfallMaterial as THREE.ShaderMaterial).uniforms.time.value = performance.now() / 1000;
+export const updateWaterfallTime = (t: number) => {
+  (sharedWaterfallMaterial as THREE.ShaderMaterial).uniforms.time.value = t;
 };
 
 const isPerimeter = (q: number, r: number) => Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r)) === 10;
 
 export const WaterfallsInstanced = ({ board }: { board: any[] }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const waterfallTiles = useMemo(() => board.filter(t => t.terrain === 'Water' && isPerimeter(t.coord.q, t.coord.r)), [board]);
+  const waterfallTiles = useMemo(() => board.filter(t => t.terrain === 'Water' && isPerimeter(t.coord.q, t.coord.r)), [board.length]);
 
   useEffect(() => {
     if (!meshRef.current) return;
@@ -32,10 +32,6 @@ export const WaterfallsInstanced = ({ board }: { board: any[] }) => {
 
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [waterfallTiles]);
-
-  useFrame(() => {
-    updateWaterfallTime();
-  });
 
   return (
     <instancedMesh ref={meshRef} args={[GEOMETRIES.waterfall, sharedWaterfallMaterial, waterfallTiles.length]} />

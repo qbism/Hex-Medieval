@@ -3,7 +3,8 @@ import {
   TerrainType,
   getNeighbors,
   UNIT_STATS,
-  StrategicAnalysis
+  StrategicAnalysis,
+  UnitType
 } from '../types';
 import { ThreatInfo } from './threatAnalysis';
 import { TileEvaluation } from './types';
@@ -72,7 +73,19 @@ export function calculateOpportunityPerilMatrix(
       opportunity += TERRAIN_MOUNTAIN_BONUS;
       reasons.push("Mountain Defense");
     } else if (tile.terrain === TerrainType.FOREST) {
-      opportunity -= TERRAIN_FOREST_PENALTY;
+      let isAdjacentToEnemyCatapult = false;
+      const neighbors = getNeighbors(tile.coord);
+      for (const n of neighbors) {
+        const u = unitMap.get(`${n.q},${n.r}`);
+        if (u && u.ownerId !== playerId && u.type === UnitType.CATAPULT) {
+          isAdjacentToEnemyCatapult = true;
+          break;
+        }
+      }
+      if (isAdjacentToEnemyCatapult) {
+        opportunity += 50;
+        reasons.push("Forest cover adjacent to enemy catapult");
+      }
     }
 
     // Evaluate proximity to enemy/unclaimed settlements

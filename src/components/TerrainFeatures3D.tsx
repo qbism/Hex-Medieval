@@ -1,9 +1,9 @@
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GEOMETRIES, MATERIALS } from '../services/graphicsLibrary';
 
-export const ForestFeature = ({ position }: { position: [number, number, number] }) => (
+export const ForestFeature = React.memo(({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     {/* Main Trees - more irregular heights and rotations */}
     <group position={[-0.2, 0.35, -0.2]} rotation={[0.1, 0, 0.1]}>
@@ -17,12 +17,12 @@ export const ForestFeature = ({ position }: { position: [number, number, number]
       <mesh geometry={GEOMETRIES.forestCone2} material={MATERIALS.forest} />
       <mesh position={[0.12, -0.1, 0]} rotation={[0, 0, Math.PI/2]} geometry={GEOMETRIES.thorn} material={MATERIALS.vine} />
     </group>
- 
+
     <group position={[-0.1, 0.3, 0.3]} rotation={[0, -0.3, -0.1]}>
       <mesh geometry={GEOMETRIES.forestCone3} material={MATERIALS.forest} />
       <mesh position={[0, 0.1, 0.1]} rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.thorn} material={MATERIALS.vine} />
     </group>
- 
+
     {/* Twisted Vines */}
     {Array.from({ length: 4 }).map((_, i) => (
       <mesh 
@@ -35,16 +35,17 @@ export const ForestFeature = ({ position }: { position: [number, number, number]
       </mesh>
     ))}
   </group>
-);
+));
 
-export const MountainFeature = ({ position }: { position: [number, number, number] }) => (
+export const MountainFeature = React.memo(({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={GEOMETRIES.mountainCone1} material={MATERIALS.mountain} />
   </group>
-);
+));
 
-export const CastleFeature = ({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
+export const CastleFeature = React.memo(({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
   const flagRef = useRef<THREE.Mesh>(null);
+  
   useFrame(() => {
     if (flagRef.current) {
       const time = performance.now() / 1000;
@@ -85,10 +86,11 @@ export const CastleFeature = ({ position, playerColor }: { position: [number, nu
       })}
     </group>
   );
-};
+});
 
-export const FortressFeature = ({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
+export const FortressFeature = React.memo(({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
   const flagRef = useRef<THREE.Mesh>(null);
+
   useFrame(() => {
     if (flagRef.current) {
       const time = performance.now() / 1000;
@@ -126,10 +128,11 @@ export const FortressFeature = ({ position, playerColor }: { position: [number, 
       })}
     </group>
   );
-};
+});
 
-export const VillageFeature = ({ position, playerColor, isClaimed }: { position: [number, number, number], playerColor: string, isClaimed: boolean }) => {
+export const VillageFeature = React.memo(({ position, playerColor, isClaimed }: { position: [number, number, number], playerColor: string, isClaimed: boolean }) => {
   const flagRef = useRef<THREE.Mesh>(null);
+
   useFrame(() => {
     if (flagRef.current) {
       const time = performance.now() / 1000;
@@ -154,9 +157,9 @@ export const VillageFeature = ({ position, playerColor, isClaimed }: { position:
       )}
     </group>
   );
-};
+});
 
-export const GoldMineFeature = ({ position }: { position: [number, number, number] }) => (
+export const GoldMineFeature = React.memo(({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     {/* Mountain Base */}
     <mesh position={[0, 0.575, 0]} rotation={[0, Math.PI/4, 0]} geometry={GEOMETRIES.mountainCone1} material={MATERIALS.mountain} />
@@ -172,4 +175,4 @@ export const GoldMineFeature = ({ position }: { position: [number, number, numbe
       <mesh position={[0, -0.1, 0.1]} geometry={GEOMETRIES.mineDodec1} material={MATERIALS.gold} />
     </group>
   </group>
-);
+));
