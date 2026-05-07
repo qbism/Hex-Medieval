@@ -166,16 +166,26 @@ export function getUnitAction(
   const possibleActions: { unit: Unit, action: any, score: number }[] = [];
 
   for (const unitToAct of myUnits) {
-    // Score all valid attacks for this unit
+    // 1. Evaluate Attacks FIRST: If a unit can attack, that's a high-priority action
     const attackEval = evaluateAttacks(unitToAct, context);
     if (attackEval) {
       possibleActions.push({ unit: unitToAct, action: attackEval.action, score: attackEval.score });
     }
 
-    // Score all valid moves for this unit
+    // 2. Evaluate Moves: 
     const moveEval = evaluateMoves(unitToAct, context);
     if (moveEval) {
-      possibleActions.push({ unit: unitToAct, action: moveEval.action, score: moveEval.score });
+      // REDUNDANCY CHECK: If the AI picks "Move to current location" but movesLeft is already 0, 
+      // this action is a no-op that might trap the AI in a loop or trigger the "stuck" end-turn logic.
+      const isMoveAction = moveEval.action?.type === 'move';
+      const isNoOpMove = isMoveAction && 
+                        moveEval.action.payload?.target?.q === unitToAct.coord.q && 
+                        moveEval.action.payload?.target?.r === unitToAct.coord.r &&
+                        unitToAct.movesLeft === 0;
+      
+      if (!isNoOpMove) {
+        possibleActions.push({ unit: unitToAct, action: moveEval.action, score: moveEval.score });
+      }
     }
   }
 
@@ -183,6 +193,7 @@ export function getUnitAction(
   const catapultAction = possibleActions.find(pa => 
     pa.unit.type === UnitType.CATAPULT && 
     pa.action.type === 'attack' &&
+    pa.action.payload?.target &&
     enemySettlements.some(s => s.coord.q === pa.action.payload.target.q && s.coord.r === pa.action.payload.target.r)
   );
 

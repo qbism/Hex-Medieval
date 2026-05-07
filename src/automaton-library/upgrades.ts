@@ -66,8 +66,8 @@ export function getUpgradeAction(
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
   const unitToSettlementRatio = myUnits.length / Math.max(1, numSettlements);
   
-  // If we have fewer than 1.0 units per settlement, we should focus on units first
-  const densityPenalty = unitToSettlementRatio < 1.0 ? (1.0 - unitToSettlementRatio) * 5.0 : 0;
+  // If we have fewer than 0.75 units per settlement, we should focus on units first
+  const densityPenalty = unitToSettlementRatio < 0.75 ? (0.75 - unitToSettlementRatio) * 5.0 : 0;
   
   const econPenalty = (isUnderThreat ? 1.5 : 0) + (isLaggingStrength ? 2.0 : 0) + densityPenalty;
 

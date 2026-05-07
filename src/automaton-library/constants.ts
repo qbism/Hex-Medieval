@@ -104,10 +104,15 @@ export const UPGRADE_SAVING_MINE_BONUS = 40;
 export const UPGRADE_SAVING_MINE_STAY_PUT_BONUS = 5;
 export const UPGRADE_SAVING_VILLAGE_BONUS = 30;
 export const UPGRADE_SAVING_VILLAGE_STAY_PUT_BONUS = 5;
-export const TERRAIN_FOREST_PENALTY = 0;
-export const TERRAIN_MOUNTAIN_BONUS = 10;
+export const TERRAIN_FOREST_PENALTY = -25;
+export const TERRAIN_MOUNTAIN_BONUS = -50;
 export const TERRAIN_PLAINS_NEUTRAL_BONUS = 40;
 export const TERRAIN_PLAINS_OWNED_BONUS = 20;
+
+export const TERRAIN_VILLAGE_BONUS = 60;
+export const TERRAIN_FORTRESS_BONUS = 80;
+export const TERRAIN_CASTLE_BONUS = 120;
+export const TERRAIN_GOLD_MINE_BONUS = 180;
 
 // Upgrades
 export const UPGRADE_GOLD_MINE_BONUS = 8.0; // Income is Primary Goal

@@ -1,0 +1,899 @@
+1:import { 
+2:  GameState, 
+3:  Player, 
+4:  Unit, 
+5:  UnitType, 
+6:  TerrainType, 
+7:  UNIT_STATS, 
+8:  getDistance, 
+9:  getNeighbors as _getNeighbors, 
+10:  HexCoord, 
+11:  UPGRADE_COSTS as _UPGRADE_COSTS,
+12:  SETTLEMENT_INCOME
+13:} from '../../types';
+14:import { TileEvaluation } from '../types';
+15:import { getValidAttacks, getValidMoves, getUnitRange } from '../../gameEngine';
+16:import { findNearestTarget as _findNearestTarget, getChokepointScore as _getChokepointScore } from '../utils';
+17:import { 
+18:  BASE_REWARD,
+19:  HORIZON,
+20:  STAY_PUT_BIAS,
+21:  IMMEDIATE_CAPTURE_BONUS,
+22:  PILLAGE_SCORE_BONUS,
+23:  UNCLAIMED_VILLAGE_PRIORITY_BONUS,
+24:  PUT_ENEMY_IN_PERIL_BONUS,
+25:  EXPANSION_DISTANCE_BONUS,
+26:  PLAINS_PRIORITY_BONUS,
+27:  EDGE_OF_PERIL_BONUS,
+28:  INFILLING_BONUS,
+29:  PATHING_CONSISTENCY_BONUS,
+30:  KNIGHT_HARASSMENT_BONUS,
+31:  KNIGHT_SAFETY_BONUS,
+32:  KNIGHT_FRIENDLY_SETTLEMENT_BONUS,
+33:  CATAPULT_SAFETY_PENALTY_HIGH,
+34:  CATAPULT_SIEGE_POSITION_BONUS,
+35:  CATAPULT_SIEGE_PROXIMITY_BONUS,
+36:  CATAPULT_DEFENSIVE_STAY_PUT_BONUS,
+37:  DEFENSE_SCORING_BONUS,
+38:  SACRIFICE_BONUS,
+39:  COORDINATION_BONUS,
+40:  INFLUENCE_PENALTY_HIGH_RATIO,
+41:  INFLUENCE_PENALTY_MED_RATIO,
+42:  INFLUENCE_EXPANSION_BONUS,
+43:  HVT_PROXIMITY_BONUS_FACTOR,
+44:  SCREENING_BONUS,
+45:  COUNTER_ATTACK_BONUS,
+46:  FOCUS_FIRE_BONUS,
+47:  PREEMPTIVE_DEFENSE_BONUS,
+48:  DRIVE_OUT_BONUS,
+49:  LETHAL_THREAT_PENALTY_MULT,
+50:  MUTUAL_SUPPORT_BONUS,
+51:  THREAT_PENALTY_SACRIFICE_MULT,
+52:  THREAT_PENALTY_L1_MULT,
+53:  OPPORTUNISTIC_RETREAT_SETTLEMENT_BONUS,
+54:  OPPORTUNISTIC_RETREAT_PLAINS_BONUS,
+55:  SUPPORT_SCORE_MULT,
+56:  RALLY_POINT_ADJACENCY_BONUS,
+57:  BAIT_AND_TRADE_THRESHOLD,
+58:  INFANTRY_VANGUARD_SETTLEMENT_BONUS,
+59:  KNIGHT_FIRST_IN_PENALTY,
+60:  CATAPULT_MEAT_SHIELD_BONUS,
+61:  FORMATION_ANCHOR_BONUS,
+62:  SQUAD_INTEGRITY_BONUS,
+63:  ARCHER_PLACEMENT_BONUS,
+64:  CATAPULT_PLACEMENT_BONUS,
+65:  INFANTRY_FRONT_LINE_BONUS,
+66:  KNIGHT_FLANK_BONUS,
+67:  SETTLEMENT_DEGRADATION_PRIORITY_BONUS,
+68:  COMBO_FOLLOW_UP_CLAIMER_BONUS,
+69:  COMBO_FOLLOW_UP_NEUTRALIZER_BONUS,
+70:  COMBO_SEQUENCING_STAY_PUT_PENALTY,
+71:  UPGRADE_SAVING_MINE_BONUS,
+72:  UPGRADE_SAVING_MINE_STAY_PUT_BONUS,
+73:  UPGRADE_SAVING_VILLAGE_BONUS,
+74:  UPGRADE_SAVING_VILLAGE_STAY_PUT_BONUS,
+75:  TERRAIN_FOREST_PENALTY,
+76:  TERRAIN_MOUNTAIN_BONUS,
+77:  TERRAIN_PLAINS_NEUTRAL_BONUS,
+78:  TERRAIN_PLAINS_OWNED_BONUS
+79:} from '../constants';
+80:import { LoopSafety } from '../../utils';
+81:import { ThreatInfo } from '../threatAnalysis';
+82:import { evaluateActionSafety } from '../TacticalSearch';
+83:import { AIConfig } from '../AIConfig';
+84:
+85:export interface UnitActionContext {
+86:  state: GameState;
+87:  currentPlayer: Player;
+88:  threatMatrix: Map<string, ThreatInfo>;
+89:  influenceMap: Map<string, number>;
+90:  evaluationMap: Map<string, TileEvaluation>; 
+91:  eminentThreatBases: any[];
+92:  possibleThreatBases: any[];
+93:  playerStrengths: any[];
+94:  myStrength: number;
+95:  focusOnLeader: boolean;
+96:  leaderId: number;
+97:  empireCenter: HexCoord;
+98:  hvt: Unit | null;
+99:  isSavingForMine: boolean;
+100:  isSavingForVillage: boolean;
+101:  isLagging: boolean;
+102:  isCriticallyLaggingLargeEconomy: boolean;
+103:  isBarbarian: boolean;
+104:  cachedData: any;
+105:  primaryAggressorId: number;
+106:  threatenedBasesCount: number;
+107:  unitsMap: Map<string, Unit>;
+108:  boardMap: Map<string, any>;
+109:  mySettlements: any[];
+110:  enemySettlements: any[];
+111:  myCatapults: Unit[];
+112:  otherFriendlyUnits: Unit[];
+113:  friendlyFollowUpPotential: any[];
+114:  globalAggression: number;
+115:  globalUnitRatio: number;
+116:  isRich: boolean;
+117:  config: AIConfig;
+118:}
+119:
+120:export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { action: any, score: number } | null {
+121:  const { 
+122:    state, 
+123:    currentPlayer, 
+124:    threatMatrix, 
+125:    eminentThreatBases,
+126:    leaderId, 
+127:    focusOnLeader, 
+128:    hvt, 
+129:    isBarbarian,
+130:    primaryAggressorId,
+131:    unitsMap,
+132:    boardMap,
+133:    otherFriendlyUnits,
+134:    friendlyFollowUpPotential,
+135:    config
+136:  } = context;
+137:
+138:  const attacks = getValidAttacks(unitToAct, state.board, state.units);
+139:  if (attacks.length === 0) return null;
+140:
+141:  let bestAttack = attacks[0];
+142:  let maxPriority = -Infinity;
+143:
+144:  const unitCurrentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
+145:  const isUnitInPeril = unitCurrentThreat ? unitCurrentThreat.minTurns === 1 : false;
+146:  const isUnitDoomed = unitCurrentThreat ? (unitCurrentThreat.eminentThreatValue >= UNIT_STATS[unitToAct.type].cost * 1.5) : false;
+147:
+148:  const attackSafety = new LoopSafety('evaluateAttacks', 1000);
+149:  for (const a of attacks) {
+150:    if (attackSafety.tick()) break;
+151:    
+152:    const coordKey = `${a.q},${a.r}`;
+153:    const targetUnit = unitsMap.get(coordKey);
+154:    const targetTile = boardMap.get(coordKey);
+155:
+156:    let priority = 0;
+157:
+158:    const evaluation = context.evaluationMap.get(coordKey);
+159:    if (evaluation) {
+160:      priority += evaluation.score * 8.0;
+161:    }
+162:
+163:    if (targetUnit) {
+164:      const targetValue = UNIT_STATS[targetUnit.type].cost;
+165:      // Always give a base reward for engaging enemy units
+166:      // If unit is in peril or doomed, increase priority to "take them with you"
+167:      const meatShieldBonus = (isUnitInPeril ? 1.5 : 1.0) * (isUnitDoomed ? 2.0 : 1.0);
+168:      priority = (targetValue + config.BASE_REWARD * 20.0) * meatShieldBonus;
+169:      
+170:      const potentialAttackers = otherFriendlyUnits.filter(u => {
+171:        if (u.hasActed) return false;
+172:        const dist = getDistance(u.coord, targetUnit.coord, state.board);
+173:        return dist <= getUnitRange(u, state.board);
+174:      });
+175:      
+176:      if (potentialAttackers.length > 0) {
+177:        priority += config.BASE_REWARD * FOCUS_FIRE_BONUS * potentialAttackers.length;
+178:      }
+179:
+180:      if (potentialAttackers.length >= 1) {
+181:        priority += config.BASE_REWARD * config.KILL_PRIORITY_BONUS;
+182:      }
+183:
+184:      // LETHALITY: Huge bonus for finishing off a unit that is threatening a base
+185:      const isTargetThreateningBase = eminentThreatBases.some(b => {
+186:        const distToBase = getDistance(targetUnit.coord, b.coord, state.board);
+187:        const enemyRange = UNIT_STATS[targetUnit.type].moves + getUnitRange(targetUnit, state.board);
+188:        return distToBase <= enemyRange;
+189:      });
+190:
+191:      if (isTargetThreateningBase) {
+192:        priority += config.BASE_REWARD * config.LETHALITY_WEIGHT_BONUS; // Urgent defense priority
+193:      }
+194:      
+195:      if (isUnitInPeril && !isBarbarian) {
+196:        priority += config.BASE_REWARD * 10.0;
+197:        const targetThreatRadius = UNIT_STATS[targetUnit.type].moves + getUnitRange(targetUnit, state.board);
+198:        if (getDistance(unitToAct.coord, targetUnit.coord, state.board) <= targetThreatRadius) {
+199:          priority += config.BASE_REWARD * 5.0;
+200:        }
+201:      }
+202:
+203:      if (hvt && targetUnit.id === hvt.id) priority += config.BASE_REWARD * 3.0;
+204:      if (targetUnit.type === UnitType.CATAPULT) priority += config.BASE_REWARD * 1.0;
+205:      if (focusOnLeader && targetUnit.ownerId === leaderId) priority += config.BASE_REWARD * 0.5;
+206:      if (primaryAggressorId !== -1 && targetUnit.ownerId === primaryAggressorId) priority += config.BASE_REWARD * 15.0;
+207:
+208:      if (unitCurrentThreat && !isBarbarian) {
+209:         const targetThreatRadius = UNIT_STATS[targetUnit.type].moves + getUnitRange(targetUnit, state.board);
+210:         const isTargetThreateningUs = getDistance(unitToAct.coord, targetUnit.coord, state.board) <= targetThreatRadius;
+211:         
+212:         // In a one-hit-kill game, if there is ANY attacker that can hit us (besides maybe the one we're killing), we are doomed.
+213:         const willDieAnyway = unitCurrentThreat.eminentAttackerCount > (isTargetThreateningUs ? 1 : 0);
+214:         
+215:         if (willDieAnyway) {
+216:            // If we're going to die anyway, any damage we deal is a bonus.
+217:            // Don't penalize for "trading down" since the alternative is dying for free.
+218:            priority += targetValue * 2.0 + BASE_REWARD * 2.0;
+219:            
+220:            // If we can take a Catapult or Knight with us, that's a massive win.
+221:            if (targetValue >= 150) priority += BASE_REWARD * 10.0;
+222:         }
+223:      }
+224:
+225:      const isOnSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+226:      if (isOnSettlement) {
+227:        const canBuddiesNeutralize = friendlyFollowUpPotential.some(f => f.attacks.some((at: any) => at.q === targetTile.coord.q && at.r === targetTile.coord.r));
+228:        const canBuddiesClaim = otherFriendlyUnits.some(f => {
+229:          if (f.hasActed) return false;
+230:          return getDistance(f.coord, targetTile.coord, state.board) <= UNIT_STATS[f.type].moves;
+231:        });
+232:
+233:        if (canBuddiesNeutralize && canBuddiesClaim && targetTile.ownerId !== currentPlayer.id) {
+234:          priority += BASE_REWARD * COMBO_FOLLOW_UP_NEUTRALIZER_BONUS;
+235:        }
+236:      }
+237:      
+238:      if (unitToAct.type === UnitType.INFANTRY && isOnSettlement) priority += BASE_REWARD * INFANTRY_VANGUARD_SETTLEMENT_BONUS;
+239:
+240:      const isThreateningBase = context.eminentThreatBases.some(b => getDistance(a, b.coord, state.board) <= 3);
+241:      if (isThreateningBase) priority += BASE_REWARD * PREEMPTIVE_DEFENSE_BONUS;
+242:
+243:      const isNearOurSettlement = context.mySettlements.some(s => getDistance(a, s.coord, state.board) <= 2);
+244:      if (isNearOurSettlement) priority += BASE_REWARD * DRIVE_OUT_BONUS;
+245:
+246:      const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+247:      if (isOccupyingMySettlement) priority += BASE_REWARD * 2.0;
+248:
+249:      // --- NEW: Target Rarity and Coordination ---
+250:      // "coordinate attacks to hit the most number of enemy units as possible per turn"
+251:      const othersWhoCanHitThis = friendlyFollowUpPotential.filter(f => f.id !== unitToAct.id && f.attacks.some((at: any) => at.q === a.q && at.r === a.r));
+252:      if (othersWhoCanHitThis.length === 0) {
+253:        // I am the ONLY unit that can hit this target. Definitely prioritize it!
+254:        priority += config.BASE_REWARD * 20.0;
+255:      } else {
+256:        // Others can hit it too. Check if they have other options.
+257:        // If all others who can hit this have NO other targets, I should probably leave it for them if I have other targets.
+258:        const myOtherTargets = attacks.length - 1;
+259:        const othersTargetsCounts = othersWhoCanHitThis.map(f => f.attacks.length);
+260:        const othersAreRestricted = othersTargetsCounts.every(count => count === 1);
+261:        
+262:        if (othersAreRestricted && myOtherTargets > 0) {
+263:          // I have other options, and my buddies only have THIS one. I should wait/pick something else.
+264:          priority -= config.BASE_REWARD * 15.0;
+265:        }
+266:      }
+267:
+268:      // SIEGE PRIORITY: Catapults should focus on cracking enemy fortifications
+269:      if (unitToAct.type === UnitType.CATAPULT && targetTile && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE)) {
+270:        priority += config.BASE_REWARD * config.SIEGE_OVERRIDE_BONUS; 
+271:      }
+272:
+273:    } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE)) {
+274:      const settlementValue = SETTLEMENT_INCOME[targetTile.terrain as TerrainType] * HORIZON;
+275:      priority = settlementValue * 1.5 + BASE_REWARD * 4.0;
+276:      
+277:      const enemyUnitsNearThisSettlement = state.units.filter(u => u.ownerId === targetTile.ownerId && getDistance(u.coord, targetTile.coord, state.board) <= UNIT_STATS[u.type].moves);
+278:      if (enemyUnitsNearThisSettlement.length > 0) priority += BASE_REWARD * SETTLEMENT_DEGRADATION_PRIORITY_BONUS;
+279:
+280:      const canBuddiesClaim = otherFriendlyUnits.some(f => {
+281:          if (f.hasActed) return false;
+282:          return getDistance(f.coord, targetTile.coord, state.board) <= UNIT_STATS[f.type].moves;
+283:      });
+284:      
+285:      if (canBuddiesClaim && targetTile.terrain === TerrainType.VILLAGE) {
+286:        priority += BASE_REWARD * COMBO_FOLLOW_UP_CLAIMER_BONUS;
+287:      } else if (canBuddiesClaim) {
+288:        priority += BASE_REWARD * (COMBO_FOLLOW_UP_CLAIMER_BONUS * 0.5);
+289:      }
+290:
+291:      if (isBarbarian) priority += BASE_REWARD * PILLAGE_SCORE_BONUS;
+292:      if (isUnitInPeril && !isBarbarian) priority += BASE_REWARD * 5.0;
+293:      if (focusOnLeader && targetTile.ownerId === leaderId) priority += BASE_REWARD * 1.0;
+294:      if (primaryAggressorId !== -1 && targetTile.ownerId === primaryAggressorId) priority += BASE_REWARD * 10.0;
+295:    }
+296:
+297:    if (priority > maxPriority) {
+298:      // Tactical Lookahead for high-value targets or high-value units
+299:      if ((unitToAct.type === UnitType.KNIGHT || unitToAct.type === UnitType.CATAPULT) && !isBarbarian) {
+300:        const safety = evaluateActionSafety(state, { type: 'attack', payload: { unitId: unitToAct.id, target: a } }, currentPlayer.id);
+301:        if (!safety.isSafe) {
+302:          // Penalize unsafe attacks for high value units
+303:          priority -= (UNIT_STATS[unitToAct.type].cost * 2.0); 
+304:        }
+305:      }
+306:
+307:      if (priority > maxPriority) {
+308:        maxPriority = priority;
+309:        bestAttack = a;
+310:      }
+311:    }
+312:  }
+313:
+314:  if (maxPriority > -100 || (isBarbarian && attacks.length > 0)) {
+315:    return { 
+316:      action: { type: 'attack' as const, payload: { unitId: unitToAct.id, target: bestAttack } },
+317:      score: maxPriority === -Infinity ? 0 : maxPriority
+318:    };
+319:  }
+320:  return null;
+321:}
+322:
+323:export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { action: any, score: number } | null {
+324:  const {
+325:    state,
+326:    currentPlayer,
+327:    threatMatrix,
+328:    influenceMap,
+329:    eminentThreatBases,
+330:    empireCenter,
+331:    hvt,
+332:    isSavingForMine,
+333:    isSavingForVillage,
+334:    isCriticallyLaggingLargeEconomy,
+335:    isBarbarian,
+336:    cachedData,
+337:    boardMap,
+338:    mySettlements,
+339:    enemySettlements,
+340:    myCatapults,
+341:    otherFriendlyUnits,
+342:    friendlyFollowUpPotential,
+343:    globalAggression,
+344:    globalUnitRatio,
+345:    isRich,
+346:    unitsMap,
+347:    config
+348:  } = context;
+349:
+350:  const moves = getValidMoves(unitToAct, state.board, state.units);
+351:  moves.push(unitToAct.coord);
+352:  
+353:  if (moves.length === 0) return null;
+354:
+355:  let bestMove = moves[0];
+356:  let maxScore = -Infinity;
+357:
+358:  const moveSafety = new LoopSafety('evaluateMoves', 5000);
+359:  
+360:  if (!cachedData.settlementTargets) {
+361:    cachedData.settlementTargets = state.board.filter(t => 
+362:      (t.ownerId === null || t.ownerId !== currentPlayer.id) && 
+363:      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+364:    ).map(t => ({ coord: t.coord, value: SETTLEMENT_INCOME[t.terrain as TerrainType] * HORIZON, isExpansionHub: false, isSettlement: true, ownerId: t.ownerId, unitType: undefined }));
+365:  }
+366:  const settlementTargets = cachedData.settlementTargets;
+367:
+368:  if (!cachedData.enemyUnitTargets) {
+369:    cachedData.enemyUnitTargets = state.units.filter(u => u.ownerId !== currentPlayer.id)
+370:      .map(u => ({ coord: u.coord, value: UNIT_STATS[u.type].cost, isExpansionHub: false, isSettlement: false, ownerId: u.ownerId, unitType: u.type }));
+371:  }
+372:  const enemyUnitTargets = cachedData.enemyUnitTargets;
+373:
+374:  if (!cachedData.expansionHubs) {
+375:    cachedData.expansionHubs = state.board.filter(t => 
+376:      t.terrain === TerrainType.PLAINS && t.ownerId === null &&
+377:      !state.units.some(u => u.ownerId === currentPlayer.id && getDistance(u.coord, t.coord, state.board) <= 3) &&
+378:      !mySettlements.some(s => getDistance(s.coord, t.coord, state.board) <= 4)
+379:    ).map(t => {
+380:      const neighbors = _getNeighbors(t.coord);
+381:      let quality = 1;
+382:      neighbors.forEach(n => {
+383:        const nt = boardMap.get(`${n.q},${n.r}`);
+384:        if (nt && nt.ownerId === null) quality++;
+385:      });
+386:      return { coord: t.coord, value: quality * 20, isExpansionHub: true, isSettlement: false, ownerId: null, unitType: undefined };
+387:    }).sort((a, b) => b.value - a.value).slice(0, 5);
+388:  }
+389:  const expansionHubs = cachedData.expansionHubs;
+390:
+391:  const moveTargets = [
+392:    ...settlementTargets,
+393:    ...enemyUnitTargets,
+394:    ...expansionHubs
+395:  ].sort((a, b) => getDistance(unitToAct.coord, a.coord, state.board) - getDistance(unitToAct.coord, b.coord, state.board))
+396:   .slice(0, 30);
+397:
+398:  const stats = UNIT_STATS[unitToAct.type];
+399:  const myValue = stats.cost;
+400:  const currentThreat = threatMatrix.get(`${unitToAct.coord.q},${unitToAct.coord.r}`);
+401:  const isUnitInPeril = currentThreat ? currentThreat.minTurns === 1 : false;
+402:
+403:  const hasSafeRetreat = isUnitInPeril && moves.some(m => {
+404:    const t = threatMatrix.get(`${m.q},${m.r}`);
+405:    return !t || t.minTurns > 1;
+406:  });
+407:
+408:  for (const m of moves) {
+409:    if (moveSafety.tick()) break;
+410:    
+411:    let score = 0;
+412:    const tile = boardMap.get(`${m.q},${m.r}`)!;
+413:    const isStayPut = m.q === unitToAct.coord.q && m.r === unitToAct.coord.r;
+414:    
+415:    const moveThreat = threatMatrix.get(`${m.q},${m.r}`);
+416:    const moveThreatLevel = moveThreat ? moveThreat.minTurns : Infinity;
+417:    const isMoveInPeril = moveThreatLevel === 1;
+418:
+419:    const evaluation = context.evaluationMap.get(`${m.q},${m.r}`);
+420:    if (evaluation) {
+421:      score += evaluation.score * 8.0; // Increased significantly to respect the global Strategic Analysis
+422:    }
+423:
+424:    if (isStayPut) {
+425:      score += BASE_REWARD * STAY_PUT_BIAS;
+426:      const minDistToMySettlement = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord, state.board))) : 0;
+427:      if (minDistToMySettlement >= stats.moves && tile.terrain === TerrainType.PLAINS && tile.ownerId === null) {
+428:        score += BASE_REWARD * 10.0;
+429:      }
+430:      const targetSettlementBeingNetted = moveTargets.some(t => 
+431:        t.isSettlement && t.ownerId !== null && t.ownerId !== currentPlayer.id &&
+432:        friendlyFollowUpPotential.some(f => f.attacks.some((at: any) => at.q === t.coord.q && at.r === t.coord.r))
+433:      );
+434:      if (targetSettlementBeingNetted) score -= BASE_REWARD * COMBO_SEQUENCING_STAY_PUT_PENALTY;
+435:    }
+436:
+437:    if (!isMoveInPeril && tile.ownerId === null && 
+438:       (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+439:      score += (BASE_REWARD * 30.0);
+440:    }
+441:
+442:    if (tile.terrain === TerrainType.MOUNTAIN && isSavingForMine) {
+443:      const myIncome = mySettlements.reduce((sum, s) => sum + SETTLEMENT_INCOME[s.terrain as TerrainType], 0);
+444:      const goldNextTurn = currentPlayer.gold + myIncome;
+445:      const mineCost = _UPGRADE_COSTS[TerrainType.GOLD_MINE];
+446:      if (goldNextTurn < mineCost) score -= (BASE_REWARD * 15.0); 
+447:      else if (goldNextTurn >= mineCost) score += (BASE_REWARD * 20.0);
+448:    }
+449:
+450:    if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+451:      score += (SETTLEMENT_INCOME[tile.terrain as TerrainType] * HORIZON) + BASE_REWARD * IMMEDIATE_CAPTURE_BONUS; 
+452:    }
+453:
+454:    const potentialRange = getUnitRange({ ...unitToAct, coord: m }, state.board);
+455:
+456:    if (!isMoveInPeril || isBarbarian) {
+457:      const perilSafety = new LoopSafety('evaluateMoves-peril', 100);
+458:      let putsEnemyInPeril = false;
+459:      let perilCount = 0;
+460:      for (const target of moveTargets) {
+461:        if (perilSafety.tick()) break;
+462:        const dist = getDistance(m, target.coord, state.board);
+463:        if (dist <= potentialRange) {
+464:          perilCount++;
+465:          let pBonus = BASE_REWARD * PUT_ENEMY_IN_PERIL_BONUS;
+466:          if (target.isSettlement) pBonus *= 1.25;
+467:          score += pBonus;
+468:          putsEnemyInPeril = true;
+469:          if (isUnitInPeril) score += BASE_REWARD * COUNTER_ATTACK_BONUS;
+470:        }
+471:      }
+472:      if (perilCount > 1) score += BASE_REWARD * 10 * (perilCount - 1); 
+473:      if (!isMoveInPeril && !putsEnemyInPeril && !isBarbarian) {
+474:        if (tile.ownerId === null && tile.terrain === TerrainType.VILLAGE) score += BASE_REWARD * UNCLAIMED_VILLAGE_PRIORITY_BONUS;
+475:      }
+476:    }
+477:
+478:    const nearbyVillages = mySettlements.filter(v => getDistance(v.coord, unitToAct.coord, state.board) <= 3);
+479:    const isNearbyVillageInPeril = nearbyVillages.some(v => {
+480:      const t = threatMatrix.get(`${v.coord.q},${v.coord.r}`);
+481:      return t ? t.minTurns === 1 : false;
+482:    });
+483:
+484:    const friendlyAttackers = otherFriendlyUnits.filter(u => getDistance(u.coord, m, state.board) <= UNIT_STATS[u.type].range).length;
+485:    const enemyAttackers = moveThreat ? moveThreat.attackerCount : 0;
+486:    const eminentEnemyAttackers = moveThreat ? moveThreat.eminentAttackerCount : 0;
+487:    const eminentLnaRatio = eminentEnemyAttackers > 0 ? friendlyAttackers / eminentEnemyAttackers : 5.0;
+488:
+489:    if (eminentLnaRatio <= 1.0 && eminentEnemyAttackers > 0 && !isBarbarian) {
+490:      score -= (BASE_REWARD * 5.0);
+491:    }
+492:
+493:    if (!isUnitInPeril && !isNearbyVillageInPeril) {
+494:      const distFromCenter = getDistance(m, empireCenter, state.board);
+495:      const currentDistFromCenter = getDistance(unitToAct.coord, empireCenter, state.board);
+496:      if (distFromCenter > currentDistFromCenter) score += BASE_REWARD * EXPANSION_DISTANCE_BONUS;
+497:      
+498:      const isExpansionTarget = (tile.terrain === TerrainType.PLAINS || (tile.terrain === TerrainType.VILLAGE && tile.ownerId === null)) && 
+499:                               (tile.ownerId === null || tile.ownerId === currentPlayer.id);
+500:
+501:      if (isExpansionTarget) {
+502:        score += BASE_REWARD * PLAINS_PRIORITY_BONUS;
+503:        if (isSavingForVillage && tile.terrain === TerrainType.PLAINS) score += BASE_REWARD * 10.0;
+504:        if (!isMoveInPeril) {
+505:          const neighbors = _getNeighbors(m);
+506:          let isAdjacentToPeril = false;
+507:          for (const n of neighbors) {
+508:            const nThreat = threatMatrix.get(`${n.q},${n.r}`);
+509:            if (nThreat && nThreat.eminentAttackerCount > 0) { isAdjacentToPeril = true; break; }
+510:          }
+511:          if (isAdjacentToPeril) score += BASE_REWARD * EDGE_OF_PERIL_BONUS;
+512:        }
+513:      }
+514:    }
+515:
+516:    let maxTargetScore = 0;
+517:    let otherTargetsScore = 0;
+518:    const targetSafety = new LoopSafety('evaluateMoves-targets', 100);
+519:    for (const target of moveTargets) {
+520:      if (targetSafety.tick()) break;
+521:      const dist = getDistance(m, target.coord, state.board);
+522:      const currentDist = getDistance(unitToAct.coord, target.coord, state.board);
+523:      
+524:      if (dist < currentDist) {
+525:        const turnsToReach = Math.ceil((dist - (target.isSettlement ? 0 : potentialRange)) / stats.moves) + 1;
+526:        let targetScore = target.value / (turnsToReach + 1);
+527:
+528:        if (target.isSettlement && target.ownerId !== null && target.ownerId !== currentPlayer.id) {
+529:          const buddiesWhoCanNeutralize = friendlyFollowUpPotential.some(f => f.attacks.some((at: any) => at.q === target.coord.q && at.r === target.coord.r));
+530:          if (buddiesWhoCanNeutralize) targetScore += BASE_REWARD * COMBO_FOLLOW_UP_CLAIMER_BONUS;
+531:        }
+532:
+533:        if (currentDist > dist) targetScore += BASE_REWARD * PATHING_CONSISTENCY_BONUS;
+534:
+535:        const friendlyCloserToTarget = otherFriendlyUnits.filter(u => getDistance(u.coord, target.coord, state.board) < dist).length;
+536:        let saturationPenalty = friendlyCloserToTarget >= 2 ? 0.6 : (friendlyCloserToTarget === 1 ? 0.9 : 1.0);
+537:        if (isRich) saturationPenalty = Math.max(saturationPenalty, 0.95);
+538:        targetScore *= saturationPenalty;
+539:
+540:        if (unitToAct.type === UnitType.KNIGHT && target.isSettlement && target.ownerId === null) {
+541:           targetScore += BASE_REWARD * KNIGHT_HARASSMENT_BONUS * (dist > 3 ? 2.0 : 1.0);
+542:        }
+543:
+544:        if (unitToAct.type === UnitType.CATAPULT && target.ownerId !== null && target.ownerId !== currentPlayer.id) {
+545:            if (dist === 3 || dist === 4) targetScore += BASE_REWARD * 10.0;
+546:            else if (dist < 3) targetScore -= BASE_REWARD * 5.0;
+547:        }
+548:
+549:        if (target.ownerId !== null && target.ownerId !== currentPlayer.id) {
+550:          if (unitToAct.type === UnitType.INFANTRY && dist === 1) targetScore += BASE_REWARD * INFANTRY_FRONT_LINE_BONUS;
+551:          else if (unitToAct.type === UnitType.ARCHER && dist === 2) targetScore += BASE_REWARD * ARCHER_PLACEMENT_BONUS;
+552:          else if (unitToAct.type === UnitType.CATAPULT && dist === 3) targetScore += BASE_REWARD * CATAPULT_PLACEMENT_BONUS;
+553:          else if (unitToAct.type === UnitType.KNIGHT && dist <= 4 && dist >= 2) targetScore += BASE_REWARD * KNIGHT_FLANK_BONUS;
+554:        }
+555:
+556:        if (targetScore > maxTargetScore) {
+557:          otherTargetsScore += maxTargetScore * 0.5;
+558:          maxTargetScore = targetScore;
+559:        } else {
+560:          otherTargetsScore += targetScore * 0.5;
+561:        }
+562:      }
+563:    }
+564:    score += maxTargetScore + otherTargetsScore;
+565:
+566:    const currentThreatLevel = currentThreat ? currentThreat.minTurns : Infinity;
+567:    if (unitToAct.type === UnitType.KNIGHT && currentThreatLevel === 1 && !isBarbarian) {
+568:      if (moveThreatLevel > 1) score += BASE_REWARD * KNIGHT_SAFETY_BONUS; 
+569:      let minDistToSettlement = Infinity;
+570:      for (const s of mySettlements) {
+571:        const d = getDistance(m, s.coord, state.board);
+572:        if (d < minDistToSettlement) minDistToSettlement = d;
+573:      }
+574:      if (minDistToSettlement <= 2) score += BASE_REWARD * KNIGHT_FRIENDLY_SETTLEMENT_BONUS; 
+575:    }
+576:    
+577:    // Archer Skirmishing: Favor positions exactly 2 tiles away from threats but safe from immediate melee
+578:    if (unitToAct.type === UnitType.ARCHER) {
+579:      const nearestEnemyDist = enemyUnitTargets.length > 0 ? Math.min(...enemyUnitTargets.map(u => getDistance(m, u.coord, state.board))) : 99;
+580:      if (nearestEnemyDist === 2 && moveThreatLevel > 1) {
+581:        score += config.BASE_REWARD * config.SKIRMISH_BIAS; // Sweet spot for archers
+582:      } else if (nearestEnemyDist === 1) {
+583:        score -= BASE_REWARD * 20.0; // Melee is very bad for archers
+584:      }
+585:    }
+586:
+587:    if (unitToAct.type === UnitType.CATAPULT) {
+588:      if (moveThreatLevel === 1 && !isBarbarian) score -= BASE_REWARD * CATAPULT_SAFETY_PENALTY_HIGH; 
+589:      const siegeSafety = new LoopSafety('evaluateMoves-siege', 100);
+590:      for (const target of moveTargets) {
+591:        if (siegeSafety.tick()) break;
+592:        if (target.isSettlement && target.ownerId !== null) {
+593:          const d = getDistance(m, target.coord, state.board);
+594:          if (d === potentialRange) score += BASE_REWARD * CATAPULT_SIEGE_POSITION_BONUS; 
+595:          else if (d < potentialRange && d >= 2) score += BASE_REWARD * CATAPULT_SIEGE_PROXIMITY_BONUS; 
+596:        }
+597:      }
+598:      if (eminentThreatBases.some(b => getDistance(m, b.coord, state.board) <= 3) && isStayPut) score += BASE_REWARD * CATAPULT_DEFENSIVE_STAY_PUT_BONUS; 
+599:    }
+600:
+601:    const isDefendingBase = eminentThreatBases.some(b => getDistance(m, b.coord, state.board) <= 2) || mySettlements.some(s => getDistance(m, s.coord, state.board) <= 2);
+602:    if (isDefendingBase) {
+603:      const nearestEnemy = state.units.find(u => u.ownerId !== currentPlayer.id && getDistance(m, u.coord, state.board) <= 3);
+604:      if (nearestEnemy) {
+605:        score += BASE_REWARD * DRIVE_OUT_BONUS;
+606:        if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * DRIVE_OUT_BONUS * 2;
+607:      } else {
+608:        score += BASE_REWARD * DEFENSE_SCORING_BONUS;
+609:      }
+610:      if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * DEFENSE_SCORING_BONUS * 4;
+611:    }
+612:
+613:    const threatenedVillages = eminentThreatBases.filter(v => {
+614:      const t = threatMatrix.get(`${v.coord.q},${v.coord.r}`);
+615:      return t ? t.minTurns === 1 : false;
+616:    });
+617:    if (threatenedVillages.length > 0) {
+618:      const sacrificeSafety = new LoopSafety('evaluateMoves-sacrifice', 100);
+619:      for (const target of moveTargets) {
+620:        if (sacrificeSafety.tick()) break;
+621:        if (target.unitType !== undefined && getDistance(m, target.coord, state.board) <= potentialRange) {
+622:          const isEnemyThreateningVillage = threatenedVillages.some(v => getDistance(target.coord, v.coord, state.board) <= getUnitRange({ type: target.unitType, coord: target.coord } as any, state.board));
+623:          if (isEnemyThreateningVillage) {
+624:            score += BASE_REWARD * SACRIFICE_BONUS; 
+625:            if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * SACRIFICE_BONUS * 3;
+626:          }
+627:        }
+628:      }
+629:    }
+630:
+631:    const coordinationSafety = new LoopSafety('evaluateMoves-coordination', 100);
+632:    for (const target of moveTargets) {
+633:      if (coordinationSafety.tick()) break;
+634:      if (target.unitType !== undefined && getDistance(m, target.coord, state.board) <= potentialRange) {
+635:        const isAlreadyInPeril = otherFriendlyUnits.some(u => getDistance(u.coord, target.coord, state.board) <= getUnitRange(u, state.board));
+636:        if (isAlreadyInPeril) {
+637:          let bonus = COORDINATION_BONUS;
+638:          const isTargetThreateningMyBase = threatenedVillages.some(v => getDistance(target.coord, v.coord, state.board) <= getUnitRange({ type: target.unitType, coord: target.coord } as any, state.board));
+639:          if (isTargetThreateningMyBase) bonus *= 2.0;
+640:          score += BASE_REWARD * bonus; 
+641:        }
+642:      }
+643:    }
+644:
+645:    const influence = influenceMap.get(`${m.q},${m.r}`) || 0;
+646:    const distToFriendlyBase = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord, state.board))) : Infinity;
+647:    const distToEnemyBase = enemySettlements.length > 0 ? Math.min(...enemySettlements.map(s => getDistance(m, s.coord, state.board))) : Infinity;
+648:    const distToNearestEnemyTarget = Math.min(distToEnemyBase, enemyUnitTargets.length > 0 ? Math.min(...enemyUnitTargets.map(u => getDistance(m, u.coord, state.board))) : Infinity);
+649:    
+650:    if (unitToAct.type !== UnitType.INFANTRY && !isBarbarian && distToNearestEnemyTarget !== Infinity) {
+651:      if (distToNearestEnemyTarget > 4) score -= (distToNearestEnemyTarget * BASE_REWARD * 5.0);
+652:      else score += BASE_REWARD * 10.0; 
+653:    }
+654:
+655:    if (distToFriendlyBase <= 3 && distToEnemyBase <= 4 && influence >= -20 && (friendlyAttackers / Math.max(1, enemyAttackers)) >= 1.0) {
+656:      score += BASE_REWARD * 4.5;
+657:    }
+658:    
+659:    const nearFriendCount = otherFriendlyUnits.filter(u => getDistance(m, u.coord, state.board) === 1).length;
+660:    if (nearFriendCount > 0) score += BASE_REWARD * MUTUAL_SUPPORT_BONUS * nearFriendCount;
+661:
+662:    const catAnchors = myCatapults.filter(u => u.id !== unitToAct.id);
+663:    for (const cat of catAnchors) {
+664:      const distToCat = getDistance(m, cat.coord, state.board);
+665:      if (distToCat === 1) score += BASE_REWARD * FORMATION_ANCHOR_BONUS;
+666:      else if (distToCat === 2) score += BASE_REWARD * FORMATION_ANCHOR_BONUS * 0.5;
+667:    }
+668:
+669:    const clusterSize = otherFriendlyUnits.filter(u => getDistance(m, u.coord, state.board) <= 2).length;
+670:    score += clusterSize * SQUAD_INTEGRITY_BONUS * 10; 
+671:
+672:    if (moveThreatLevel > 1 && nearFriendCount > 0) score += RALLY_POINT_ADJACENCY_BONUS;
+673:    if (influence < -100 && !isBarbarian) score -= myValue * INFLUENCE_PENALTY_HIGH_RATIO; 
+674:    else if (influence < -50 && !isBarbarian) score -= myValue * INFLUENCE_PENALTY_MED_RATIO; 
+675:    else if (influence < 0) score += Math.abs(influence) * INFLUENCE_EXPANSION_BONUS; 
+676:    else score += 5;
+677:
+678:    if (hvt) {
+679:      const distToHvt = getDistance(m, hvt.coord, state.board);
+680:      const currentDistToHvt = getDistance(unitToAct.coord, hvt.coord, state.board);
+681:      if (distToHvt < currentDistToHvt) score += (BASE_REWARD * HVT_PROXIMITY_BONUS_FACTOR) / (distToHvt + 1);
+682:    }
+683:
+684:    if (unitToAct.type === UnitType.INFANTRY || unitToAct.type === UnitType.KNIGHT) {
+685:      const screeningSafety = new LoopSafety('evaluateMoves-screening', 100);
+686:      for (const cat of myCatapults) {
+687:        if (screeningSafety.tick()) break;
+688:        const distToCat = getDistance(m, cat.coord, state.board);
+689:        if (distToCat === 1) {
+690:          const nearestEnemy = state.units.find(u => u.ownerId !== currentPlayer.id);
+691:          if (nearestEnemy) {
+692:            const catToEnemy = getDistance(cat.coord, nearestEnemy.coord, state.board);
+693:            const meToEnemy = getDistance(m, nearestEnemy.coord, state.board);
+694:            if (meToEnemy < catToEnemy) score += BASE_REWARD * SCREENING_BONUS;
+695:          }
+696:        }
+697:      }
+698:    }
+699:
+700:    if (unitToAct.type === UnitType.CATAPULT && isStayPut) {
+701:      const hasMeatShield = otherFriendlyUnits.some(u => (u.type === UnitType.INFANTRY || u.type === UnitType.KNIGHT) && getDistance(m, u.coord, state.board) === 1);
+702:      if (!hasMeatShield) score += BASE_REWARD * CATAPULT_MEAT_SHIELD_BONUS;
+703:    }
+704:
+705:    const threat = threatMatrix.get(`${m.q},${m.r}`);
+706:    if (!isBarbarian && threat) {
+707:      const threatLevel = threat.minTurns;
+708:      const eminentValue = threat.eminentThreatValue;
+709:      const eminentCount = threat.eminentAttackerCount;
+710:      let penaltyMult = threatenedVillages.length > 0 ? THREAT_PENALTY_SACRIFICE_MULT : 1.0;
+711:      
+712:      const isOnOurSettlement = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE);
+713:      
+714:      // If we are defending our own settlement, we are willing to take risks.
+715:      if (isOnOurSettlement) penaltyMult *= 0.3; // Much lower penalty for defending home
+716:      
+717:      if (isUnitInPeril) penaltyMult *= 0.5; 
+718:
+719:      if (threatLevel === 1) {
+720:        const enemiesCoveringTile = state.units.filter(u => u.ownerId !== currentPlayer.id && getDistance(u.coord, m, state.board) <= getUnitRange(u, state.board));
+721:        let maxSupportScore = -Infinity;
+722:        for (const enemy of enemiesCoveringTile) {
+723:          const alliesInRangeOfEnemy = otherFriendlyUnits.filter(u => getDistance(u.coord, enemy.coord, state.board) <= getUnitRange(u, state.board)).length;
+724:          const enemiesInRangeOfEnemy = state.units.filter(u => u.ownerId !== currentPlayer.id && u.id !== enemy.id && getDistance(u.coord, enemy.coord, state.board) <= getUnitRange(u, state.board)).length;
+725:          const supportScore = (alliesInRangeOfEnemy - enemiesInRangeOfEnemy) * SUPPORT_SCORE_MULT;
+726:          if (supportScore > maxSupportScore) maxSupportScore = supportScore;
+727:        }
+728:        
+729:        // If we're on our own settlement, don't just abandon it because it's threatened
+730:        if (maxSupportScore <= 0 && !isBarbarian && !isOnOurSettlement) score -= 10000;
+731:        else if (maxSupportScore <= 0 && !isBarbarian && isOnOurSettlement) score -= 2000; // Still a penalty, but not a total veto
+732:        else score += Math.max(0, maxSupportScore);
+733:
+734:        let bestTradeValue = 0;
+735:        let hasImmediateGain = false;
+736:        for (const target of moveTargets) {
+737:          const distAfterMove = getDistance(m, target.coord, state.board);
+738:          if (distAfterMove <= potentialRange) {
+739:            const tradeValue = target.value - myValue;
+740:            if (tradeValue > bestTradeValue) bestTradeValue = tradeValue;
+741:            if (distAfterMove === 0 && target.isSettlement && target.ownerId === null) hasImmediateGain = true;
+742:          }
+743:        }
+744:
+745:        let penalty = ((myValue * THREAT_PENALTY_L1_MULT) + (eminentValue * 4.0) + (eminentCount * 100));
+746:        if (globalAggression > 1.0) penalty /= globalAggression;
+747:
+748:        if (myValue >= 200 && !isBarbarian && !hasImmediateGain) {
+749:           const hvtPenaltyMult = globalUnitRatio >= 2.0 && isRich ? 2.5 : (globalUnitRatio >= 1.5 ? 5.0 : 10.0);
+750:           penalty *= hvtPenaltyMult; 
+751:        }
+752:
+753:        if (unitToAct.type === UnitType.KNIGHT && !isBarbarian) {
+754:          if (!otherFriendlyUnits.some(u => { const t = threatMatrix.get(`${u.coord.q},${u.coord.r}`); return t && t.minTurns === 1; })) score -= BASE_REWARD * KNIGHT_FIRST_IN_PENALTY;
+755:        }
+756:        
+757:        if (eminentLnaRatio <= 1.1) penalty *= (eminentLnaRatio <= 1.0 ? 2.5 : 1.5) * (2.1 - eminentLnaRatio); 
+758:        if (eminentCount >= 2 && bestTradeValue < BAIT_AND_TRADE_THRESHOLD) {
+759:          penalty *= LETHAL_THREAT_PENALTY_MULT;
+760:          if (eminentCount >= 4) penalty *= 1.5;
+761:        }
+762:        score -= penalty * penaltyMult;
+763:      } else if (threatLevel === 2) {
+764:        // Potential Trap Awareness: Small penalty for moving into range of an enemy move+attack
+765:        score -= (myValue * 0.5) * penaltyMult;
+766:      }
+767:    }
+768:
+769:    if (isUnitInPeril && !isStayPut) {
+770:      if (moveThreatLevel > 1) {
+771:        // General retreat bonus - heavily prioritize if it's actually safe
+772:        score += BASE_REWARD * 30.0; 
+773:        
+774:        // High-Value Withdrawal: Much stronger for Knights/Catapults
+775:        if (unitToAct.type === UnitType.KNIGHT || unitToAct.type === UnitType.CATAPULT) {
+776:          score += BASE_REWARD * 40.0;
+777:          
+778:          // Bonus for retreating towards own territory or empire center
+779:          const distFromCenter = getDistance(m, empireCenter, state.board);
+780:          const currentDistFromCenter = getDistance(unitToAct.coord, empireCenter, state.board);
+781:          if (distFromCenter < currentDistFromCenter) score += BASE_REWARD * 10.0;
+782:        }
+783:
+784:        if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) score += BASE_REWARD * OPPORTUNISTIC_RETREAT_SETTLEMENT_BONUS;
+785:        else if (tile.terrain === TerrainType.PLAINS && tile.ownerId === null) score += BASE_REWARD * OPPORTUNISTIC_RETREAT_PLAINS_BONUS;
+786:      } else if (hasSafeRetreat) {
+787:        // If a safe retreat exists, heavily punish moving to ANOTHER peril tile
+788:        score -= BASE_REWARD * 50.0;
+789:      }
+790:    }
+791:
+792:    // Sacrifice/Screening logic: Infantry moving to protect assets
+793:    if (unitToAct.type === UnitType.INFANTRY || unitToAct.type === UnitType.ARCHER) {
+794:      // Is this tile adjacent to an asset we want to protect?
+795:      const adjacentAssets = otherFriendlyUnits.filter(u => 
+796:        (u.type === UnitType.KNIGHT || u.type === UnitType.CATAPULT) && 
+797:        getDistance(m, u.coord, state.board) === 1
+798:      );
+799:      
+800:      if (adjacentAssets.length > 0) {
+801:        // Find if this tile is between the asset and an enemy
+802:        const enemy = state.units.find(u => u.ownerId !== currentPlayer.id);
+803:        if (enemy) {
+804:          const distAssetToEnemy = getDistance(adjacentAssets[0].coord, enemy.coord, state.board);
+805:          const distMeToEnemy = getDistance(m, enemy.coord, state.board);
+806:          if (distMeToEnemy < distAssetToEnemy) {
+807:            score += BASE_REWARD * SCREENING_BONUS * 5.0; // Increased
+808:          }
+809:        }
+810:      }
+811:
+812:      // Explicitly rotate into threatened settlement tiles
+813:      if (tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE)) {
+814:        const baseThreat = threatMatrix.get(`${tile.coord.q},${tile.coord.r}`);
+815:        if (baseThreat && baseThreat.minTurns <= 2) { 
+816:          // Reduced from 15.0 to 1.5 to allow self-preservation to matter
+817:          score += BASE_REWARD * SACRIFICE_BONUS * 1.5; 
+818:        }
+819:      }
+820:    }
+821:
+822:    // Self-preservation: Penalty for moving into higher peril
+823:    const destinationThreat = threatMatrix.get(`${m.q},${m.r}`);
+824:    
+825:    if (destinationThreat && (!currentThreat || destinationThreat.eminentThreatValue > currentThreat.eminentThreatValue)) {
+826:      // Moving into more danger than we are currently in
+827:      score -= (destinationThreat.eminentThreatValue + 100) * 2.0;
+828:    }
+829:
+830:    const isBuildablePlains = tile.terrain === TerrainType.PLAINS && (tile.ownerId === null || tile.ownerId === currentPlayer.id);
+831:    const isBuildableMountain = tile.terrain === TerrainType.MOUNTAIN && (tile.ownerId === null || tile.ownerId === currentPlayer.id);
+832:
+833:    if (isSavingForMine && isBuildableMountain) {
+834:      score += UPGRADE_SAVING_MINE_BONUS;
+835:      if (isStayPut) score += UPGRADE_SAVING_MINE_STAY_PUT_BONUS; 
+836:    } else if (isSavingForVillage && isBuildablePlains) {
+837:      let canBuildHere = true;
+838:      if (unitToAct.type === UnitType.CATAPULT) {
+839:        const nearestFriendlySettlementDist = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord, state.board))) : Infinity;
+840:        canBuildHere = nearestFriendlySettlementDist >= 2;
+841:      }
+842:      if (canBuildHere) {
+843:        score += UPGRADE_SAVING_VILLAGE_BONUS;
+844:        if (isStayPut) score += UPGRADE_SAVING_VILLAGE_STAY_PUT_BONUS; 
+845:        if (tile.ownerId === currentPlayer.id) score += INFILLING_BONUS;
+846:      }
+847:    } else {
+848:      if (tile.terrain === TerrainType.FOREST) score += TERRAIN_FOREST_PENALTY;
+849:      if (tile.terrain === TerrainType.MOUNTAIN) {
+850:        score += TERRAIN_MOUNTAIN_BONUS;
+851:        if (tile.ownerId === currentPlayer.id) score += INFILLING_BONUS;
+852:      }
+853:      if (tile.terrain === TerrainType.PLAINS) {
+854:        score += (tile.ownerId === null) ? TERRAIN_PLAINS_NEUTRAL_BONUS : TERRAIN_PLAINS_OWNED_BONUS;
+855:        if (tile.ownerId === currentPlayer.id) score += INFILLING_BONUS;
+856:      }
+857:    }
+858:
+859:    if (tile.terrain === TerrainType.PLAINS && moveThreatLevel > 1) {
+860:      const neighbors = _getNeighbors(m);
+861:      let isEdgeOfPeril = false;
+862:      for (const n of neighbors) {
+863:        const t = threatMatrix.get(`${n.q},${n.r}`);
+864:        if (t && t.minTurns === 1) { isEdgeOfPeril = true; break; }
+865:      }
+866:      if (isEdgeOfPeril) score += BASE_REWARD * EDGE_OF_PERIL_BONUS;
+867:    }
+868:
+869:    if (score > maxScore) {
+870:      // Tactical Lookahead for high-value units moving into peril
+871:      if ((unitToAct.type === UnitType.KNIGHT || unitToAct.type === UnitType.CATAPULT) && !isBarbarian) {
+872:        const safety = evaluateActionSafety(state, { type: 'move', payload: { unitId: unitToAct.id, target: m } }, currentPlayer.id);
+873:        if (!safety.isSafe) {
+874:          // Significant penalty if moving into a trap
+875:          score -= (UNIT_STATS[unitToAct.type].cost * 2.5);
+876:          
+877:          // Debugging/Reasons if we had them here, but we just want to avoid the move.
+878:        }
+879:      }
+880:
+881:      if (score > maxScore) {
+882:        maxScore = score;
+883:        bestMove = m;
+884:      }
+885:    }
+886:  }
+887:
+888:  if (bestMove.q === unitToAct.coord.q && bestMove.r === unitToAct.coord.r) {
+889:    return { 
+890:      action: { type: 'skipUnit' as const, payload: { unitId: unitToAct.id } },
+891:      score: maxScore 
+892:    };
+893:  }
+894:
+895:  return { 
+896:    action: { type: 'move' as const, payload: { unitId: unitToAct.id, target: bestMove } },
+897:    score: maxScore
+898:  };
+899:}

@@ -26,8 +26,13 @@ export const WaterBasesInstanced = ({
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   
-  const waterTiles = useMemo(() => board.filter(t => t.terrain === 'Water'), [board.length]);
+  const waterTiles = useMemo(() => board.filter(t => t.terrain === 'Water'), [board]);
   const selectionStates = useRef(new Float32Array(waterTiles.length));
+  useMemo(() => {
+    if (selectionStates.current.length !== waterTiles.length) {
+      selectionStates.current = new Float32Array(waterTiles.length);
+    }
+  }, [waterTiles.length]);
 
   useEffect(() => {
     if (!meshRef.current) return;

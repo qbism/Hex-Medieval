@@ -71,10 +71,12 @@ function simulateAction(state: GameState, action: { type: 'move' | 'attack', pay
       })
     };
   } else {
-    const targetKey = `${action.payload.target.q},${action.payload.target.r}`;
+    const targetQ = action.payload?.target?.q;
+    const targetR = action.payload?.target?.r;
+    const targetKey = (targetQ !== undefined && targetR !== undefined) ? `${targetQ},${targetR}` : 'invalid';
     const newState = {
       ...state,
-      units: state.units.filter(u => `${u.coord.q},${u.coord.r}` !== targetKey),
+      units: state.units.filter(u => `${u.coord?.q},${u.coord?.r}` !== targetKey),
     };
     
     newState.units = newState.units.map(u => {
@@ -121,8 +123,10 @@ export function evaluateActionSafety(
       bestResponseValue = threatAtNewPos.totalThreatValue * 0.5;
     }
 
-    const killedUnitKey = action.type === 'attack' ? `${action.payload.target.q},${action.payload.target.r}` : null;
-    const killedUnit = killedUnitKey ? state.units.find(u => `${u.coord.q},${u.coord.r}` === killedUnitKey) : null;
+    const tQ = action.payload?.target?.q;
+    const tR = action.payload?.target?.r;
+    const killedUnitKey = (action.type === 'attack' && tQ !== undefined && tR !== undefined) ? `${tQ},${tR}` : null;
+    const killedUnit = killedUnitKey ? state.units.find(u => `${u.coord?.q},${u.coord?.r}` === killedUnitKey) : null;
     const killedUnitValue = killedUnit ? UNIT_STATS[killedUnit.type].cost : 0;
 
     // High-value units (Knight/Catapult) should never trade down

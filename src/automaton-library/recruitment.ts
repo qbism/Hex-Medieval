@@ -63,7 +63,7 @@ export function getRecruitmentAction(
   const recruitmentTiles = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
     (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS) &&
-    !state.units.some(u => u.coord.q === t.coord.q && u.coord.r === t.coord.r)
+    !state.units.some(u => u.coord?.q === t.coord?.q && u.coord?.r === t.coord?.r)
   );
 
   if (recruitmentTiles.length === 0) return null;
@@ -140,7 +140,7 @@ export function getRecruitmentAction(
       const stats = UNIT_STATS[unitType];
       if (currentGold < stats.cost) continue;
       
-      const tileKey = `${t.coord.q},${t.coord.r}`;
+      const tileKey = `${t.coord?.q},${t.coord?.r}`;
       const heat = heatMap.get(tileKey) || 0;
 
       // Check if buying this unit puts us too far from our savings target
@@ -215,14 +215,14 @@ export function getRecruitmentAction(
           const isEnemyTarget = target.ownerId !== null && target.ownerId !== currentPlayer.id;
           
           // Don't spawn a catapult in a village already in peril (use infantry instead)
-          const isTileInEminentPeril = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
+          const isTileInEminentPeril = eminentThreatBases.some(b => b.coord?.q === t.coord?.q && b.coord?.r === t.coord?.r);
 
           if (isAtExactRange && isEnemyTarget && !isTileInEminentPeril) {
             isValidImmediateNeed = true;
             
             // Boost for each additional target (settlement or unit) within 2 to 4 range
             const otherTargetsInRange = targets.filter(other => {
-               if (other.coord.q === target.coord.q && other.coord.r === target.coord.r) return false;
+               if (other.coord?.q === target.coord?.q && other.coord?.r === target.coord?.r) return false;
                const d = getDistance(t.coord, other.coord, state.board);
                return d >= 2 && d <= 4;
             }).length;
@@ -262,7 +262,7 @@ export function getRecruitmentAction(
         const score = (actionValue - stats.cost) / turnsToAct;
         
         // Influence Bonus: Recruit where we are losing control
-        const influence = influenceMap.get(`${t.coord.q},${t.coord.r}`) || 0;
+        const influence = influenceMap.get(`${t.coord?.q},${t.coord?.r}`) || 0;
         const influenceBonus = influence < 0 ? Math.abs(influence) * INFLUENCE_BONUS_RATIO : 0;
         
         // Heat Map Bonus: Recruit where the action is
@@ -299,11 +299,11 @@ export function getRecruitmentAction(
       }
 
       // Penalize spawning in danger unless it's for defense
-      const threat = threatMatrix.get(`${t.coord.q},${t.coord.r}`);
+      const threat = threatMatrix.get(`${t.coord?.q},${t.coord?.r}`);
       const threatLevel = threat ? threat.minTurns : Infinity;
       
       // Check if this specific tile is in eminent peril
-      const isTileInEminentPeril = eminentThreatBases.some(b => b.coord.q === t.coord.q && b.coord.r === t.coord.r);
+      const isTileInEminentPeril = (eminentThreatBases || []).some(b => b.coord?.q === t.coord?.q && b.coord?.r === t.coord?.r);
       
       if (isTileInEminentPeril) {
         // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
@@ -348,7 +348,7 @@ export function getRecruitmentAction(
     minThreshold = -Infinity;
   } else if (bestAction && !isBarbarian) {
     // Heat Map Logic: If heat is low, we need a higher score to justify recruitment (unless barbarian)
-    const tileKey = `${bestAction.coord.q},${bestAction.coord.r}`;
+    const tileKey = `${bestAction.coord?.q},${bestAction.coord?.r}`;
     const heat = heatMap.get(tileKey) || 0;
     if (heat < HEAT_MAP_SAVINGS_THRESHOLD) {
       minThreshold += (HEAT_MAP_SAVINGS_THRESHOLD - heat) * INTERIOR_PENALTY_FACTOR;

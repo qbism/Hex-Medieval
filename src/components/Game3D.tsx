@@ -178,6 +178,12 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
   const nonWaterTiles = useMemo(() => board.filter(t => t.terrain !== TerrainType.WATER), [board]);
   const selectionStates = useRef(new Float32Array(nonWaterTiles.length));
   const hoverStates = useRef(new Float32Array(nonWaterTiles.length));
+  useMemo(() => {
+    if (selectionStates.current.length !== nonWaterTiles.length) {
+      selectionStates.current = new Float32Array(nonWaterTiles.length);
+      hoverStates.current = new Float32Array(nonWaterTiles.length);
+    }
+  }, [nonWaterTiles.length]);
   
   // These attributes only need to update when board layout changes
   const mountainStates = useMemo(() => new Float32Array(nonWaterTiles.map(t => t.terrain === TerrainType.MOUNTAIN ? 1.0 : 0.0)), [nonWaterTiles]);
@@ -683,9 +689,14 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
   );
 });
 
-const SkySphere = React.memo(() => (
-  <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} />
-));
+const SkySphere = React.memo(() => {
+  useFrame(({ clock }) => {
+    if (MATERIALS.sky.uniforms.uTime) {
+      MATERIALS.sky.uniforms.uTime.value = clock.getElapsedTime();
+    }
+  });
+  return <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} />;
+});
 
 const BIRD_BODY_GEO = new THREE.BoxGeometry(0.1, 0.05, 0.3);
 const BIRD_WING_GEO = new THREE.BoxGeometry(0.4, 0.01, 0.15);
@@ -1263,7 +1274,7 @@ const OverlaysLayer = React.memo(({
         return (
           <group key={`overlays-${tile.coord.q}-${tile.coord.r}`}>
             {tile.terrain === TerrainType.WATER && hasAdjacentSettlementMap.get(coordKey) && (
-              <Billboard position={[x, height + 0.2, z]}>
+              <Billboard position={[x, height + 0.35, z]}>
                 <Text fontSize={0.6} color="black">⛵</Text>
               </Billboard>
             )}

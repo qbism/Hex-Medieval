@@ -14,7 +14,7 @@ const isPerimeter = (q: number, r: number) => Math.max(Math.abs(q), Math.abs(r),
 
 export const WaterfallsInstanced = ({ board }: { board: any[] }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const waterfallTiles = useMemo(() => board.filter(t => t.terrain === 'Water' && isPerimeter(t.coord.q, t.coord.r)), [board.length]);
+  const waterfallTiles = useMemo(() => board.filter(t => t.terrain === 'Water' && isPerimeter(t.coord.q, t.coord.r)), [board]);
 
   useEffect(() => {
     if (!meshRef.current) return;

@@ -24,7 +24,9 @@ export function useAutomatonTurn({
 
   useEffect(() => {
     // Initialize worker once
-    workerRef.current = new Worker(new URL('../automaton-library/worker.ts', import.meta.url), { type: 'module' });
+    if (typeof Worker !== 'undefined') {
+      workerRef.current = new Worker(new URL('../automaton-library/worker.ts', import.meta.url), { type: 'module' });
+    }
     
     return () => {
       workerRef.current?.terminate();

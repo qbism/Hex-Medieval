@@ -33,9 +33,9 @@ const RULES_CONTENT = `# How automatons play: Technical specifications & ai logi
 | **Gold mine** | 100 | 500 |
 
 ## 3. Terrain effects
-- **Forest:** Catapults cannot target units in forests. Archers in forests have -1 attack range.
-- **River:** No movement penalty. No defense modifiers.
-- **Mountains:** Impassable to all units. Gold mines can only be built on mountains.
+- **Forest:** Costs 2 movement points. Catapults cannot target units in forests. Archers in forests have -1 attack range. Units starting in forests have reduced movement (Infantry/Archers: 1, Knights: 2).
+- **River (Water):** Impassable to all land units.
+- **Mountains:** Costs 3 movement points. Gold mines can only be built on mountains.
 
 ## 4. AI core logic (the "conductor")
 The ai operates on a **heuristic scoring system**. Every possible action is assigned a score. The ai has **perfect information** (no fog of war).

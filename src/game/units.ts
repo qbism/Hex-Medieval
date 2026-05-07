@@ -67,8 +67,11 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
       }
       
       if (isPassable) {
-        // Forest tiles cost 2, others cost 1
-        const moveCost = (tile.terrain === TerrainType.FOREST) ? 2 : 1;
+        // Terrain movement costs
+        let moveCost = 1;
+        if (tile.terrain === TerrainType.FOREST) moveCost = 2;
+        if (tile.terrain === TerrainType.MOUNTAIN) moveCost = 3;
+        
         const nextCost = cost + moveCost;
 
         // Prorated entry: can enter a tile if we have at least 1 movement point left

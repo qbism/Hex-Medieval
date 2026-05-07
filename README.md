@@ -10,14 +10,15 @@ Eliminate all other players by capturing their settlements and destroying their 
 ### Economy & Upgrades
 Gold is the lifeblood of your empire. You earn gold at the start of your turn based on the settlements you control. You can spend gold to recruit units or upgrade your tiles.
 
-*   **Plains:** Can be upgraded to a **Village** (Cost: 100g, Income: +10g).
-*   **Village:** Can be upgraded to a **Fortress** (Cost: 150g, Income: +20g).
-*   **Fortress:** Can be upgraded to a **Castle** (Cost: 300g, Income: +40g).
-*   **Mountain:** Can be upgraded to a **Gold Mine** (Cost: 500g, Income: +80g).
+*   **Plains:** Can be upgraded to a **Village** (Cost: 100g, Income: +20g).
+*   **Village:** Can be upgraded to a **Fortress** (Cost: 150g, Income: +40g).
+*   **Fortress:** Can be upgraded to a **Castle** (Cost: 300g, Income: +70g).
+*   **Mountain:** Can be upgraded to a **Gold Mine** (Cost: 400g, Income: +100g).
 *   **Forest:** Provides cover and slows movement.
-    *   **Movement:** Entering a forest costs 2 movement points (prorated: can enter with only 1 point left). Units starting in a forest have reduced range (Infantry/Archers: 1, Knights: 2). Catapults cannot enter forests.
-    *   **Defense:** Units in forests cannot be targeted by **Catapults**.
-*   **Water:** Impassable to units unless they are moving from another water tile or are adjacent to a settlement (representing ports/docks).
+    *   **Movement:** Entering a forest costs 2 movement points. Units starting in a forest have reduced range (maximal moves: Infantry/Archers: 1, Knights: 2).
+    *   **Defense:** Units in forests cannot be targeted by **Catapults**. Archers in forests have -1 range.
+*   **Mountain:** Costs 3 movement points to enter. Essential for Gold Mine construction.
+*   **Water:** Impassable to all land units.
 
 *Note: You can only recruit new units on Villages and Castles.*
 
