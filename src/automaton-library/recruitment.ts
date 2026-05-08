@@ -124,7 +124,7 @@ export function getRecruitmentAction(
 
   let bestAction: { type: UnitType, coord: HexCoord, score: number } | null = null;
 
-  const recruitSafety = new LoopSafety('getAutomatonBestAction-recruit-economic', 2000);
+  const recruitSafety = new LoopSafety('getAutomatonBestAction-recruit-economic', 6000);
   
   for (const t of recruitmentTiles) {
     if (recruitSafety.tick()) break;
@@ -134,7 +134,7 @@ export function getRecruitmentAction(
 
     const allowedUnitTypes = (Object.keys(UNIT_STATS) as UnitType[]);
 
-    const typeSafety = new LoopSafety('getRecruitmentAction-types', 100);
+    const typeSafety = new LoopSafety('getRecruitmentAction-types', 300);
     for (const unitType of allowedUnitTypes) {
       if (typeSafety.tick()) break;
       const stats = UNIT_STATS[unitType];
@@ -155,7 +155,7 @@ export function getRecruitmentAction(
       const range = getUnitRange({ type: unitType as UnitType, coord: t.coord } as any, state.board);
       
       // Evaluate this unit type against all targets from this tile
-      const targetSafety = new LoopSafety('getRecruitmentAction-targets', 1000);
+      const targetSafety = new LoopSafety('getRecruitmentAction-targets', 3000);
       for (const target of targets) {
         if (targetSafety.tick()) break;
         const dist = getDistance(t.coord, target.coord, state.board);
@@ -343,9 +343,21 @@ export function getRecruitmentAction(
   }
   
   const myUnitsCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
-  
+  const mySettlementsCount = state.board.filter(b => 
+    b.ownerId === currentPlayer.id && 
+    [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(b.terrain)
+  ).length;
+
+  // Reduced ideal unit/village ratio (Target: 0.8 units per settlement)
+  const unitToSettlementRatio = mySettlementsCount > 0 ? myUnitsCount / mySettlementsCount : 0;
+  const isCappedByRatio = unitToSettlementRatio > 0.8 && !isUnderThreat && !isLaggingStrength;
+
   if (myUnitsCount === 0) {
     minThreshold = -Infinity;
+  } else if (isCappedByRatio) {
+    // If we have enough units (0.8 ratio), we prioritize gold for upgrades/mines.
+    // We only recruit if there is an EXTRAORDINARILY high score (desperate defense)
+    minThreshold += 3000; 
   } else if (bestAction && !isBarbarian) {
     // Heat Map Logic: If heat is low, we need a higher score to justify recruitment (unless barbarian)
     const tileKey = `${bestAction.coord?.q},${bestAction.coord?.r}`;

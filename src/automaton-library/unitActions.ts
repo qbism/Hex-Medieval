@@ -5,7 +5,9 @@ import {
   UnitType, 
   TerrainType, 
   HexCoord, 
-  SETTLEMENT_INCOME
+  SETTLEMENT_INCOME,
+  UNIT_STATS,
+  getDistance
 } from '../types';
 import { getValidAttacks, getValidMoves } from '../gameEngine';
 import { UnitActionContext, evaluateAttacks, evaluateMoves } from './unit-actions/evaluators';
@@ -84,28 +86,28 @@ export function getUnitAction(
     cachedData.isRich = isRichLocal;
   }
 
-  // Pre-calculate follow-up potential for ALL units once
-  const friendlyFollowUpPotential = myUnits.map(u => ({
+  // --- Coordination and Sequencing Analysis ---
+  // Default: Evaluate ALL units to find the single best move globally.
+  // PERFORMANCE FIX: If we have many units, evaluating ALL of them every single time a unit acts is O(N^2).
+  // We limit the full evaluation to the most relevant units if the army is huge.
+  let unitsToEvaluate = myUnits;
+  if (myUnits.length > 100) {
+    // Pick the 100 most "important" units to evaluate for the BEST action this turn.
+    // Importance: Near enemies, or high value (Catapults/Knights)
+    unitsToEvaluate = [...myUnits].sort((a, b) => {
+      const aVal = UNIT_STATS[a.type].cost + (eminentThreatBases.some(base => getDistance(a.coord, base.coord) <= 3) ? 1000 : 0);
+      const bVal = UNIT_STATS[b.type].cost + (eminentThreatBases.some(base => getDistance(b.coord, base.coord) <= 3) ? 1000 : 0);
+      return bVal - aVal;
+    }).slice(0, 100);
+  }
+
+  // Pre-calculate follow-up potential for evaluated units
+  const friendlyFollowUpPotential = unitsToEvaluate.map(u => ({
     id: u.id,
     type: u.type,
     moves: getValidMoves(u, state.board, state.units),
     attacks: getValidAttacks(u, state.board, state.units, true)
   }));
-
-  // --- Coordination and Sequencing Analysis ---
-  // Identify units with restricted targets and targets with multiple potential attackers
-  const unitTargetCounts = new Map<string, number>();
-  const targetAttackerIds = new Map<string, string[]>();
-
-  for (const f of friendlyFollowUpPotential) {
-    unitTargetCounts.set(f.id, f.attacks.length);
-    for (const t of f.attacks) {
-      const key = `${t.q},${t.r}`;
-      const attackers = targetAttackerIds.get(key) || [];
-      attackers.push(f.id);
-      targetAttackerIds.set(key, attackers);
-    }
-  }
 
   const otherFriendlyUnits = state.units.filter(u => u.ownerId === currentPlayer.id && u.id !== myUnits[0].id); 
   const context: UnitActionContext = {
@@ -162,10 +164,10 @@ export function getUnitAction(
     payload: { unitId: unit.id, target }
   });
 
-  // COMBINED PHASE: Evaluate all attacks and moves for all units, and pick the best one globally.
+  // COMBINED PHASE: Evaluate all attacks and moves for the selected candidate units, and pick the best one globally.
   const possibleActions: { unit: Unit, action: any, score: number }[] = [];
 
-  for (const unitToAct of myUnits) {
+  for (const unitToAct of unitsToEvaluate) {
     // 1. Evaluate Attacks FIRST: If a unit can attack, that's a high-priority action
     const attackEval = evaluateAttacks(unitToAct, context);
     if (attackEval) {

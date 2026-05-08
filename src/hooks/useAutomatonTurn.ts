@@ -88,7 +88,7 @@ export function useAutomatonTurn({
       lastPlayerKeyRef.current = playerKey;
     }
 
-    if (actionsTakenRef.current > 200) {
+    if (actionsTakenRef.current > 500) {
       console.warn('Automaton exceeded action limit, ending turn.');
       setAutomatonStatus("Ending turn (limit reached)...");
       actions.endTurn();

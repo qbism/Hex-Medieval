@@ -122,12 +122,12 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
     // If there are 2 or more other players, it will never surrender.
     const isBarbarianWaitRuleMet = !isBarbarian || activeStats.length === 1;
 
-    // User's New Rule: Convert to Barbarian if < 25% of top player's strength AND < 25% of top player's income
-    const isCriticallyWeak = myStrength < maxCompetitorStrength * 0.25;
-    const isCriticallyPoor = myIncome < maxCompetitorIncome * 0.25;
+    // User's New Rule: Convert to Barbarian if < 20% of top player's strength AND < 20% of top player's income
+    const isCriticallyWeak = myStrength < maxCompetitorStrength * 0.20;
+    const isCriticallyPoor = myIncome < maxCompetitorIncome * 0.20;
 
     // Legacy stagnant logic as a secondary fallback
-    const isWeakAndStagnant = myStrength < maxCompetitorStrength * 0.6 && isIncomeStagnant;
+    const isWeakAndStagnant = myStrength < maxCompetitorStrength * 0.48 && isIncomeStagnant;
     
     if (isBarbarianWaitRuleMet && ((isCriticallyWeak && isCriticallyPoor) || isWeakAndStagnant)) {
       return { type: 'goRogue' as const, matrix: opportunityPerilMatrix };

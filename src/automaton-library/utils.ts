@@ -5,7 +5,7 @@ export function calculateKingdomStrength(player: any, state: GameState): number 
   let strength = 0;
   if (state.units) {
     state.units.forEach(u => {
-      if (u.ownerId === playerId) strength += 10;
+      if (u.ownerId === playerId) strength += 13; // Increased to favor fewer units as "enough"
     });
   }
   if (state.board) {

@@ -43,8 +43,8 @@ export const CATAPULT_MEAT_SHIELD_RECRUIT_BONUS = 2.0;
 export const NEUTRAL_CAPTURE_BONUS = 0.5;
 
 // Unit Actions
-export const STAY_PUT_BIAS = 0.1;
-export const IMMEDIATE_CAPTURE_BONUS = 20.0;
+export const STAY_PUT_BIAS = 2.0; // Increased to favor staying put when no better action is clear
+export const IMMEDIATE_CAPTURE_BONUS = 20.0; 
 export const PILLAGE_SCORE_BONUS = 5.0; 
 export const UNCLAIMED_VILLAGE_PRIORITY_BONUS = 60.0; 
 export const PUT_ENEMY_IN_PERIL_BONUS = 28.0; 
@@ -62,7 +62,7 @@ export const CATAPULT_SIEGE_PROXIMITY_BONUS = 1.5;
 export const CATAPULT_DEFENSIVE_STAY_PUT_BONUS = 2.0;
 export const DEFENSE_SCORING_BONUS = 3.5;
 export const SACRIFICE_BONUS = 10.0;
-export const COORDINATION_BONUS = 1.2;
+export const COORDINATION_BONUS = 2.5; // Increased to favor overwhelming tactics
 export const INFLUENCE_PENALTY_HIGH_RATIO = 15.0;
 export const INFLUENCE_PENALTY_MED_RATIO = 8.0;
 export const INFLUENCE_EXPANSION_BONUS = 3.5; // Increased to value kingdom size

@@ -153,7 +153,7 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
   
   const isUnitDoomed = unitCurrentThreat ? (unitCurrentThreat.eminentThreatValue >= UNIT_STATS[unitToAct.type].cost * 1.5 && unitCurrentThreat.eminentAttackerCount > (myLocalSupport + 1)) : false;
 
-  const attackSafety = new LoopSafety('evaluateAttacks', 1000);
+  const attackSafety = new LoopSafety('evaluateAttacks', 3000);
   for (const a of attacks) {
     if (attackSafety.tick()) break;
     
@@ -371,7 +371,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
   let bestMove = moves[0];
   let maxScore = -Infinity;
 
-  const moveSafety = new LoopSafety('evaluateMoves', 5000);
+  const moveSafety = new LoopSafety('evaluateMoves', 15000);
   
   if (!cachedData.settlementTargets) {
     cachedData.settlementTargets = state.board.filter(t => 
@@ -445,10 +445,12 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       score += BASE_REWARD * STAY_PUT_BIAS;
       
       // If we are already in range to attack something good, we should usually just ATTACK.
-      // We give a small bonus to stay put so we don't wander off, but it must be lower than the attack priority.
+      // We give a VERY large bonus to stay put so we don't wander off when a strike is possible.
       const canAttackFromHere = currentAttacks.length > 0;
       if (canAttackFromHere && isRanged) {
-        score += BASE_REWARD * 2.0; 
+        score += BASE_REWARD * 50.0; // Massive bonus to stay put if we can already shoot
+      } else if (canAttackFromHere) {
+        score += BASE_REWARD * 10.0; // Solid bonus to stay put for melee too
       }
 
       const minDistToMySettlement = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord, state.board))) : 0;
@@ -482,7 +484,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     const potentialRange = getUnitRange({ ...unitToAct, coord: m }, state.board);
 
     if (!isMoveInPeril || isBarbarian) {
-      const perilSafety = new LoopSafety('evaluateMoves-peril', 100);
+      const perilSafety = new LoopSafety('evaluateMoves-peril', 300);
       let putsEnemyInPeril = false;
       let perilCount = 0;
       for (const target of moveTargets) {
@@ -547,7 +549,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     // Position-based Firing Bonus: Not currently used in direct score to prevent competition with attacks
     const range = getUnitRange(unitToAct, state.board);
 
-    const targetSafety = new LoopSafety('evaluateMoves-targets', 100);
+    const targetSafety = new LoopSafety('evaluateMoves-targets', 300);
     for (const target of moveTargets) {
       if (targetSafety.tick()) break;
       const dist = getDistance(m, target.coord, state.board);
@@ -562,7 +564,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
         if (alreadyInRange && isRanged && !isUnitInPeril) {
           if (dist > currentDist) {
             // STEP BACK PENALTY: Prevent ranged units from moving further away if they can already shoot
-            targetScore -= BASE_REWARD * 40.0;
+            targetScore -= BASE_REWARD * 100.0; // Increased to prevent annoying back-pedaling
           } else if (dist === currentDist && !isStayPut) {
              // REPOSITION PENALTY: Small cost for lateral moves that don't improve range but waste the attack turn
              targetScore -= BASE_REWARD * 10.0;
@@ -644,7 +646,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
 
     if (unitToAct.type === UnitType.CATAPULT) {
       if (moveThreatLevel === 1 && !isBarbarian) score -= BASE_REWARD * CATAPULT_SAFETY_PENALTY_HIGH; 
-      const siegeSafety = new LoopSafety('evaluateMoves-siege', 100);
+      const siegeSafety = new LoopSafety('evaluateMoves-siege', 300);
       for (const target of moveTargets) {
         if (siegeSafety.tick()) break;
         if (target.isSettlement && target.ownerId !== null && target.ownerId !== currentPlayer.id) {
@@ -673,7 +675,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       return t ? t.minTurns === 1 : false;
     });
     if (threatenedVillages.length > 0) {
-      const sacrificeSafety = new LoopSafety('evaluateMoves-sacrifice', 100);
+      const sacrificeSafety = new LoopSafety('evaluateMoves-sacrifice', 300);
       for (const target of moveTargets) {
         if (sacrificeSafety.tick()) break;
         if (target.unitType !== undefined && getDistance(m, target.coord, state.board) <= potentialRange) {
@@ -686,7 +688,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       }
     }
 
-    const coordinationSafety = new LoopSafety('evaluateMoves-coordination', 100);
+    const coordinationSafety = new LoopSafety('evaluateMoves-coordination', 300);
     for (const target of moveTargets) {
       if (coordinationSafety.tick()) break;
       if (target.unitType !== undefined && getDistance(m, target.coord, state.board) <= potentialRange) {
@@ -740,7 +742,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     }
 
     if (unitToAct.type === UnitType.INFANTRY || unitToAct.type === UnitType.KNIGHT) {
-      const screeningSafety = new LoopSafety('evaluateMoves-screening', 100);
+      const screeningSafety = new LoopSafety('evaluateMoves-screening', 300);
       for (const cat of myCatapults) {
         if (screeningSafety.tick()) break;
         const distToCat = getDistance(m, cat.coord, state.board);
@@ -784,10 +786,22 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
           if (supportScore > maxSupportScore) maxSupportScore = supportScore;
         }
         
+        // --- OVERWHELMING OVERRIDE ---
+        // If we are targeting a high value unit (Catapult/Settlement) and we have buddies who can also hit it, 
+        // we override the self-preservation instinct.
+        let teamCommitment = 0;
+        const targetBeingSwarmed = moveTargets.find(t => getDistance(m, t.coord, state.board) <= potentialRange);
+        if (targetBeingSwarmed && (targetBeingSwarmed.unitType === UnitType.CATAPULT || targetBeingSwarmed.isSettlement)) {
+           const teamCount = friendlyFollowUpPotential.filter(f => f.attacks.some((at: any) => at.q === targetBeingSwarmed.coord.q && at.r === targetBeingSwarmed.coord.r)).length;
+           if (teamCount >= 2) {
+             teamCommitment = teamCount * BASE_REWARD * 5.0;
+           }
+        }
+
         // If we're on our own settlement, don't just abandon it because it's threatened
-        if (maxSupportScore <= 0 && !isBarbarian && !isOnOurSettlement) score -= 10000;
-        else if (maxSupportScore <= 0 && !isBarbarian && isOnOurSettlement) score -= 2000; // Still a penalty, but not a total veto
-        else score += Math.max(0, maxSupportScore);
+        if (maxSupportScore + teamCommitment <= 0 && !isBarbarian && !isOnOurSettlement) score -= 10000;
+        else if (maxSupportScore + teamCommitment <= 0 && !isBarbarian && isOnOurSettlement) score -= 2000; // Still a penalty, but not a total veto
+        else score += Math.max(0, maxSupportScore + teamCommitment);
 
         let bestTradeValue = 0;
         let hasImmediateGain = false;
