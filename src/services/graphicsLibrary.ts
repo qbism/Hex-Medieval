@@ -231,9 +231,9 @@ export const createWaterSurfaceMaterial = () => {
         vec3 pos = position;
         // Wavier displacement: Higher amplitude (0.08) and multiple octaves
         // Scale increased 2x (frequencies halved: 12->6, 24->12)
-        float w1 = sin(pos.x * 6.0 + time * 0.8) * cos(pos.y * 6.0 + time * 0.8);
-        float w2 = sin(pos.x * 12.0 - time * 0.4) * cos(pos.y * 12.0 - time * 0.4) * 0.5;
-        pos.z += (w1 + w2) * 0.08;
+        float w1 = sin(pos.x * 6.0 + time * 1.2) * cos(pos.y * 6.0 + time * 1.2);
+        float w2 = sin(pos.x * 12.0 - time * 0.6) * cos(pos.y * 12.0 - time * 0.6) * 0.5;
+        pos.z += (w1 + w2) * 0.04;
         
         gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
       }
@@ -251,8 +251,8 @@ export const createWaterSurfaceMaterial = () => {
 
       void main() {
         // Complex wave pattern for color variation (frequencies halved to increase scale)
-        float w1 = sin(vPosition.x * 6.0 + time * 0.8) * cos(vPosition.y * 6.0 + time * 0.8);
-        float w2 = sin(vPosition.x * 12.0 - time * 0.4) * cos(vPosition.y * 12.0 - time * 0.4) * 0.5;
+        float w1 = sin(vPosition.x * 6.0 + time * 1.2) * cos(vPosition.y * 6.0 + time * 1.2);
+        float w2 = sin(vPosition.x * 12.0 - time * 0.6) * cos(vPosition.y * 12.0 - time * 0.6) * 0.5;
         float wave = (w1 + w2);
         
         // Waterfall color logic
@@ -489,7 +489,7 @@ export const MATERIALS = {
             float v = 0.0;
             float a = 0.5;
             vec3 shift = vec3(100.0);
-            for (int i = 0; i < 4; ++i) {
+            for (int i = 0; i < 2; ++i) {
                 v += a * snoise(x);
                 x = x * 2.0 + shift;
                 a *= 0.5;
@@ -509,24 +509,22 @@ export const MATERIALS = {
                 // Spherical projection for overhead clouds, shifted down
                 float overheadY = max(direction.y + 0.6, 0.01);
                 vec3 skyPos = direction * (1.0 / overheadY); 
-                skyPos *= 1.5;
+                skyPos *= 0.8; // Reduced from 1.0 to make clouds another 25% larger
+
+                // Pixelate the sky position for low-res "texture" look
+                skyPos = floor(skyPos * 64.0) / 64.0;
 
                 // LAYER 1: Slow, large
-                float speed1 = uTime * 0.1;
+                float speed1 = uTime * 0.0125;
                 float noise1 = fbm(skyPos + vec3(speed1, 0.0, speed1 * 0.5));
-                float cloud1 = smoothstep(0.05, 0.8, noise1);
+                float cloud1 = smoothstep(-0.1, 0.7, noise1); // Lowered thresholds for +25% density
 
-                // LAYER 2: Medium, higher altitude parallax
-                float speed2 = uTime * 0.18;
-                float noise2 = fbm(skyPos * 1.5 + vec3(speed2 * 1.2, 10.0, -speed2));
-                float cloud2 = smoothstep(0.15, 0.9, noise2);
+                // LAYER 2: Fast, high (Simplified to single snoise call for performance)
+                float speed2 = uTime * 0.03125;
+                float noise2 = snoise(skyPos * 2.5 + vec3(-speed2, 10.0, speed2));
+                float cloud2 = smoothstep(0.15, 0.8, noise2); // Lowered thresholds for +25% density
 
-                // LAYER 3: Fast, highest
-                float speed3 = uTime * 0.3;
-                float noise3 = fbm(skyPos * 2.5 + vec3(-speed3, 20.0, speed3 * 1.5));
-                float cloud3 = smoothstep(0.2, 1.0, noise3);
-
-                float totalCloud = cloud1 * 0.7 + cloud2 * 0.5 + cloud3 * 0.25;
+                float totalCloud = cloud1 * 0.8 + cloud2 * 0.4;
                 totalCloud = clamp(totalCloud, 0.0, 1.0) * cloudMask; 
                 
                 vec3 cloudColor = vec3(1.0, 1.0, 1.0); 

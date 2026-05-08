@@ -34,7 +34,7 @@ export const WaterfallsInstanced = ({ board }: { board: any[] }) => {
   }, [waterfallTiles]);
 
   return (
-    <instancedMesh ref={meshRef} args={[GEOMETRIES.waterfall, sharedWaterfallMaterial, waterfallTiles.length]} />
+    <instancedMesh ref={meshRef} args={[GEOMETRIES.waterfall, sharedWaterfallMaterial, waterfallTiles.length]} raycast={() => null} />
   );
 };
 

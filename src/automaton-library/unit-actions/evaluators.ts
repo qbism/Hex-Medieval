@@ -170,13 +170,16 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
     if (targetUnit) {
       const targetValue = UNIT_STATS[targetUnit.type].cost;
+      // Lethality bonus: Huge reward for actually removing an enemy unit from the board
+      const killBonus = config.BASE_REWARD * 15.0;
+      
       // Always give a base reward for engaging enemy units
       // If unit is in peril or doomed, increase priority to "take them with you"
       const meatShieldBonus = (isUnitInPeril ? 1.5 : 1.0) * (isUnitDoomed ? 2.0 : 1.0);
       
       // HIGH PRIORITY: Attack score should usually trump move score if an immediate strike is possible.
       // We boost this significantly to ensure units actually Pull the Trigger.
-      priority = (targetValue * 2.0 + config.BASE_REWARD * 25.0) * meatShieldBonus;
+      priority = (targetValue * 2.0 + config.BASE_REWARD * 40.0 + killBonus) * meatShieldBonus;
       
       const potentialAttackers = otherFriendlyUnits.filter(u => {
         if (u.hasActed) return false;
@@ -708,8 +711,21 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     const distToNearestEnemyTarget = Math.min(distToEnemyBase, enemyUnitTargets.length > 0 ? Math.min(...enemyUnitTargets.map(u => getDistance(m, u.coord, state.board))) : Infinity);
     
     if (unitToAct.type !== UnitType.INFANTRY && !isBarbarian && distToNearestEnemyTarget !== Infinity) {
-      if (distToNearestEnemyTarget > 4) score -= (distToNearestEnemyTarget * BASE_REWARD * 5.0);
-      else score += BASE_REWARD * 10.0; 
+      const currentDistToEnemy = Math.min(
+        enemySettlements.length > 0 ? Math.min(...enemySettlements.map(s => getDistance(unitToAct.coord, s.coord, state.board))) : Infinity,
+        enemyUnitTargets.length > 0 ? Math.min(...enemyUnitTargets.map(u => getDistance(unitToAct.coord, u.coord, state.board))) : Infinity
+      );
+      
+      // Award points for closing the gap to the enemy
+      if (distToNearestEnemyTarget < currentDistToEnemy) {
+        score += (currentDistToEnemy - distToNearestEnemyTarget) * config.BASE_REWARD * 15.0; 
+      }
+      
+      if (distToNearestEnemyTarget > 4) {
+        score -= (distToNearestEnemyTarget * config.BASE_REWARD * 2.0); // Reduced penalty
+      } else {
+        score += config.BASE_REWARD * 15.0; // Proximity bonus
+      }
     }
 
     if (distToFriendlyBase <= 3 && distToEnemyBase <= 4 && influence >= -20 && (friendlyAttackers / Math.max(1, enemyAttackers)) >= 1.0) {

@@ -44,7 +44,7 @@ export const WaterBasesInstanced = ({
       
       dummy.position.set(x, height + 0.01, z);
       dummy.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
-      dummy.scale.set(1, 1, 1);
+      dummy.scale.set(1.03, 1.03, 1);
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
     });
@@ -99,23 +99,20 @@ export const WaterBasesInstanced = ({
     <instancedMesh 
       ref={meshRef} 
       args={[GEOMETRIES.water, sharedWaterMaterial, waterTiles.length]}
-      onClick={(e) => {
-        e.stopPropagation();
-        const id = e.instanceId;
-        if (id !== undefined) {
-          onClick(waterTiles[id].coord.q, waterTiles[id].coord.r);
-        }
-      }}
       onPointerEnter={(e) => {
-        e.stopPropagation();
         const id = e.instanceId;
         if (id !== undefined) {
           onPointerEnter(waterTiles[id].coord);
         }
       }}
-      onPointerLeave={(e) => {
-        e.stopPropagation();
+      onPointerLeave={() => {
         onPointerLeave();
+      }}
+      onClick={(e) => {
+        const id = e.instanceId;
+        if (id !== undefined) {
+          onClick(waterTiles[id].coord.q, waterTiles[id].coord.r);
+        }
       }}
     >
       <instancedBufferAttribute 

@@ -28,7 +28,7 @@ export const MissEffect3D = ({ x, z, onComplete }: any) => {
   });
 
   return (
-    <group ref={textRef} position={[x, 1.5, z]}>
+    <group ref={textRef} position={[x, 1.5, z]} raycast={() => null}>
       <Text
         fontSize={0.6}
         color="#ffffff"
@@ -36,6 +36,7 @@ export const MissEffect3D = ({ x, z, onComplete }: any) => {
         outlineColor="#3b82f6"
         anchorX="center"
         anchorY="middle"
+        raycast={() => null}
       >
         Miss
       </Text>
@@ -89,9 +90,9 @@ export const SmokeEffect3D = ({ x, z, onComplete }: any) => {
   });
 
   return (
-    <group ref={groupRef} position={[x, 0.5, z]}>
+    <group ref={groupRef} position={[x, 0.5, z]} raycast={() => null}>
       {particles.map((_p, i) => (
-        <mesh key={i} geometry={GEOMETRIES.smoke} material={MATERIALS.smoke} />
+        <mesh key={i} geometry={GEOMETRIES.smoke} material={MATERIALS.smoke} raycast={() => null} />
       ))}
     </group>
   );
@@ -143,7 +144,7 @@ export const Projectile3D = ({ from, to, type, onComplete }: any) => {
   });
 
   return (
-    <mesh ref={meshRef} geometry={type === 'boulder' ? GEOMETRIES.boulder : GEOMETRIES.arrow} material={type === 'boulder' ? MATERIALS.boulder : MATERIALS.arrow} />
+    <mesh ref={meshRef} geometry={type === 'boulder' ? GEOMETRIES.boulder : GEOMETRIES.arrow} material={type === 'boulder' ? MATERIALS.boulder : MATERIALS.arrow} raycast={() => null} />
   );
 };
 
@@ -184,9 +185,9 @@ export const Sparks3D = ({ x, z, onComplete }: any) => {
   });
 
   return (
-    <group ref={groupRef} position={[x, 1, z]}>
+    <group ref={groupRef} position={[x, 1, z]} raycast={() => null}>
       {particles.map((_p, i) => (
-        <mesh key={i} geometry={GEOMETRIES.spark} material={MATERIALS.spark} />
+        <mesh key={i} geometry={GEOMETRIES.spark} material={MATERIALS.spark} raycast={() => null} />
       ))}
     </group>
   );

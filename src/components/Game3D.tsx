@@ -59,6 +59,7 @@ const AttackIndicatorsInstanced = React.memo(({ coords }: { coords: {q: number, 
     <instancedMesh 
       ref={meshRef} 
       args={[GEOMETRIES.attackRange, MATERIALS.attackIndicator, coords.length]} 
+      raycast={() => null}
     />
   );
 });
@@ -99,9 +100,9 @@ const PossibleMovesInstanced = React.memo(({ moves, boardMap }: { moves: {q: num
   }, [plainsMoves, forestMoves, boardMap]);
 
   return (
-    <group>
-      {plainsMoves.length > 0 && <instancedMesh ref={plainsMeshRef} args={[GEOMETRIES.possibleMove, MATERIALS.possibleMove, plainsMoves.length]} />}
-      {forestMoves.length > 0 && <instancedMesh ref={forestMeshRef} args={[GEOMETRIES.forestMove, MATERIALS.forestMove, forestMoves.length]} />}
+    <group raycast={() => null}>
+      {plainsMoves.length > 0 && <instancedMesh ref={plainsMeshRef} args={[GEOMETRIES.possibleMove, MATERIALS.possibleMove, plainsMoves.length]} raycast={() => null} />}
+      {forestMoves.length > 0 && <instancedMesh ref={forestMeshRef} args={[GEOMETRIES.forestMove, MATERIALS.forestMove, forestMoves.length]} raycast={() => null} />}
     </group>
   );
 });
@@ -160,9 +161,9 @@ const StrategicIndicatorsInstanced = React.memo(({ analysis, board }: { analysis
   if (!analysis) return null;
 
   return (
-    <group>
-      <instancedMesh ref={oppMeshRef} args={[GEOMETRIES.sphere, MATERIALS.opportunity, entries.filter(e => e.opp > 0).length]} />
-      <instancedMesh ref={threatMeshRef} args={[GEOMETRIES.sphere, MATERIALS.threat, entries.filter(e => e.threat > 0).length]} />
+    <group raycast={() => null}>
+      <instancedMesh ref={oppMeshRef} args={[GEOMETRIES.sphere, MATERIALS.opportunity, entries.filter(e => e.opp > 0).length]} raycast={() => null} />
+      <instancedMesh ref={threatMeshRef} args={[GEOMETRIES.sphere, MATERIALS.threat, entries.filter(e => e.threat > 0).length]} raycast={() => null} />
     </group>
   );
 });
@@ -422,7 +423,6 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
       ref={meshRef} 
       args={[unitHexGeo, instancedMat, nonWaterTiles.length]}
       onClick={(e) => {
-        e.stopPropagation();
         const instanceId = e.instanceId;
         if (instanceId !== undefined && nonWaterTiles[instanceId]) {
           const tile = nonWaterTiles[instanceId];
@@ -430,7 +430,6 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
         }
       }}
       onPointerMove={(e) => {
-        e.stopPropagation();
         const instanceId = e.instanceId;
         if (instanceId !== undefined && nonWaterTiles[instanceId]) {
           onPointerEnter?.(nonWaterTiles[instanceId].coord);
@@ -546,34 +545,35 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
         position={[0, 0.3, 0]} 
         geometry={GEOMETRIES.unitCone} 
         material={MATERIALS.getPlayer(playerColor)} 
+        raycast={() => null}
       />
 
       {/* Unit Body */}
-      <Billboard position={[0, 0.6, 0]}>
+      <Billboard position={[0, 0.6, 0]} raycast={() => null}>
         {unit.type === UnitType.INFANTRY && (
-          <mesh position={[0, 0.4, 0]} geometry={GEOMETRIES.infantry} material={MATERIALS.getPlayer(playerColor)} />
+          <mesh position={[0, 0.4, 0]} geometry={GEOMETRIES.infantry} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
         )}
         {unit.type === UnitType.ARCHER && (
-          <mesh position={[0, 0.5, 0]} geometry={GEOMETRIES.archer} material={MATERIALS.getPlayer(playerColor)} />
+          <mesh position={[0, 0.5, 0]} geometry={GEOMETRIES.archer} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
         )}
         {unit.type === UnitType.KNIGHT && (
           <group position={[0, 0.4, 0]}>
-            <mesh rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.knightBody} material={MATERIALS.getPlayer(playerColor)} />
-            <mesh position={[0, 0.4, 0.3]} geometry={GEOMETRIES.knightHead} material={MATERIALS.getPlayer(playerColor)} />
+            <mesh rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.knightBody} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
+            <mesh position={[0, 0.4, 0.3]} geometry={GEOMETRIES.knightHead} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
           </group>
         )}
         {unit.type === UnitType.CATAPULT && (
           <group position={[0, 0.3, 0]}>
-            <mesh position={[0, 0, 0]} geometry={GEOMETRIES.catapultBase} material={MATERIALS.getPlayer(playerColor)} />
-            <mesh position={[0, 0.4, 0.2]} rotation={[Math.PI/4, 0, 0]} geometry={GEOMETRIES.catapultArm} material={MATERIALS.getPlayer(playerColor)} />
+            <mesh position={[0, 0, 0]} geometry={GEOMETRIES.catapultBase} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
+            <mesh position={[0, 0.4, 0.2]} rotation={[Math.PI/4, 0, 0]} geometry={GEOMETRIES.catapultArm} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
           </group>
         )}
       </Billboard>
 
       {/* Icon */}
-      <Billboard position={[0, 1.8, 0]}>
+      <Billboard position={[0, 1.8, 0]} raycast={() => null}>
         {isOnWater && (
-          <Text position={[-0.5, 0, 0]} fontSize={0.6} color="black">
+          <Text position={[-0.5, 0, 0]} fontSize={0.6} color="black" raycast={() => null}>
             🛶
           </Text>
         )}
@@ -583,6 +583,7 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
           color={isOnWater ? "black" : "white"} 
           outlineWidth={0.05} 
           outlineColor={isOnWater ? "white" : "black"}
+          raycast={() => null}
         >
           {UNIT_ICONS[unit.type as UnitType]}
         </Text>
@@ -590,7 +591,7 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
 
       {/* Action Dot */}
       {canMove && !isSelected && (
-        <mesh position={[0, 2.3, 0]} geometry={GEOMETRIES.actionDot} material={MATERIALS.actionDot} />
+        <mesh position={[0, 2.3, 0]} geometry={GEOMETRIES.actionDot} material={MATERIALS.actionDot} raycast={() => null} />
       )}
 
       {/* Attack Target Indicator */}
@@ -599,13 +600,14 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
           position={[0, 0.5, 0]} 
           geometry={GEOMETRIES.attackTarget}
           material={MATERIALS.attackTarget}
+          raycast={() => null}
         />
       )}
 
       {/* Prohibited Target Indicator (Catapult vs Forest) */}
       {isProhibitedTarget && (
         <Billboard position={[0, 2.3, 0]}>
-          <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black">
+          <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" raycast={() => null}>
             🚫
           </Text>
         </Billboard>
@@ -635,6 +637,7 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
         forestRefs[0].current!.setMatrixAt(i, dummy.matrix);
       });
       forestRefs[0].current.instanceMatrix.needsUpdate = true;
+      forestRefs[0].current.raycast = () => null;
     }
     // Forest 2
     if (forestRefs[1].current) {
@@ -646,6 +649,7 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
         forestRefs[1].current!.setMatrixAt(i, dummy.matrix);
       });
       forestRefs[1].current.instanceMatrix.needsUpdate = true;
+      forestRefs[1].current.raycast = () => null;
     }
     // Forest 3
     if (forestRefs[2].current) {
@@ -657,6 +661,7 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
         forestRefs[2].current!.setMatrixAt(i, dummy.matrix);
       });
       forestRefs[2].current.instanceMatrix.needsUpdate = true;
+      forestRefs[2].current.raycast = () => null;
     }
 
     // Mountain
@@ -670,6 +675,7 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
         mountainRef.current!.setMatrixAt(i, dummy.matrix);
       });
       mountainRef.current.instanceMatrix.needsUpdate = true;
+      mountainRef.current.raycast = () => null;
     }
   }, [forests, mountains]);
 
@@ -677,13 +683,13 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
     <group>
       {forests.length > 0 && (
         <>
-          <instancedMesh ref={forestRefs[0]} args={[GEOMETRIES.forestCone1, MATERIALS.forest, forests.length]} />
-          <instancedMesh ref={forestRefs[1]} args={[GEOMETRIES.forestCone2, MATERIALS.forest, forests.length]} />
-          <instancedMesh ref={forestRefs[2]} args={[GEOMETRIES.forestCone3, MATERIALS.forest, forests.length]} />
+          <instancedMesh ref={forestRefs[0]} args={[GEOMETRIES.forestCone1, MATERIALS.forest, forests.length]} raycast={() => null} />
+          <instancedMesh ref={forestRefs[1]} args={[GEOMETRIES.forestCone2, MATERIALS.forest, forests.length]} raycast={() => null} />
+          <instancedMesh ref={forestRefs[2]} args={[GEOMETRIES.forestCone3, MATERIALS.forest, forests.length]} raycast={() => null} />
         </>
       )}
       {mountains.length > 0 && (
-        <instancedMesh ref={mountainRef} args={[GEOMETRIES.mountainCone1, MATERIALS.mountain, mountains.length]} />
+        <instancedMesh ref={mountainRef} args={[GEOMETRIES.mountainCone1, MATERIALS.mountain, mountains.length]} raycast={() => null} />
       )}
     </group>
   );
@@ -695,7 +701,7 @@ const SkySphere = React.memo(() => {
       MATERIALS.sky.uniforms.uTime.value = clock.getElapsedTime();
     }
   });
-  return <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} />;
+  return <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} raycast={() => null} />;
 });
 
 const BIRD_BODY_GEO = new THREE.BoxGeometry(0.1, 0.05, 0.3);
@@ -922,12 +928,12 @@ const BackgroundElements = React.memo(() => {
     <group>
       <EnvironmentalManager birdUniforms={uniforms} batWingUniforms={batWingUniforms} />
       {/* BIRDS */}
-      <instancedMesh args={[BIRD_BODY_GEO, null, birdCount]}>
+      <instancedMesh args={[BIRD_BODY_GEO, null, birdCount]} raycast={() => null}>
         <shaderMaterial attach="material" {...FlightShader} uniforms={uniforms} />
         <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[birdData, 4]} />
         <instancedBufferAttribute attach="geometry-attributes-instanceType" args={[birdTypeData, 1]} />
       </instancedMesh>
-      <instancedMesh args={[BIRD_WING_GEO, null, birdCount * 2]}>
+      <instancedMesh args={[BIRD_WING_GEO, null, birdCount * 2]} raycast={() => null}>
         <shaderMaterial attach="material" {...WingShader} uniforms={uniforms} />
         <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[birdWingData, 4]} />
         <instancedBufferAttribute attach="geometry-attributes-side" args={[birdWingSideData, 1]} />
@@ -935,12 +941,12 @@ const BackgroundElements = React.memo(() => {
       </instancedMesh>
  
       {/* BATS */}
-      <instancedMesh args={[BAT_BODY_GEO, null, batCount]}>
+      <instancedMesh args={[BAT_BODY_GEO, null, batCount]} raycast={() => null}>
         <shaderMaterial attach="material" {...FlightShader} uniforms={uniforms} />
         <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[batData, 4]} />
         <instancedBufferAttribute attach="geometry-attributes-instanceType" args={[batTypeData, 1]} />
       </instancedMesh>
-      <instancedMesh args={[BAT_WING_GEO, null, batCount * 2]}>
+      <instancedMesh args={[BAT_WING_GEO, null, batCount * 2]} raycast={() => null}>
         <shaderMaterial attach="material" {...WingShader} uniforms={batWingUniforms} />
         <instancedBufferAttribute attach="geometry-attributes-instanceData" args={[batWingData, 4]} />
         <instancedBufferAttribute attach="geometry-attributes-side" args={[batWingSideData, 1]} />
@@ -1046,8 +1052,7 @@ const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: 
   return (
     <div className="absolute bottom-6 right-6 flex flex-col items-center gap-2 pointer-events-none z-10 scale-90 sm:scale-100 origin-bottom-right">
       <button 
-        onPointerDown={(e) => { 
-          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        onPointerDown={() => { 
           rotationActive.current.up = true; 
           setActiveActions(prev => ({ ...prev, up: true }));
         }}
@@ -1066,8 +1071,7 @@ const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: 
       </button>
       <div className="flex gap-2">
         <button 
-          onPointerDown={(e) => { 
-            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+          onPointerDown={() => { 
             rotationActive.current.left = true; 
             setActiveActions(prev => ({ ...prev, left: true }));
           }}
@@ -1085,8 +1089,7 @@ const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: 
           <ArrowLeft size={30} className={activeActions.left ? "text-amber-600" : "text-black/60"} />
         </button>
         <button 
-          onPointerDown={(e) => { 
-            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+          onPointerDown={() => { 
             rotationActive.current.down = true; 
             setActiveActions(prev => ({ ...prev, down: true }));
           }}
@@ -1104,8 +1107,7 @@ const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: 
           <ArrowDown size={30} className={activeActions.down ? "text-amber-600" : "text-black/60"} />
         </button>
         <button 
-          onPointerDown={(e) => { 
-            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+          onPointerDown={() => { 
             rotationActive.current.right = true; 
             setActiveActions(prev => ({ ...prev, right: true }));
           }}
@@ -1174,8 +1176,8 @@ const RecruitHint = React.memo(({ q, r, boardMap, unitsMap, currentPlayerId, pla
   const { x, y: z } = hexToPixel(q, r);
 
   return (
-    <Billboard position={[x, height + 0.5, z]}>
-      <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">
+    <Billboard position={[x, height + 0.5, z]} raycast={() => null}>
+      <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black" raycast={() => null}>
         ⊕
       </Text>
     </Billboard>
@@ -1223,7 +1225,7 @@ const SettlementFeature = React.memo(({ q, r, boardMap, playerColors }: { q: num
 
 const SettlementsLayer = React.memo(({ settlementCoords, boardMap, playerColors }: { settlementCoords: HexCoord[], boardMap: Map<string, any>, playerColors: string[] }) => {
   return (
-    <group>
+    <group raycast={() => null}>
       {settlementCoords.map((coord) => (
         <SettlementFeature 
           key={`settlement-${coord.q}-${coord.r}`} 
@@ -1272,20 +1274,20 @@ const OverlaysLayer = React.memo(({
         const { x, y: z } = hexToPixel(tile.coord.q, tile.coord.r);
 
         return (
-          <group key={`overlays-${tile.coord.q}-${tile.coord.r}`}>
+          <group key={`overlays-${tile.coord.q}-${tile.coord.r}`} raycast={() => null}>
             {tile.terrain === TerrainType.WATER && hasAdjacentSettlementMap.get(coordKey) && (
-              <Billboard position={[x, height + 0.35, z]}>
-                <Text fontSize={0.6} color="black">⛵</Text>
+              <Billboard position={[x, height + 0.35, z]} raycast={() => null}>
+                <Text fontSize={0.6} color="black" raycast={() => null}>⛵</Text>
               </Billboard>
             )}
             {isExtendedRange && (
-              <Billboard position={[x, height + 0.8, z]}>
-                <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold">+</Text>
+              <Billboard position={[x, height + 0.8, z]} raycast={() => null}>
+                <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" fontWeight="bold" raycast={() => null}>+</Text>
               </Billboard>
             )}
             {showStrategicView && isHovered && (gameState.strategicAnalysis.opportunityMap[coordKey] > 0 || (gameState.strategicAnalysis.threatMap[coordKey]?.eminentThreatValue || 0) > 0) && (
-              <Billboard position={[x, height + 1.5, z]}>
-                <Text fontSize={0.5} color="white" outlineWidth={0.02} outlineColor="black" maxWidth={3} textAlign="center">
+              <Billboard position={[x, height + 1.5, z]} raycast={() => null}>
+                <Text fontSize={0.5} color="white" outlineWidth={0.02} outlineColor="black" maxWidth={3} textAlign="center" raycast={() => null}>
                   {`${gameState.strategicAnalysis.opportunityMap[coordKey] > 0 ? 'Opportunity: ' + Math.round(gameState.strategicAnalysis.opportunityMap[coordKey]) : ''}
 ${gameState.strategicAnalysis.threatMap[coordKey]?.eminentThreatValue > 0 ? 'Peril: ' + Math.round(gameState.strategicAnalysis.threatMap[coordKey].eminentThreatValue) : ''}`}
                 </Text>
@@ -1312,7 +1314,7 @@ const UnitsLayer = React.memo(({
   onFinalizeAttack
 }: any) => {
   return (
-    <group>
+    <group raycast={() => null}>
       {units.map((unit: any) => {
         const anim = animationsMap.get(unit.id);
         const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
@@ -1346,6 +1348,7 @@ const UnitsLayer = React.memo(({
                 from={{ x: hexToPixel(unit.coord.q, unit.coord.r).x, z: hexToPixel(unit.coord.q, unit.coord.r).y }}
                 to={{ x: hexToPixel(anim.to!.q, anim.to!.r).x, z: hexToPixel(anim.to!.q, anim.to!.r).y }}
                 type={unit.type === UnitType.CATAPULT ? 'boulder' : 'arrow'}
+                raycast={() => null}
               />
             )}
           </React.Fragment>
@@ -1444,12 +1447,6 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
   return (
     <div className="w-full h-full relative">
       <Canvas>
-        {/* Environmental */}
-        <SkySphere />
-        
-        {/* Background Animated Elements - contains environmental timers */}
-        <BackgroundElements />
-
         <PerspectiveCamera 
           makeDefault 
           position={[60, 64, 60]} 
@@ -1479,31 +1476,21 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           ref={(inst) => {
             setControls(inst);
             if (inst) {
-              // Standard OrbitControls has internal key listeners, disable them
               (inst as any).enableKeys = false;
             }
           }}
           enableRotate={true} 
           enablePan={true}
-          panSpeed={1.4}
+          panSpeed={1.0}
           rotateSpeed={1.0}
           minPolarAngle={0.01}
           maxPolarAngle={Math.PI / 2 - 0.15}
           enableDamping 
           dampingFactor={0.1} 
           minDistance={10} 
-          maxDistance={200} 
+          maxDistance={300} 
           target={[0, 0, 0]}
           screenSpacePanning={true}
-          mouseButtons={{
-            LEFT: THREE.MOUSE.PAN,
-            MIDDLE: THREE.MOUSE.DOLLY,
-            RIGHT: THREE.MOUSE.ROTATE
-          }}
-          touches={{
-            ONE: THREE.TOUCH.PAN,
-            TWO: THREE.TOUCH.DOLLY_ROTATE
-          }}
         />
         <CameraRotationTicker controls={controls} rotationActive={rotationActive} />
         
@@ -1618,6 +1605,10 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
             );
           })}
         </group>
+
+        {/* Environmental (Moved to end for safer hit-testing) */}
+        <SkySphere />
+        <BackgroundElements />
       </Canvas>
 
       {/* Floating Camera Controls Overlay (refactored to separate component) */}
