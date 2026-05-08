@@ -357,7 +357,6 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     globalAggression,
     globalUnitRatio,
     isRich,
-    unitsMap,
     config
   } = context;
 
@@ -369,7 +368,6 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
 
   const currentAttacks = getValidAttacks(unitToAct, state.board, state.units);
   const isRanged = unitToAct.type === UnitType.ARCHER || unitToAct.type === UnitType.CATAPULT;
-  const potentialRange = stats.moves + getUnitRange(unitToAct, state.board);
 
   let bestMove = moves[0];
   let maxScore = -Infinity;

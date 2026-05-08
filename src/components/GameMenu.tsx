@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Settings, Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music, X, HelpCircle } from 'lucide-react';
+import { Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music, X, HelpCircle } from 'lucide-react';
 import { GameButton } from './GameButton';
 
 interface GameMenuProps {

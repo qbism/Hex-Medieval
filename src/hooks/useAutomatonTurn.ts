@@ -213,7 +213,7 @@ export function useAutomatonTurn({
         };
         
         worker.postMessage({ state: workerState, config: (gameState as any).config || undefined });
-      } catch (_e) {
+      } catch {
         // Last resort fallback
         try {
           const workerState = JSON.parse(JSON.stringify(meaningfulState));

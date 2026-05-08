@@ -1162,7 +1162,7 @@ const SunLight = () => {
   );
 };
 
-const RecruitHint = React.memo(({ q, r, boardMap, unitsMap, currentPlayerId, playerColor }: { q: number, r: number, boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number, playerColor: string }) => {
+const RecruitHint = React.memo(({ q, r, boardMap, unitsMap, currentPlayerId }: { q: number, r: number, boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number }) => {
   const tile = boardMap.get(`${q},${r}`);
   if (!tile) return null;
   
@@ -1184,7 +1184,7 @@ const RecruitHint = React.memo(({ q, r, boardMap, unitsMap, currentPlayerId, pla
   );
 });
 
-const RecruitmentLayer = React.memo(({ recruitmentCoords, boardMap, unitsMap, currentPlayerId, playerColor }: { recruitmentCoords: HexCoord[], boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number, playerColor: string }) => {
+const RecruitmentLayer = React.memo(({ recruitmentCoords, boardMap, unitsMap, currentPlayerId }: { recruitmentCoords: HexCoord[], boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number }) => {
   return (
     <group>
       {recruitmentCoords.map((coord) => (
@@ -1195,7 +1195,6 @@ const RecruitmentLayer = React.memo(({ recruitmentCoords, boardMap, unitsMap, cu
           boardMap={boardMap}
           unitsMap={unitsMap}
           currentPlayerId={currentPlayerId}
-          playerColor={playerColor}
         />
       ))}
     </group>
@@ -1534,7 +1533,6 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           boardMap={boardMap} 
           unitsMap={unitsMap} 
           currentPlayerId={currentPlayer.id} 
-          playerColor={currentPlayer.color}
         />
 
         {/* Global Attack Indicators */}

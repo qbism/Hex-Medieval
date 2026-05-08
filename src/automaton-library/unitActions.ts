@@ -147,23 +147,6 @@ export function getUnitAction(
 
   // --- Aggressive Priority Phases ---
   
-  // Pre-calculate target partitioning for all acting units
-  const actingUnitsTargets = myUnits.map(u => {
-    const allTargets = getValidAttacks(u, state.board, state.units, true);
-    const unitTargetCoords = allTargets.filter(t => cachedData.unitsMap.has(`${t.q},${t.r}`));
-    const settlementTargetCoords = allTargets.filter(t => {
-      const tile = cachedData.boardMap.get(`${t.q},${t.r}`);
-      return tile && tile.ownerId !== null && tile.ownerId !== currentPlayer.id && 
-             [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(tile.terrain as any);
-    });
-    return { unit: u, unitTargetCoords, settlementTargetCoords };
-  });
-
-  const createAttackAction = (unit: Unit, target: HexCoord) => ({
-    type: 'attack' as const,
-    payload: { unitId: unit.id, target }
-  });
-
   // COMBINED PHASE: Evaluate all attacks and moves for the selected candidate units, and pick the best one globally.
   const possibleActions: { unit: Unit, action: any, score: number }[] = [];
 

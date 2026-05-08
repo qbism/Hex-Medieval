@@ -1,4 +1,3 @@
-import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { hexToPixel } from '../types';

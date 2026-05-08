@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GameButton } from './GameButton';
 import { X, Download, Cpu, Code, BookOpen, Coins, BarChart3, Play, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { evolveAsync } from '../automaton-library/GeneticAlgorithm';
 import { AIConfig, DEFAULT_AI_CONFIG } from '../automaton-library/AIConfig';
 import { cn } from '../types';

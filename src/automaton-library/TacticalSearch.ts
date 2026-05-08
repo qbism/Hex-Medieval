@@ -97,8 +97,7 @@ function simulateAction(state: GameState, action: { type: 'move' | 'attack', pay
 export function evaluateActionSafety(
   state: GameState, 
   action: { type: 'move' | 'attack', payload: any },
-  playerId: number,
-  depth: number = 1
+  playerId: number
 ): SearchResult {
   const simulatedState = simulateAction(state, action);
   const activeUnitId = action.payload.unitId;

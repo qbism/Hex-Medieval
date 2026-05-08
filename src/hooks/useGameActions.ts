@@ -6,8 +6,7 @@ import {
   createInitialState,
   getValidMoves,
   getValidAttacks,
-  getAttackRange,
-  calculateStrategicAnalysis
+  getAttackRange
 } from '../gameEngine';
 import { triggerEffect } from '../services/effectEngine';
 import { soundEngine } from '../services/soundEngine';
