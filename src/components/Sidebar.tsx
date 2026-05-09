@@ -88,7 +88,7 @@ export const Sidebar = ({
               <Coins size={16} className="text-amber-600 flex-shrink-0" />
               <div className="flex items-baseline gap-1 min-w-0">
                 <span className="text-sm font-black truncate">{currentPlayer.gold}</span>
-                <span className="text-[1em] font-black text-green-700 whitespace-nowrap">
+                <span className="text-sm font-black text-green-700 whitespace-nowrap">
                   +{calculateIncome(currentPlayer, gameState.board)}
                 </span>
               </div>
@@ -246,7 +246,7 @@ export const Sidebar = ({
                       <div className="space-y-0.5">
                         <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 flex flex-col items-center">
                           <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                            <span className="text-[1.25em]">🏰</span>
+                            <span className="text-base">🏰</span>
                           </div>
                           <p className="relative text-sm font-black tracking-[0.2em] opacity-60 z-10">Recruit forces</p>
                         </div>
@@ -350,7 +350,7 @@ export const Sidebar = ({
             <div>
               <div className="relative overflow-hidden neo-brutalist-card-sm bg-stone-100 px-2 py-1 mb-1.5 flex flex-col items-center">
                 <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                  <span className="text-[1.5em]">🏰</span>
+                  <span className="text-xl">🏰</span>
                 </div>
                 <p className="relative text-base font-black tracking-normal z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
               </div>

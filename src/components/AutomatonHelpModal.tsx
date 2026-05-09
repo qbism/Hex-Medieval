@@ -285,8 +285,8 @@ export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
                     </div>
 
                     <div className="bg-amber-400/5 border border-amber-400/20 p-3 rounded-lg">
-                      <p className="text-[0.8em] font-bold tracking-widest text-amber-400/60 mb-2">Instructions</p>
-                      <p className="text-stone-400 text-[0.75em] leading-relaxed italic">
+                      <p className="text-sm font-bold tracking-widest text-amber-400/60 mb-2">Instructions</p>
+                      <p className="text-stone-400 text-xs leading-relaxed italic">
                         After evolution completes, download <code className="text-amber-200">mco_config.txt</code> and upload it to your application's <code className="text-amber-200">/config</code> folder to apply the tuned parameters.
                       </p>
                     </div>
