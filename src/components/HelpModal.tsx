@@ -24,13 +24,13 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
         animate={{ scale: 1, opacity: 1 }}
         className="menu-card max-w-2xl max-h-[90vh] overflow-y-auto"
       >
-          <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
+          <div className="relative mb-8 neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
               <div className="grayscale opacity-40 pointer-events-none select-none">
                 <span className="text-6xl">🏰</span>
               </div>
               <div className="relative flex justify-between items-center px-4 w-full">
                 <div className="w-10" /> {/* Spacer for centering */}
-                <h2 className="text-2xl sm:text-4xl font-serif font-black tracking-tight text-center" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Game Rules</h2>
+                <h2 className="text-xl sm:text-2xl font-serif font-black tracking-tight text-center">Game Rules</h2>
                 <GameButton 
                   onClick={onClose} 
                   variant="ghost"
@@ -71,7 +71,7 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
               <ul className="space-y-2 text-sm text-amber-800">
                 <li className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-amber-400" />
-                  <span><span className="font-bold">Income:</span> Village (+{SETTLEMENT_INCOME[TerrainType.VILLAGE]}), Fortress (+{SETTLEMENT_INCOME[TerrainType.FORTRESS]}), Castle (+{SETTLEMENT_INCOME[TerrainType.CASTLE]}), Gold Mine (+{SETTLEMENT_INCOME[TerrainType.GOLD_MINE]}).</span>
+                  <span><span className="font-bold">Income:</span> Village (+{SETTLEMENT_INCOME[TerrainType.VILLAGE]}), Fort (+{SETTLEMENT_INCOME[TerrainType.FORT]}), Castle (+{SETTLEMENT_INCOME[TerrainType.CASTLE]}), Gold Mine (+{SETTLEMENT_INCOME[TerrainType.GOLD_MINE]}).</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-amber-400" />
@@ -91,7 +91,7 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
               <ul className="space-y-2 text-sm text-indigo-800">
                 <li className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-indigo-400" />
-                  <span><span className="font-bold text-indigo-700">Fortification:</span> Upgrade Villages to Fortresses ({UPGRADE_COSTS[TerrainType.FORTRESS]}g) and then Castles ({UPGRADE_COSTS[TerrainType.CASTLE]}g) to increase income and defense.</span>
+                  <span><span className="font-bold text-indigo-700">Fortification:</span> Upgrade Villages to Forts ({UPGRADE_COSTS[TerrainType.FORT]}g) and then Castles ({UPGRADE_COSTS[TerrainType.CASTLE]}g) to increase income and defense.</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-indigo-400" />
@@ -115,7 +115,7 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
                 </li>
                 <li className="flex gap-2">
                   <span className="font-bold">3.</span>
-                  <span><span className="font-bold text-indigo-700">Siege Mechanics:</span> Attacking an undefended enemy settlement degrades its tier: Castle → Fortress → Village → Neutral. Once it becomes a Neutral Village, any unit can move onto it to capture it.</span>
+                  <span><span className="font-bold text-indigo-700">Siege Mechanics:</span> Attacking an undefended enemy settlement degrades its tier: Castle → Fort → Village → Neutral. Once it becomes a Neutral Village, any unit can move onto it to capture it.</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="font-bold">4.</span>
@@ -205,7 +205,7 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
                   <Shield size={16} /> Attacking Settlements
                 </p>
                 <p className="text-sm text-stone-900 leading-relaxed">
-                  Units are eliminated in one hit. If you attack an undefended enemy Castle, it reverts to a Fortress. A Fortress reverts to a Village. A Village becomes neutral (unclaimed). If you attack a settlement occupied by an enemy unit, the unit is eliminated but the settlement remains under enemy control.
+                  Units are eliminated in one hit. If you attack an undefended enemy Castle, it reverts to a Fort. A Fort reverts to a Village. A Village becomes neutral (unclaimed). If you attack a settlement occupied by an enemy unit, the unit is eliminated but the settlement remains under enemy control.
                 </p>
               </div>
             </section>

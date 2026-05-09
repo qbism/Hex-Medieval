@@ -22,7 +22,7 @@ export enum TerrainType {
   MOUNTAIN = 'Mountain',
   WATER = 'Water',
   VILLAGE = 'Village',
-  FORTRESS = 'Fortress',
+  FORT = 'Fort',
   CASTLE = 'Castle',
   GOLD_MINE = 'Gold mine',
 }
@@ -33,7 +33,7 @@ export const SETTLEMENT_INCOME: Record<TerrainType, number> = {
   [TerrainType.MOUNTAIN]: 0,
   [TerrainType.WATER]: 0,
   [TerrainType.VILLAGE]: 20,
-  [TerrainType.FORTRESS]: 40,
+  [TerrainType.FORT]: 40,
   [TerrainType.CASTLE]: 70,
   [TerrainType.GOLD_MINE]: 100,
 };
@@ -41,7 +41,7 @@ export const SETTLEMENT_INCOME: Record<TerrainType, number> = {
 export const UPGRADE_COSTS: Record<string, number> = {
   [TerrainType.VILLAGE]: 100,
   [TerrainType.GOLD_MINE]: 400,
-  [TerrainType.FORTRESS]: 150,
+  [TerrainType.FORT]: 150,
   [TerrainType.CASTLE]: 300,
 };
 

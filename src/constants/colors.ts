@@ -10,15 +10,13 @@ export const COLOR_NAMES: Record<string, string> = {
   '#444444': 'Barbarian',
 };
 
-export const PLAYER_COLORS = Object.keys(COLOR_NAMES);
-
 export const TERRAIN_COLORS: Record<TerrainType, string> = {
   [TerrainType.WATER]: '#7495be',
   [TerrainType.PLAINS]: '#7ca54a',
   [TerrainType.FOREST]: '#26894b',
   [TerrainType.MOUNTAIN]: '#676767',
   [TerrainType.VILLAGE]: '#a99573',
-  [TerrainType.FORTRESS]: '#9ca3af',
+  [TerrainType.FORT]: '#9ca3af',
   [TerrainType.CASTLE]: '#4b5563',
   [TerrainType.GOLD_MINE]: '#676767',
 };

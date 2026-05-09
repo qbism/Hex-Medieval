@@ -8,7 +8,7 @@ A comprehensive strategic decision-making engine for the turn-based 4X game. Thi
 - **`threatAnalysis.ts`**: The "eyes" of the AI. Generates the Threat Matrix and Influence Maps.
 - **`unitActions.ts`**: Tactical execution. Handles unit movement and coordinated attacks (Combination Moves).
 - **`recruitment.ts`**: Economic growth and army composition management.
-- **`upgrades.ts`**: Settlement development (Villages, Gold Mines, Fortresses).
+- **`upgrades.ts`**: Settlement development (Villages, Gold Mines, Forts).
 - **`opportunityPeril.ts`**: Generates the high-level heatmaps used to guide long-term expansion.
 - **`barbarianAI.ts`**: Specialized marauder behavior for non-player factions.
 - **`AIConfig.ts`**: The configurable persona of the AI. This file abstracts the raw constants into an `AIConfig` interface, allowing the Genetic Algorithm to evolve the weights programmatically.

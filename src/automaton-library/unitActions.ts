@@ -58,12 +58,12 @@ export function getUnitAction(
 
   const mySettlements = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
-    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
   );
 
   const enemySettlements = state.board.filter(t => 
     t.ownerId !== null && t.ownerId !== currentPlayer.id && 
-    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
   );
 
   if (!cachedData.globalAggression) {

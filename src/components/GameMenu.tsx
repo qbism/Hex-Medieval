@@ -64,7 +64,7 @@ export const GameMenu = ({
 
         <div className="flex items-center gap-3 mb-4 border-b-2 border-black pb-2">
           <div>
-            <h2 className="text-xl font-black tracking-tight leading-none">Game menu</h2>
+            <h2 className="text-lg font-black tracking-tight leading-none">Game menu</h2>
           </div>
         </div>
         
@@ -112,10 +112,10 @@ export const GameMenu = ({
 
           {/* Actions Grid */}
           <div className="grid grid-cols-2 gap-2">
-            <GameButton onClick={onSave} variant="ghost" className="border-2 border-black py-2 !text-lg font-black bg-white" icon={<Save size={18} />}>
+            <GameButton onClick={onSave} variant="ghost" className="border-2 border-black py-2 text-sm font-black bg-white" icon={<Save size={18} />}>
               Save
             </GameButton>
-            <GameButton onClick={onLoad} variant="ghost" className="border-2 border-black py-2 !text-lg font-black bg-white" icon={<Upload size={18} />}>
+            <GameButton onClick={onLoad} variant="ghost" className="border-2 border-black py-2 text-sm font-black bg-white" icon={<Upload size={18} />}>
               Load
             </GameButton>
             <GameButton onClick={onSaveDemo} variant="ghost" className="border-2 border-black py-2 text-sm font-bold bg-white/50" icon={<Save size={16} />}>
@@ -135,7 +135,7 @@ export const GameMenu = ({
             >
               <div className="flex items-center gap-2">
                 <HelpCircle size={18} />
-                <span className="text-base font-black">How to Play</span>
+                <span className="text-sm font-black">How to Play</span>
               </div>
               <ChevronRight size={18} />
             </GameButton>
@@ -148,7 +148,7 @@ export const GameMenu = ({
             >
               <div className="flex items-center gap-2">
                 <RotateCcw size={18} />
-                <span className="text-base font-black">Exit player</span>
+                <span className="text-sm font-black">Exit player</span>
               </div>
               <ChevronRight size={18} />
             </GameButton>
@@ -161,7 +161,7 @@ export const GameMenu = ({
             >
               <div className="flex items-center gap-2">
                 <X size={18} />
-                <span className="text-base font-black">Quit Game</span>
+                <span className="text-sm font-black">Quit Game</span>
               </div>
             </GameButton>
             
@@ -172,7 +172,7 @@ export const GameMenu = ({
               className="border-2 border-black py-3 mt-1 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
               icon={<Play size={20} />}
             >
-              <span className="text-lg font-black tracking-tight">Resume</span>
+              <span className="text-sm font-black tracking-tight">Resume</span>
             </GameButton>
           </div>
         </div>

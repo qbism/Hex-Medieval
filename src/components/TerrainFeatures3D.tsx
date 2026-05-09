@@ -89,7 +89,7 @@ export const CastleFeature = React.memo(({ position, playerColor }: { position: 
   );
 });
 
-export const FortressFeature = React.memo(({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
+export const FortFeature = React.memo(({ position, playerColor }: { position: [number, number, number], playerColor: string }) => {
   const flagRef = useRef<THREE.Mesh>(null);
 
   useFrame(() => {
@@ -107,7 +107,7 @@ export const FortressFeature = React.memo(({ position, playerColor }: { position
         const angle = (i * Math.PI) / 3 + Math.PI / 6;
         const tx = Math.cos(angle) * 0.52;
         const tz = Math.sin(angle) * 0.52;
-        return <mesh key={`wall-${i}`} position={[tx, 0.125, tz]} rotation={[0, -angle + Math.PI / 2, 0]} geometry={GEOMETRIES.fortressWall} material={MATERIALS.castle} raycast={() => null} />;
+        return <mesh key={`wall-${i}`} position={[tx, 0.125, tz]} rotation={[0, -angle + Math.PI / 2, 0]} geometry={GEOMETRIES.fortWall} material={MATERIALS.castle} raycast={() => null} />;
       })}
       {/* Short towers at the 6 corners */}
       {Array.from({ length: 6 }).map((_, i) => {
@@ -117,7 +117,7 @@ export const FortressFeature = React.memo(({ position, playerColor }: { position
         const isMainTower = i === 0;
         return (
           <group key={i} position={[tx, 0.2, tz]}>
-            <mesh geometry={GEOMETRIES.fortressTower} material={MATERIALS.castleTower} raycast={() => null} />
+            <mesh geometry={GEOMETRIES.fortTower} material={MATERIALS.castleTower} raycast={() => null} />
             {isMainTower && (
               <group position={[0, 0.2, 0]}>
                 <mesh position={[0, 0.2, 0]} geometry={GEOMETRIES.flagPole} material={MATERIALS.castleTower} raycast={() => null} />

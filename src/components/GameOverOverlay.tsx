@@ -27,16 +27,16 @@ export const GameOverOverlay = ({
           className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
         >
           <div className="bg-parchment border-4 border-black p-6 w-80 text-center shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <div className="relative mb-6 overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-4 gap-1">
+            <div className="relative mb-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-stone-100 flex flex-col items-center justify-center py-4 gap-1">
               <div className="grayscale opacity-40 pointer-events-none select-none">
                 <span className="text-5xl">🏰</span>
               </div>
               <div className="text-center">
                 <div className="text-4xl mb-1">🏆</div>
-                <h2 className="text-xl font-black tracking-tighter">Conquest Complete</h2>
+                <h2 className="text-lg font-black tracking-tighter">Conquest Complete</h2>
               </div>
             </div>
-            <p className="text-lg mb-4 font-bold" style={{ color: gameState.winnerId === -1 ? 'black' : (gameState.players[gameState.winnerId]?.color || 'black'), textShadow: gameState.winnerId === -1 ? 'none' : '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
+            <p className="text-sm mb-4 font-bold" style={{ color: gameState.winnerId === -1 ? 'black' : (gameState.players[gameState.winnerId]?.color || 'black'), textShadow: gameState.winnerId === -1 ? 'none' : '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
               {gameState.winnerId === -1 ? "It's a Draw!" : `${COLOR_NAMES[gameState.players[gameState.winnerId]?.color || '#000']} Empire Victorious!`}
             </p>
             <div className="space-y-2">

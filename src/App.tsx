@@ -6,7 +6,8 @@ import {
   axialToCube,
   Unit as _Unit,
 } from './types';
-import { PLAYER_COLORS as COLORS, COLOR_NAMES } from './constants/colors';
+import { COLOR_NAMES } from './constants/colors';
+const COLORS = Object.keys(COLOR_NAMES);
 import { getValidMoves, getValidAttacks, getAttackRange, triggerBarbarianInvasion, createInitialState } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';

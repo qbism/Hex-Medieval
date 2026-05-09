@@ -71,7 +71,7 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
 
     const mySettlements = state.board.filter(t => 
       t.ownerId === currentPlayer.id && 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
     );
     const empireCenter = getEmpireCenter(mySettlements);
     const hvt = getHVT(state, currentPlayer.id, empireCenter);
@@ -138,14 +138,14 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
     }
   }
 
-  // Identify threatened settlements
+  // Identify threatened settlements early to inform savings logic
   const { eminentThreatBases, possibleThreatBases, isUnderThreat, primaryAggressorId, threatenedBasesCount } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
 
   const isEarlyGame = state.turnNumber <= 15;
   const numSettlements = mySettlements.length;
 
-  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength, config);
-  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength, config);
+  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength, isUnderThreat, config);
+  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength, isUnderThreat, config);
 
   // --- REBALANCED PRIORITY ---
   // USER REQUIREMENT: Economy lagging > Military lagging.

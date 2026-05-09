@@ -16,18 +16,18 @@ import {
   UPGRADE_LAGGING_INCOME_BONUS,
   UPGRADE_VILLAGE_BONUS,
   UPGRADE_VILLAGE_LAGGING_INCOME_BONUS,
-  UPGRADE_FORTRESS_BONUS,
+  UPGRADE_FORT_BONUS,
   UPGRADE_CASTLE_BONUS,
   GOLD_MINE_FRONTLINE_DISTANCE,
   GOLD_MINE_FRONTLINE_PENALTY,
   GOLD_MINE_BACKLINE_DISTANCE,
   GOLD_MINE_BACKLINE_BONUS,
   GOLD_MINE_BUFFER,
-  FORTRESS_FRONTLINE_DISTANCE,
-  FORTRESS_FRONTLINE_BONUS,
-  FORTRESS_BACKLINE_BONUS,
+  FORT_FRONTLINE_DISTANCE,
+  FORT_FRONTLINE_BONUS,
+  FORT_BACKLINE_BONUS,
   CASTLE_BUFFER,
-  FORTRESS_BUFFER,
+  FORT_BUFFER,
   VILLAGE_BASE_SCORE,
   VILLAGE_ISOLATION_BONUS,
   VILLAGE_CLUSTERING_PENALTY,
@@ -109,9 +109,9 @@ export function getUpgradeAction(
         baseScore += config.BASE_REWARD * 2.0;
       }
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
-      cost = UPGRADE_COSTS[TerrainType.FORTRESS];
-      baseScore = config.BASE_REWARD * config.UPGRADE_FORTRESS_BONUS; // Priority 1: Defendable settlements
-    } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
+      cost = UPGRADE_COSTS[TerrainType.FORT];
+      baseScore = config.BASE_REWARD * config.UPGRADE_FORT_BONUS; // Priority 1: Defendable settlements
+    } else if (tile.terrain === TerrainType.FORT && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.CASTLE];
       baseScore = config.BASE_REWARD * config.UPGRADE_CASTLE_BONUS; // Priority 1: Defendable settlements
     }
@@ -137,21 +137,21 @@ export function getUpgradeAction(
         if (currentPlayer.gold < cost + buffer) {
            score = -Infinity; // Can't afford the buffer
         }
-      } else if (cost === UPGRADE_COSTS[TerrainType.FORTRESS] || cost === UPGRADE_COSTS[TerrainType.CASTLE]) {
+      } else if (cost === UPGRADE_COSTS[TerrainType.FORT] || cost === UPGRADE_COSTS[TerrainType.CASTLE]) {
         // Defensive structures are great on the frontline, but also serve as massive economic boosts in the backline.
-        if (distToEnemy <= FORTRESS_FRONTLINE_DISTANCE) {
-          score += BASE_REWARD * FORTRESS_FRONTLINE_BONUS; // Frontline defense!
+        if (distToEnemy <= FORT_FRONTLINE_DISTANCE) {
+          score += BASE_REWARD * FORT_FRONTLINE_BONUS; // Frontline defense!
           
-          // Strategic Fortification: Normal AI prioritizes Fortress if enemies are within 3 tiles
-          if (!isBarbarian && distToEnemy <= 3 && cost === UPGRADE_COSTS[TerrainType.FORTRESS]) {
+          // Strategic Fortification: Normal AI prioritizes Fort if enemies are within 3 tiles
+          if (!isBarbarian && distToEnemy <= 3 && cost === UPGRADE_COSTS[TerrainType.FORT]) {
             score += BASE_REWARD * STRATEGIC_FORTIFICATION_BONUS;
           }
         } else {
-          score += BASE_REWARD * FORTRESS_BACKLINE_BONUS; // Backline economic investment
+          score += BASE_REWARD * FORT_BACKLINE_BONUS; // Backline economic investment
         }
         
         // Buffer check
-        const buffer = isEarlyGame ? 0 : (cost === UPGRADE_COSTS[TerrainType.CASTLE] ? CASTLE_BUFFER : FORTRESS_BUFFER);
+        const buffer = isEarlyGame ? 0 : (cost === UPGRADE_COSTS[TerrainType.CASTLE] ? CASTLE_BUFFER : FORT_BUFFER);
         if (currentPlayer.gold < cost + buffer) {
            score = -Infinity;
         }
@@ -169,7 +169,7 @@ export function getUpgradeAction(
            // Expansion bonus: Reward spreading settlements thin, penalize clustering
            const nearbyFriendlySettlements = state.board.filter(t => 
              t.ownerId === currentPlayer.id && 
-             (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
+             (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
              getDistance(t.coord, tile.coord, state.board) <= 2 &&
              !(t.coord.q === tile.coord.q && t.coord.r === tile.coord.r) // exclude self
            ).length;
@@ -177,7 +177,7 @@ export function getUpgradeAction(
            // Supply Edge Leapfrog Bonus:
            // If we are building this village exactly at our current supply limit, it's a critical expansion anchor.
            let nearestSettlementDist = Infinity;
-           for (const s of state.board.filter(t => t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE))) {
+           for (const s of state.board.filter(t => t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE))) {
              const d = getDistance(tile.coord, s.coord, state.board);
              if (d < nearestSettlementDist) nearestSettlementDist = d;
            }
@@ -220,7 +220,7 @@ export function getUpgradeAction(
            const neighborTilesForDefense = neighbors.map(n => state.board.find(t => t.coord.q === n.q && t.coord.r === n.r)).filter(Boolean);
            const isHelpingThreatenedBase = neighborTilesForDefense.some(nt => {
               if (!nt || nt.ownerId !== currentPlayer.id) return false;
-              if (nt.terrain !== TerrainType.VILLAGE && nt.terrain !== TerrainType.FORTRESS && nt.terrain !== TerrainType.CASTLE && nt.terrain !== TerrainType.GOLD_MINE) return false;
+              if (nt.terrain !== TerrainType.VILLAGE && nt.terrain !== TerrainType.FORT && nt.terrain !== TerrainType.CASTLE && nt.terrain !== TerrainType.GOLD_MINE) return false;
               const ntThreat = threatMatrix.get(`${nt.coord.q},${nt.coord.r}`);
               return ntThreat && ntThreat.eminentAttackerCount > 0;
            });

@@ -65,7 +65,7 @@ export const Sidebar = ({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       className={cn(
-        "z-[60] bg-parchment border-black flex transition-all duration-300",
+        "z-[60] bg-parchment border-black flex transition-all duration-300 text-sm",
         // Default (Mobile/Vertical): Floating at top
         "fixed top-0 left-0 right-0 h-32 flex flex-row items-stretch border-b-4 overflow-x-auto overflow-y-hidden shadow-xl px-2",
         // Desktop/Wide (md breakpoint): Side panel
@@ -166,7 +166,7 @@ export const Sidebar = ({
                         <div className="p-1 neo-brutalist-card-sm border-black/20">
                           <div className="flex items-center gap-2.5">
                             <div className="w-6 h-6 rounded-full border-2 border-black" style={{ backgroundColor: occupant.color }} />
-                            <p className="font-black text-base tracking-tight" style={{ color: occupant.color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
+                            <p className="font-black text-sm tracking-tight" style={{ color: occupant.color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                               {COLOR_NAMES[occupant.color]} Empire
                             </p>
                           </div>
@@ -174,14 +174,14 @@ export const Sidebar = ({
                             <div className="flex flex-col">
                               <div className="flex items-center gap-1.5 text-amber-700">
                                 <Coins size={16} />
-                                <span className="text-base font-black">+{calculateIncome(occupant, gameState.board)}</span>
+                                <span className="text-sm font-black">+{calculateIncome(occupant, gameState.board)}</span>
                               </div>
                               <p className="text-sm font-black opacity-40">Total income</p>
                             </div>
                             <div className="flex flex-col">
                               <div className="flex items-center gap-1.5 text-red-700">
                                 <Sword size={16} />
-                                <span className="text-base font-black">{calculateStrength(occupant.id, gameState.units)}</span>
+                                <span className="text-sm font-black">{calculateStrength(occupant.id, gameState.units)}</span>
                               </div>
                               <p className="text-sm font-black opacity-40">Power</p>
                             </div>
@@ -196,7 +196,7 @@ export const Sidebar = ({
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-xl border-2 border-black/20 flex-shrink-0" style={{ backgroundColor: TERRAIN_COLORS[tile.terrain] }} />
                           <div className="flex-1">
-                            <p className="font-black text-base tracking-tight leading-none">{tile.terrain}</p>
+                            <p className="font-black text-sm tracking-tight leading-none">{tile.terrain}</p>
                             {SETTLEMENT_INCOME[tile.terrain] > 0 && (
                               <div className="flex items-center gap-1 text-amber-700">
                                 <Coins size={14} />
@@ -215,7 +215,7 @@ export const Sidebar = ({
                           <div className="flex items-center gap-3 mb-0.5">
                             <div className="text-3xl bg-white w-12 h-12 rounded-xl border-2 border-black flex items-center justify-center shadow-sm">{UNIT_ICONS[unit.type]}</div>
                             <div>
-                              <p className="font-black text-base tracking-tight leading-none">{unit.type}</p>
+                              <p className="font-black text-sm tracking-tight leading-none">{unit.type}</p>
                               <p className="text-sm font-black" style={{ color: gameState.players[unit.ownerId].color, textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
                                 {COLOR_NAMES[gameState.players[unit.ownerId].color]} Forces
                               </p>
@@ -243,11 +243,11 @@ export const Sidebar = ({
                     )}
 
                     {/* Recruitment UI */}
-                    {!unit && tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS) && (
+                    {!unit && tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT) && (
                       <div className="space-y-0.5">
-                        <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 flex flex-col items-center">
+                        <div className="relative border-b border-black/20 bg-stone-50 px-2 py-0.5 flex flex-col items-center">
                           <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                            <span className="text-base">🏰</span>
+                            <span className="text-sm">🏰</span>
                           </div>
                           <p className="relative text-sm font-black tracking-[0.2em] opacity-60 z-10">Recruit forces</p>
                         </div>
@@ -268,7 +268,7 @@ export const Sidebar = ({
                                 <div className="flex items-center gap-2">
                                   <span className="text-xl">{UNIT_ICONS[type]}</span>
                                   <div className="text-left">
-                                    <p className="font-black text-base leading-none">{type}</p>
+                                    <p className="font-black text-sm leading-none">{type}</p>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                       <div className="flex items-center gap-0.5">
                                         <RotateCcw size={14} className="text-blue-600" />
@@ -283,7 +283,7 @@ export const Sidebar = ({
                                 </div>
                                 <div className="flex items-right gap-1 bg-amber-100 px-2 py-1 rounded-lg border-2 border-amber-300">
                                   <Coins size={16} className="text-amber-700" />
-                                  <span className="text-base font-black text-amber-900">{stats.cost}</span>
+                                  <span className="text-sm font-black text-amber-900">{stats.cost}</span>
                                 </div>
                               </GameButton>
                             );
@@ -305,8 +305,8 @@ export const Sidebar = ({
                             if (unit.hasActed) return <p className="text-sm opacity-50 p-2 bg-stone-100 rounded-xl border border-dashed border-black/20">Unit must have full actions to build.</p>;
                             cost = UPGRADE_COSTS[TerrainType.GOLD_MINE]; label = "Build gold mine";
                           } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
-                            cost = UPGRADE_COSTS[TerrainType.FORTRESS]; label = "Upgrade to fortress";
-                          } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
+                            cost = UPGRADE_COSTS[TerrainType.FORT]; label = "Build fort";
+                          } else if (tile.terrain === TerrainType.FORT && tile.ownerId === currentPlayer.id) {
                             cost = UPGRADE_COSTS[TerrainType.CASTLE]; label = "Upgrade to castle";
                           }
 
@@ -329,11 +329,11 @@ export const Sidebar = ({
                                 <div className="w-8 h-8 bg-white rounded-lg border-2 border-black flex items-center justify-center">
                                   <PlusCircle size={22} className="text-blue-600" />
                                 </div>
-                                <p className="font-black text-base">{label}</p>
+                                <p className="font-black text-sm">{label}</p>
                               </div>
                               <div className="flex items-center gap-1 bg-amber-100 px-2 py-1 rounded-lg border-2 border-amber-300">
                                 <Coins size={16} className="text-amber-700" />
-                                <span className="text-base font-black text-amber-900">{cost}</span>
+                                <span className="text-sm font-black text-amber-900">{cost}</span>
                               </div>
                             </GameButton>
                           );
@@ -349,13 +349,13 @@ export const Sidebar = ({
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-4">
             <div className="text-4xl mb-2 grayscale">🏰</div>
             <div>
-              <div className="relative overflow-hidden neo-brutalist-card-sm bg-stone-100 px-2 py-1 mb-1.5 flex flex-col items-center">
+              <div className="relative neo-brutalist-card-sm bg-stone-100 px-2 py-1 mb-1.5 flex flex-col items-center">
                 <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
                   <span className="text-xl">🏰</span>
                 </div>
-                <p className="relative text-base font-black tracking-normal z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
+                <p className="relative text-sm font-black tracking-normal z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
               </div>
-              <p className="text-base font-bold whitespace-nowrap">Select tile or unit</p>
+              <p className="text-sm font-bold whitespace-nowrap">Select tile or unit</p>
             </div>
           </div>
         )}
@@ -383,7 +383,7 @@ export const Sidebar = ({
               variant="primary"
               size="md"
               fullWidth
-              className="h-full md:h-auto py-1 px-5 md:py-3 text-sm md:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              className="h-full md:h-auto py-1 px-5 md:py-3 text-sm font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
             >
               <span className="whitespace-nowrap">
                 {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
@@ -397,7 +397,7 @@ export const Sidebar = ({
               variant="primary"
               size="md"
               fullWidth
-              className="h-full md:h-auto py-1 px-5 md:py-3 text-sm md:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              className="h-full md:h-auto py-1 px-5 md:py-3 text-sm font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
             >
               <span className="whitespace-nowrap">{automatonStatus}</span>
             </GameButton>

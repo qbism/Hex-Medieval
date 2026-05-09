@@ -12,7 +12,8 @@ import {
 } from '../types';
 import { LoopSafety } from '../utils';
 import { BOARD_RADIUS, generateBoard, getSpawnPoints } from './board';
-import { PLAYER_COLORS as COLORS } from '../constants/colors';
+import { COLOR_NAMES } from '../constants/colors';
+const COLORS = Object.keys(COLOR_NAMES);
 import { calculateStrategicAnalysis } from './analysis';
 
 export function createInitialState(playerConfigs: { name: string; isAutomaton: boolean }[], existingBoard?: GameState['board']): GameState {
@@ -231,9 +232,9 @@ export function upgradeSettlement(state: GameState, coord: HexCoord): GameState 
     cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
     nextTerrain = TerrainType.GOLD_MINE;
   } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === player.id) {
-    cost = UPGRADE_COSTS[TerrainType.FORTRESS];
-    nextTerrain = TerrainType.FORTRESS;
-  } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === player.id) {
+    cost = UPGRADE_COSTS[TerrainType.FORT];
+    nextTerrain = TerrainType.FORT;
+  } else if (tile.terrain === TerrainType.FORT && tile.ownerId === player.id) {
     cost = UPGRADE_COSTS[TerrainType.CASTLE];
     nextTerrain = TerrainType.CASTLE;
   }
@@ -288,7 +289,7 @@ export function processTurnTransition(state: GameState): GameState {
     const hasUnits = state.units.some(u => u.ownerId === p.id);
     const hasSettlements = state.board.some(t => 
       t.ownerId === p.id && 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
     );
     
     if (!hasUnits && !hasSettlements) {

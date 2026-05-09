@@ -42,7 +42,7 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
 
       const unitOnTile = unitsMap.get(`${neighbor.q},${neighbor.r}`);
       
-      const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || 
+      const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || 
                                  tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && 
                                  tile.ownerId !== null && tile.ownerId !== unit.ownerId;
       
@@ -58,7 +58,7 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
         const tileNeighbors = getNeighbors(tile.coord);
         const isNavigable = tileNeighbors.some(n => {
           const nt = boardMap.get(`${n.q},${n.r}`);
-          return nt && (nt.terrain === TerrainType.VILLAGE || nt.terrain === TerrainType.FORTRESS || 
+          return nt && (nt.terrain === TerrainType.VILLAGE || nt.terrain === TerrainType.FORT || 
                         nt.terrain === TerrainType.CASTLE || nt.terrain === TerrainType.GOLD_MINE);
         });
         if (!isNavigable) {
@@ -102,7 +102,7 @@ export function getValidMoves(unit: Unit, board: GameState['board'], units: Unit
   });
 
   // Enforce supply range: unit cannot move further from a friendly settlement than its movement range
-  const friendlySettlements = board.filter(t => t.ownerId === unit.ownerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE));
+  const friendlySettlements = board.filter(t => t.ownerId === unit.ownerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE));
   const maxRange = UNIT_STATS[unit.type].moves;
 
   const settlementSafety = new LoopSafety('getValidMoves-settlements', 1000);
@@ -172,7 +172,7 @@ export function getValidAttacks(unit: Unit, board: GameState['board'], units: Un
       const tile = boardMap.get(`${targetCoord.q},${targetCoord.r}`);
       
       if (tile) {
-        const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+        const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
         if (isSettlement && tile.ownerId !== null && tile.ownerId !== unit.ownerId) {
           const dist = getDistance(unit.coord, tile.coord);
           if (dist <= range) {
@@ -207,7 +207,7 @@ export function getAttackRange(unit: Unit, board: GameState['board'], units: Uni
           // Check if there is an enemy unit or enemy settlement here
           const unitOnTile = unitsMap.get(`${targetCoord.q},${targetCoord.r}`);
           const hasEnemyUnit = unitOnTile && unitOnTile.ownerId !== unit.ownerId;
-          const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== null && tile.ownerId !== unit.ownerId;
+          const isEnemySettlement = (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE) && tile.ownerId !== null && tile.ownerId !== unit.ownerId;
           
           if (hasEnemyUnit || isEnemySettlement) {
             inRange.push(tile.coord);

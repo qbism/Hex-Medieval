@@ -41,7 +41,7 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
   const neutralSettlements: any[] = [];
   const friendlySettlements: any[] = [];
   for (const t of state.board) {
-    const isSettlement = [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain as any);
+    const isSettlement = [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain as any);
     if (!isSettlement) continue;
     if (t.ownerId === playerId) friendlySettlements.push(t);
     else if (t.ownerId === null) neutralSettlements.push(t);
@@ -155,7 +155,7 @@ export function calculateStrategicAnalysis(state: GameState, playerId: number): 
       const multipliers: Record<string, number> = {
         [TerrainType.VILLAGE]: isUnclaimed ? 1500 : 1200,
         [TerrainType.GOLD_MINE]: isUnclaimed ? 3000 : 2500,
-        [TerrainType.FORTRESS]: 1800,
+        [TerrainType.FORT]: 1800,
         [TerrainType.CASTLE]: 3000,
       };
 

@@ -42,7 +42,7 @@ export const SetupScreen = ({
       >
         <div className="flex items-center gap-3 mb-2 border-b-2 border-black pb-2">
           <div>
-            <h2 className="text-xl font-black tracking-tight leading-none">Setup Players</h2>
+            <h2 className="text-lg font-black tracking-tight leading-none">Setup Players</h2>
           </div>
         </div>
 
@@ -55,7 +55,7 @@ export const SetupScreen = ({
                 style={{ backgroundColor: COLORS[i] }} 
               />
               <span 
-                className="flex-1 font-black text-base tracking-tight truncate leading-none"
+                className="flex-1 font-black text-sm tracking-tight truncate leading-none"
                 style={{ 
                   color: COLORS[i], 
                   textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' 
@@ -86,24 +86,24 @@ export const SetupScreen = ({
             <GameButton 
               onClick={handleLoadWithConfirmation}
               variant="ghost"
-              className="flex-1 py-2 px-3 border-2 border-black bg-white !text-lg font-black whitespace-nowrap"
-              icon={<Upload size={18} />}
+              className="flex-1 py-1.5 px-3 border-2 border-black bg-white !text-sm font-black whitespace-nowrap"
+              icon={<Upload size={16} />}
             >
               Load
             </GameButton>
             <GameButton 
               onClick={() => setShowInstructions(true)}
               variant="ghost"
-              className="flex-1 py-2 px-3 border-2 border-black bg-white !text-lg font-black whitespace-nowrap"
-              icon={<HelpCircle size={18} />}
+              className="flex-1 py-1.5 px-3 border-2 border-black bg-white !text-sm font-black whitespace-nowrap"
+              icon={<HelpCircle size={16} />}
             >
               Help
             </GameButton>
             <GameButton 
               onClick={() => startGame(playerConfigs)}
               variant="primary"
-              className="flex-[1.5] py-2 px-4 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] !text-lg font-black tracking-tight active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
-              icon={<ChevronRight size={20} />}
+              className="flex-[1.5] py-1.5 px-4 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] !text-sm font-black tracking-tight active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
+              icon={<ChevronRight size={18} />}
             >
               Start
             </GameButton>

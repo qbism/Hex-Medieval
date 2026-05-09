@@ -11,8 +11,12 @@ export function mutate(config: AIConfig, rate: number = 0.1): AIConfig {
   for (const key in newConfig) {
     if (Math.random() < rate) {
       const val = (newConfig as any)[key];
-      const change = 1 + (Math.random() * 0.4 - 0.2); // +/- 20%
-      (newConfig as any)[key] = val * change;
+      if (typeof val === 'number') {
+        const change = 1 + (Math.random() * 0.4 - 0.2); // +/- 20%
+        (newConfig as any)[key] = val * change;
+      } else if (typeof val === 'boolean') {
+        (newConfig as any)[key] = Math.random() < 0.5;
+      }
     }
   }
   return newConfig;

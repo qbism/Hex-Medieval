@@ -77,7 +77,7 @@ import {
   TERRAIN_PLAINS_NEUTRAL_BONUS,
   TERRAIN_PLAINS_OWNED_BONUS,
   TERRAIN_VILLAGE_BONUS,
-  TERRAIN_FORTRESS_BONUS,
+  TERRAIN_FORT_BONUS,
   TERRAIN_CASTLE_BONUS,
   TERRAIN_GOLD_MINE_BONUS
 } from '../constants';
@@ -237,7 +237,7 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
          }
       }
 
-      const isOnSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+      const isOnSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
       if (isOnSettlement) {
         const canBuddiesNeutralize = friendlyFollowUpPotential.some(f => f.attacks.some((at: any) => at?.q === targetTile.coord?.q && at?.r === targetTile.coord?.r));
         const canBuddiesClaim = otherFriendlyUnits.some(f => {
@@ -258,13 +258,13 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
       const isNearOurSettlement = context.mySettlements.some(s => getDistance(a, s.coord, state.board) <= 2);
       if (isNearOurSettlement) priority += config.BASE_REWARD * config.DRIVE_OUT_BONUS;
 
-      const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+      const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
       if (isOccupyingMySettlement) priority += BASE_REWARD * 2.0;
 
       // --- NEW: Target Rarity and Coordination ---
       // "coordinate attacks to hit the most number of enemy units as possible per turn"
       const othersWhoCanHitThis = friendlyFollowUpPotential.filter(f => f.id !== unitToAct.id && f.attacks.some((at: any) => at.q === a.q && at.r === a.r));
-      const targetIsSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+      const targetIsSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
 
       if (othersWhoCanHitThis.length === 0) {
         // I am the ONLY unit that can hit this target. Definitely prioritize it!
@@ -284,11 +284,11 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
       }
 
       // SIEGE PRIORITY: Catapults should focus on cracking enemy fortifications
-      if (unitToAct.type === UnitType.CATAPULT && targetTile && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE)) {
+      if (unitToAct.type === UnitType.CATAPULT && targetTile && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE)) {
         priority += config.BASE_REWARD * config.SIEGE_OVERRIDE_BONUS; 
       }
 
-    } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE)) {
+    } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE)) {
       const settlementValue = SETTLEMENT_INCOME[targetTile.terrain as TerrainType] * HORIZON;
       // USER: AI avoids undefended settlements. 
       // Boosted priority from 35 to 80 to ensure it competes with units, especially if it's the only strike available.
@@ -389,7 +389,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
   if (!cachedData.settlementTargets) {
     cachedData.settlementTargets = state.board.filter(t => 
       (t.ownerId === null || t.ownerId !== currentPlayer.id) && 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
     ).map(t => ({ coord: t.coord, value: SETTLEMENT_INCOME[t.terrain as TerrainType] * HORIZON, isExpansionHub: false, isSettlement: true, ownerId: t.ownerId, unitType: undefined }));
   }
   const settlementTargets = cachedData.settlementTargets;
@@ -459,7 +459,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
 
       // --- BASE CLEARANCE LOGIC ---
       // If we are on a recruitment tile, check if we should move to make room for a better unit.
-      const isOnRecruitmentTile = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE);
+      const isOnRecruitmentTile = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE);
       
       if (isOnRecruitmentTile) {
         const enemyUnitsAtRange2 = enemyUnitTargets.filter(trg => getDistance(m, trg.coord, state.board) === 2);
@@ -510,7 +510,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     }
 
     if (!isMoveInPeril && tile.ownerId === null && 
-       (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+       (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
       score += (BASE_REWARD * 30.0);
     }
 
@@ -522,7 +522,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       else if (goldNextTurn >= mineCost) score += (BASE_REWARD * 20.0);
     }
 
-    if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+    if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
       score += (SETTLEMENT_INCOME[tile.terrain as TerrainType] * HORIZON) + BASE_REWARD * IMMEDIATE_CAPTURE_BONUS; 
     }
 
@@ -843,7 +843,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       const eminentCount = threat.eminentAttackerCount;
       let penaltyMult = threatenedVillages.length > 0 ? THREAT_PENALTY_SACRIFICE_MULT : 1.0;
       
-      const isOnOurSettlement = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE);
+      const isOnOurSettlement = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE);
       
       // If we are defending our own settlement, we are willing to take risks.
       if (isOnOurSettlement) penaltyMult *= 0.3; // Much lower penalty for defending home
@@ -927,7 +927,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
           if (distFromCenter < currentDistFromCenter) score += BASE_REWARD * 10.0;
         }
 
-        if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) score += BASE_REWARD * OPPORTUNISTIC_RETREAT_SETTLEMENT_BONUS;
+        if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) score += BASE_REWARD * OPPORTUNISTIC_RETREAT_SETTLEMENT_BONUS;
         else if (tile.terrain === TerrainType.PLAINS && tile.ownerId === null) score += BASE_REWARD * OPPORTUNISTIC_RETREAT_PLAINS_BONUS;
       } else if (hasSafeRetreat) {
         // If a safe retreat exists, heavily punish moving to ANOTHER peril tile
@@ -956,7 +956,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       }
 
       // Explicitly rotate into threatened settlement tiles
-      if (tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE)) {
+      if (tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE)) {
         const baseThreat = threatMatrix.get(`${tile.coord.q},${tile.coord.r}`);
         if (baseThreat && baseThreat.minTurns <= 2) { 
           // Reduced from 15.0 to 1.5 to allow self-preservation to matter
@@ -1003,8 +1003,8 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       } else if (tile.terrain === TerrainType.VILLAGE) {
         score += TERRAIN_VILLAGE_BONUS;
         if (tile.ownerId === currentPlayer.id) score += INFILLING_BONUS;
-      } else if (tile.terrain === TerrainType.FORTRESS) {
-        score += TERRAIN_FORTRESS_BONUS;
+      } else if (tile.terrain === TerrainType.FORT) {
+        score += TERRAIN_FORT_BONUS;
         if (tile.ownerId === currentPlayer.id) score += INFILLING_BONUS;
       } else if (tile.terrain === TerrainType.CASTLE) {
         score += TERRAIN_CASTLE_BONUS;

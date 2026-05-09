@@ -21,7 +21,7 @@ import { WaterfallsInstanced, updateWaterfallTime } from './WaterfallEffect';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { 
   CastleFeature, 
-  FortressFeature, 
+  FortFeature, 
   VillageFeature, 
   GoldMineFeature
 } from './TerrainFeatures3D';
@@ -203,7 +203,7 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
   const mountainStates = useMemo(() => new Float32Array(nonWaterTiles.map(t => t.terrain === TerrainType.MOUNTAIN ? 1.0 : 0.0)), [nonWaterTiles]);
   // Note: settlement status can change if a village is upgraded, but the "cobblestone" look is the same
   const settlementStates = useMemo(() => new Float32Array(nonWaterTiles.map(t => 
-    [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain as any) ? 1.0 : 0.0
+    [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain as any) ? 1.0 : 0.0
   )), [nonWaterTiles]);
 
   const unitHexGeo = useMemo(() => {
@@ -335,7 +335,7 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
       
       let baseColor = TERRAIN_COLORS[tile.terrain as TerrainType];
       // Graphics update: settlements show owner color on the base tile
-      if (tile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(tile.terrain as any)) {
+      if (tile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(tile.terrain as any)) {
         baseColor = playerColors[tile.ownerId];
       }
 
@@ -382,7 +382,7 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
       const effectiveTile = currentBoardMap.get(`${tile.coord.q},${tile.coord.r}`) || tile;
 
       let baseColor = TERRAIN_COLORS[effectiveTile.terrain as TerrainType];
-      if (effectiveTile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(effectiveTile.terrain as any)) {
+      if (effectiveTile.ownerId !== null && [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(effectiveTile.terrain as any)) {
         baseColor = playerColors[effectiveTile.ownerId];
       }
       color.set(baseColor);
@@ -1279,7 +1279,7 @@ const SettlementFeature = React.memo(({ q, r, boardMap, playerColors }: { q: num
   return (
     <>
       {terrain === TerrainType.CASTLE && <CastleFeature position={[x, height, z]} playerColor={playerColor} />}
-      {terrain === TerrainType.FORTRESS && <FortressFeature position={[x, height, z]} playerColor={playerColor} />}
+      {terrain === TerrainType.FORT && <FortFeature position={[x, height, z]} playerColor={playerColor} />}
       {terrain === TerrainType.VILLAGE && <VillageFeature position={[x, height, z]} playerColor={playerColor} isClaimed={ownerId !== null} />}
       {terrain === TerrainType.GOLD_MINE && <GoldMineFeature position={[x, height, z]} />}
     </>
@@ -1475,7 +1475,7 @@ export const Game3D: React.FC<Game3DProps> = ({
   
   const settlementCoords = useMemo(() => {
     return gameState.board
-      .filter(t => [TerrainType.CASTLE, TerrainType.FORTRESS, TerrainType.VILLAGE, TerrainType.GOLD_MINE].includes(t.terrain as any))
+      .filter(t => [TerrainType.CASTLE, TerrainType.FORT, TerrainType.VILLAGE, TerrainType.GOLD_MINE].includes(t.terrain as any))
       .map(t => t.coord);
   }, [gameState.board]); // Depend on full board to catch terrain changes from upgrades
 
@@ -1512,7 +1512,7 @@ export const Game3D: React.FC<Game3DProps> = ({
       const hasAdj = neighbors.some(n => {
         const neighborTile = boardMap.get(`${n.q},${n.r}`);
         return neighborTile && (
-          neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORTRESS || 
+          neighborTile.terrain === TerrainType.VILLAGE || neighborTile.terrain === TerrainType.FORT || 
           neighborTile.terrain === TerrainType.CASTLE || neighborTile.terrain === TerrainType.GOLD_MINE
         );
       });

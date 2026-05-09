@@ -85,7 +85,7 @@ export function useGameActions(
       // 1. Check for conqust/effects on the target hex
       const tile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
       if (tile && tile.ownerId === null) {
-        const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+        const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
         if (isSettlement) {
           if (tile.terrain === TerrainType.GOLD_MINE) {
             soundEngine.playGoldMine();
@@ -104,7 +104,7 @@ export function useGameActions(
       }
 
       const targetTile = prev.board.find(t => t.coord.q === target.q && t.coord.r === target.r);
-      const isCapturableSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE) && targetTile.ownerId !== prev.players[prev.currentPlayerIndex].id;
+      const isCapturableSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE) && targetTile.ownerId !== prev.players[prev.currentPlayerIndex].id;
 
       let newBoard = prev.board;
       if (isCapturableSettlement) {
@@ -208,7 +208,7 @@ export function useGameActions(
       }).filter(u => !(currentDefender && u.id === currentDefender.id));
 
       const targetTile = prev.board.find(tile => tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r);
-      const isCapturableSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE) && !currentDefender;
+      const isCapturableSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORT || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE) && !currentDefender;
       
       let newBoard = prev.board;
       if (isCapturableSettlement) {
@@ -216,8 +216,8 @@ export function useGameActions(
           if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== currentAttacker.ownerId) {
             // Enemy settlements become neutral or downgraded when defeated
             if (tile.terrain === TerrainType.CASTLE) {
-              return { ...tile, terrain: TerrainType.FORTRESS };
-            } else if (tile.terrain === TerrainType.FORTRESS) {
+              return { ...tile, terrain: TerrainType.FORT };
+            } else if (tile.terrain === TerrainType.FORT) {
               return { ...tile, terrain: TerrainType.VILLAGE };
             } else {
               return { ...tile, ownerId: null };

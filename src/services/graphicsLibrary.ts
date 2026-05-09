@@ -15,7 +15,7 @@ export const TERRAIN_HEIGHTS: Record<TerrainType, number> = {
   [TerrainType.FOREST]: 0.3,
   [TerrainType.MOUNTAIN]: 0.4,
   [TerrainType.VILLAGE]: 0.25,
-  [TerrainType.FORTRESS]: 0.4,
+  [TerrainType.FORT]: 0.4,
   [TerrainType.CASTLE]: 0.5,
   [TerrainType.GOLD_MINE]: 0.4,
 };
@@ -126,13 +126,13 @@ export const GEOMETRIES = {
     if (!geometryCache.flag) geometryCache.flag = new THREE.PlaneGeometry(0.3, 0.2, 4, 4);
     return geometryCache.flag;
   },
-  get fortressWall() {
-    if (!geometryCache.fortressWall) geometryCache.fortressWall = new THREE.BoxGeometry(0.65, 0.25, 0.15);
-    return geometryCache.fortressWall;
+  get fortWall() {
+    if (!geometryCache.fortWall) geometryCache.fortWall = new THREE.BoxGeometry(0.65, 0.25, 0.15);
+    return geometryCache.fortWall;
   },
-  get fortressTower() {
-    if (!geometryCache.fortressTower) geometryCache.fortressTower = new THREE.CylinderGeometry(0.15, 0.15, 0.4, 6);
-    return geometryCache.fortressTower;
+  get fortTower() {
+    if (!geometryCache.fortTower) geometryCache.fortTower = new THREE.CylinderGeometry(0.15, 0.15, 0.4, 6);
+    return geometryCache.fortTower;
   },
   get villageBox1() {
     if (!geometryCache.villageBox1) geometryCache.villageBox1 = new THREE.BoxGeometry(0.3, 0.4, 0.3);

@@ -314,7 +314,7 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
 export function identifyThreatenedSettlements(state: GameState, currentPlayerId: number, threatMatrix: Map<string, ThreatInfo>) {
   const mySettlements = state.board.filter(t => 
     t.ownerId === currentPlayerId && 
-    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+    (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
   );
 
   const threatenedBases = mySettlements.map(s => {
@@ -381,11 +381,11 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
   return hvt;
 }
 
-export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean, isLaggingStrength: boolean = false, config: AIConfig = DEFAULT_AI_CONFIG): boolean {
+export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean, isLaggingStrength: boolean = false, isUnderThreat: boolean = false, config: AIConfig = DEFAULT_AI_CONFIG): boolean {
   // If military is weak, we MUST NOT save for a mine - survival first!
   // BUT: if we have a healthy unit count-to-settlement ratio, we can afford to save for growth.
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
-  const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
+  const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
   const ratio = myUnits.length / Math.max(1, mySettlements.length);
   
   // Use config-driven unit ratio threshold
@@ -397,10 +397,17 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   // Only "save" if we can afford it within a reasonable timeframe
   const income = calculateIncome(currentPlayer, state.board);
   
-  // Use config-driven saving priority turns and dedication ratio
+  // Disciplined Cumulative Savings: If we have enough money to start (seed), keep going if safe.
+  const hasSeedMoney = currentPlayer.gold >= config.MIN_MINE_SAVING_GOLD;
+  const isSafeAndGrowing = !isUnderThreat && ratio >= config.MINE_UNIT_RATIO_MIN;
+
   const canAffordSoonWithSaving = (currentPlayer.gold + (income * config.SAVINGS_DEDICATION_RATIO * config.MINE_SAVING_PRIORITY_TURNS)) >= cost;
   
-  if (!canAffordSoonWithSaving && !isLaggingIncome) return false;
+  if (!canAffordSoonWithSaving && !isLaggingIncome) {
+    if (!(config.CUMULATIVE_SAVINGS_ENABLED && hasSeedMoney && isSafeAndGrowing)) {
+      return false;
+    }
+  }
 
   const boardMap = getBoardMap(state.board);
   
@@ -418,10 +425,10 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   });
 }
 
-export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean, isLaggingStrength: boolean = false, config: AIConfig = DEFAULT_AI_CONFIG): boolean {
+export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean, isLaggingStrength: boolean = false, isUnderThreat: boolean = false, config: AIConfig = DEFAULT_AI_CONFIG): boolean {
   // If military is weak, we MUST NOT save for a village - survival first!
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
-  const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
+  const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
   const ratio = myUnits.length / Math.max(1, mySettlements.length);
   
   if (isLaggingStrength && ratio < 0.6 && currentPlayer.gold < 200) return false;
@@ -436,7 +443,14 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player, isCr
   let turnsThreshold = config.VILLAGE_SAVING_PRIORITY_TURNS;
   if (isCriticallyLaggingLargeEconomy) turnsThreshold = config.VILLAGE_SAVING_PRIORITY_TURNS * 2; 
 
-  if (turnsToAfford > turnsThreshold) return false;
+  const isSafeAndGrowing = !isUnderThreat && ratio >= 0.8;
+  const hasSeedMoney = currentPlayer.gold >= 40; // Villages are cheap, seed is lower
+
+  if (turnsToAfford > turnsThreshold) {
+    if (!(config.CUMULATIVE_SAVINGS_ENABLED && hasSeedMoney && isSafeAndGrowing)) {
+      return false;
+    }
+  }
 
   const boardMap = getBoardMap(state.board);
   const safety = new LoopSafety('isSavingForVillage', 1000);
@@ -449,7 +463,7 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player, isCr
     if (u.type === UnitType.CATAPULT) {
         let nearestFriendlySettlementDist = Infinity;
         for (const t of state.board) {
-          if (t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
+          if (t.ownerId === currentPlayer.id && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
             const d = getDistance(t.coord, u.coord, state.board);
             if (d < nearestFriendlySettlementDist) nearestFriendlySettlementDist = d;
           }
@@ -463,7 +477,7 @@ export function isSavingForVillage(state: GameState, currentPlayer: Player, isCr
     let score = BASE_REWARD * SAVING_VILLAGE_BASE_SCORE;
     const nearbyFriendlySettlements = state.board.filter(t => 
       t.ownerId === currentPlayer.id && 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE) &&
       getDistance(t.coord, tile.coord, state.board) <= 2 &&
       !(t.coord.q === tile.coord.q && t.coord.r === tile.coord.r)
     ).length;

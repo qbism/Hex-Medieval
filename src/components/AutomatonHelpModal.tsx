@@ -28,7 +28,7 @@ const RULES_CONTENT = `# How automatons play: Technical specifications & ai logi
 | Settlement type | Income / turn | Upgrade cost |
 | :--- | :--- | :--- |
 | **Village** | 20 | 100 |
-| **Fortress** | 40 | 150 |
+| **Fort** | 40 | 150 |
 | **Castle** | 70 | 300 |
 | **Gold mine** | 100 | 500 |
 
@@ -73,7 +73,7 @@ The ai shifts its core personality based on the global state of the game:
 ### Normal ai (strategic)
 - **Safety first:** Avoids moving high-value units into "kill zones".
 - **Dynamic heat map:** Calculates "heat" based on enemy proximity. Scores recruitment higher in high-heat zones.
-- **Strategic fortification:** Prioritizes upgrading villages to fortresses if enemies are within 3 tiles.
+- **Strategic fortification:** Prioritizes upgrading villages to forts if enemies are within 3 tiles.
 - **Economic balance:** Saves gold for gold mines in low-heat (safe) zones.
 
 ### Barbarian ai (aggressive)
@@ -147,7 +147,7 @@ export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
           className="bg-parchment border-2 border-black p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative"
         >
           <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-serif font-black tracking-tight flex items-center gap-2" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
+              <h2 className="text-2xl font-serif font-black tracking-tight flex items-center gap-2">
                 <Cpu size={28} /> Automaton Technical Specs
               </h2>
               <GameButton onClick={onClose} variant="ghost" size="icon">
@@ -191,7 +191,7 @@ export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
                       <span>+20g | 100g Up</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
-                      <span>Fortress</span>
+                      <span>Fort</span>
                       <span>+40g | 150g Up</span>
                     </div>
                     <div className="flex justify-between border-b border-black/5 pb-1">
@@ -206,7 +206,7 @@ export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
                 </section>
               </div>
 
-              <section className="bg-stone-900 p-4 border border-black rounded-xl overflow-hidden">
+              <section className="bg-stone-900 p-4 border border-black rounded-xl">
                 <h3 className="font-serif font-bold mb-2 flex items-center gap-2 text-stone-100 text-sm tracking-wider">
                   <Code size={16} /> AI Heuristics & Formulae
                 </h3>
@@ -316,7 +316,7 @@ export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
                   </div>
 
                   <div className="lg:col-span-8">
-                    <div className="bg-black border border-stone-800 rounded-lg overflow-hidden flex flex-col h-full min-h-[220px]">
+                    <div className="bg-black border border-stone-800 rounded-lg flex flex-col h-full min-h-[220px]">
                       <div className="bg-stone-800/50 px-4 py-2 border-b border-stone-800 flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <Code size={14} className="text-stone-500" />

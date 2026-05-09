@@ -11,8 +11,8 @@ Eliminate all other players by capturing their settlements and destroying their 
 Gold is the lifeblood of your empire. You earn gold at the start of your turn based on the settlements you control. You can spend gold to recruit units or upgrade your tiles.
 
 *   **Plains:** Can be upgraded to a **Village** (Cost: 100g, Income: +20g).
-*   **Village:** Can be upgraded to a **Fortress** (Cost: 150g, Income: +40g).
-*   **Fortress:** Can be upgraded to a **Castle** (Cost: 300g, Income: +70g).
+*   **Village:** Can be upgraded to a **Fort** (Cost: 150g, Income: +40g).
+*   **Fort:** Can be upgraded to a **Castle** (Cost: 300g, Income: +70g).
 *   **Mountain:** Can be upgraded to a **Gold Mine** (Cost: 400g, Income: +100g).
 *   **Forest:** Provides cover and slows movement.
     *   **Movement:** Entering a forest costs 2 movement points. Units starting in a forest have reduced range (maximal moves: Infantry/Archers: 1, Knights: 2).
@@ -96,7 +96,7 @@ In addition to the mathematical core, the AI uses several tuned heuristics:
 *   **Infinite Mitigation (Sniper Logic)**: The AI understands that striking from Range 3 provides "Infinite Mitigation" because most enemies cannot return fire in a single move. It will aggressively prioritize protecting any unit that achieves this overmatch capability.
 *   **Opportunistic Retreats**: When fleeing to safety, units prioritize neutral settlements or empty plains that allow them to continue expanding or building on the next turn, rather than just hiding in forests.
 *   **Leapfrog Expansion**: Units are incentivized to move to plains at the very edge of their supply line, facilitating efficient "Leapfrog" village building to grow the empire quickly.
-*   **Targeted Upgrades**: Gold Mines are prioritized in safe backlines (>= 6 hexes away), while Fortresses/Castles are prioritized on the frontline (<= 4 hexes away).
+*   **Targeted Upgrades**: Gold Mines are prioritized in safe backlines (>= 6 hexes away), while Forts/Castles are prioritized on the frontline (<= 4 hexes away).
 *   **Economic Urgency**: If a wealthy AI (>1000 income) lags significantly behind the leader (>15% gap), it enters "Economic Urgency" mode—doubling down on Gold Mine construction and assigning higher defensive priority to its economic heartland.
 *   **Barbarian Resilience**: The Barbarian team is exceptionally stubborn. They will only consider surrendering if only a single non-barbarian competitor remains; otherwise, they remain a persistent world threat.
 *   **Combined Arms**: Army composition is adjusted based on local needs (e.g., spawning Infantry for static brawls, Knights for open-field flanking).

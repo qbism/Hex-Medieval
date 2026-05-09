@@ -115,7 +115,7 @@ export function calculateOpportunityPerilMatrix(
     for (const nb of neighbors) {
       const nTile = boardMap.get(`${nb.q},${nb.r}`);
       if (nTile && nTile.ownerId !== null && nTile.ownerId !== playerId) {
-        const isSettlement = [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(nTile.terrain);
+        const isSettlement = [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(nTile.terrain);
         if (isSettlement) {
           const unitAtSettlement = unitMap.get(`${nTile.coord.q},${nTile.coord.r}`);
           // Increased bonus for being NEAR an undefended enemy base

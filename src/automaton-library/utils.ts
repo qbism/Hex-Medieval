@@ -15,7 +15,7 @@ export function calculateKingdomStrength(player: any, state: GameState): number 
   }
   if (state.board) {
     state.board.forEach(t => {
-      if (t.ownerId === playerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE)) {
+      if (t.ownerId === playerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE)) {
         strength += 5; // Balanced with units
       }
     });
@@ -75,7 +75,7 @@ export function findNearestEnemySettlement(start: HexCoord, state: GameState, my
   let minDiff = Infinity;
   for (const t of state.board) {
     if (t.ownerId !== null && t.ownerId !== myPlayerId && 
-       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
+       (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)) {
        const dist = getDistance(start, t.coord, state.board);
        if (dist < minDiff) {
          minDiff = dist;

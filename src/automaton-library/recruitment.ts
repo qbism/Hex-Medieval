@@ -62,7 +62,7 @@ export function getRecruitmentAction(
 ) {
   const recruitmentTiles = state.board.filter(t => 
     t.ownerId === currentPlayer.id && 
-    (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS) &&
+    (t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT) &&
     !state.units.some(u => u.coord?.q === t.coord?.q && u.coord?.r === t.coord?.r)
   );
 
@@ -103,7 +103,7 @@ export function getRecruitmentAction(
   const myUnitsCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
   const mySettlementsCount = state.board.filter(b => 
     b.ownerId === currentPlayer.id && 
-    [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(b.terrain)
+    [TerrainType.VILLAGE, TerrainType.FORT, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(b.terrain)
   ).length;
 
   let activeRatioCap = config.UNIT_TO_SETTLEMENT_RATIO;
@@ -148,7 +148,7 @@ export function getRecruitmentAction(
   const targets = [
     ...state.board.filter(t => 
       (t.ownerId === null || t.ownerId !== currentPlayer.id) && 
-      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
+      (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORT || t.terrain === TerrainType.CASTLE || t.terrain === TerrainType.GOLD_MINE)
     ).map(t => ({ 
       coord: t.coord, 
       value: SETTLEMENT_INCOME[t.terrain] * HORIZON, 

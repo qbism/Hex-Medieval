@@ -135,7 +135,7 @@ export function evaluateActionSafety(
       // Check if we are attacking/neutralizing a settlement
       const tile = state.board.find(t => t.coord.q === tQ && t.coord.r === tR);
       if (tile && tile.ownerId !== null && tile.ownerId !== playerId && 
-          (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+          (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
         killedTargetValue = 400; // High intrinsic value for settlements to encourage "unsafe" but strategic pushes
       }
     }
