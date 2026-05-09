@@ -1,6 +1,6 @@
 import { TerrainType } from '../types';
 
-export const PLAYER_COLORS = ['#ff0000', '#0000ff', '#ffff00', '#ff8800', '#bf00ff', '#00ffff'];
+export const PLAYER_COLORS = ['#ff0000', '#0000ff', '#ffff00', '#ff8800', '#bf00ff', '#00ffbf'];
 export const BARBARIAN_COLOR = '#444444';
 
 export const COLOR_NAMES: Record<string, string> = {
@@ -9,7 +9,7 @@ export const COLOR_NAMES: Record<string, string> = {
   '#ffff00': 'Yellow',
   '#ff8800': 'Orange',
   '#bf00ff': 'Purple',
-  '#00ffff': 'Cyan',
+  '#00ffbf': 'Cyan',
   [BARBARIAN_COLOR]: 'Barbarian',
 };
 

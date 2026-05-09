@@ -114,12 +114,19 @@ export const AutomatonHelpModal = ({ onClose }: AutomatonHelpModalProps) => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([RULES_CONTENT], { type: 'text/markdown' });
+  const handleDownloadConfig = () => {
+    if (!lastResults) return;
+    const content = `// AUTOMATON OPTIMIZED CONFIGURATION
+// Generated via Monte-Carlo Simulation
+// Instructions: Upload this file to the /config folder of your application.
+
+export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
+
+    const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'automaton_logic_technical.md';
+    a.download = 'mco_config.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -256,11 +263,11 @@ export const AutomatonHelpModal = ({ onClose }: AutomatonHelpModalProps) => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   <div className="lg:col-span-4 space-y-4">
                     <div className="bg-black/40 border border-stone-800 p-4 rounded-lg">
-                      <p className="text-sm uppercase font-black tracking-[0.2em] text-stone-500 mb-3">Live Heuristics</p>
+                      <p className="text-sm font-black tracking-[0.2em] text-stone-500 mb-3">Live Heuristics</p>
                       <div className="space-y-3 font-mono text-sm">
                         <div className="flex justify-between items-center text-stone-300">
-                          <span>Skirmish Bias</span>
-                          <span className="text-amber-400">{currentConfig.SKIRMISH_BIAS.toFixed(2)}</span>
+                          <span>Forest Danger</span>
+                          <span className="text-amber-400">{currentConfig.FOREST_DANGER_PENALTY.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center text-stone-300">
                           <span>Siege Bonus</span>
@@ -277,8 +284,15 @@ export const AutomatonHelpModal = ({ onClose }: AutomatonHelpModalProps) => {
                       </div>
                     </div>
 
+                    <div className="bg-amber-400/5 border border-amber-400/20 p-3 rounded-lg">
+                      <p className="text-[0.8em] font-bold tracking-widest text-amber-400/60 mb-2">Instructions</p>
+                      <p className="text-stone-400 text-[0.75em] leading-relaxed italic">
+                        After evolution completes, download <code className="text-amber-200">mco_config.txt</code> and upload it to your application's <code className="text-amber-200">/config</code> folder to apply the tuned parameters.
+                      </p>
+                    </div>
+
                     <div className="bg-amber-400/10 border border-amber-400/20 p-4 rounded-lg flex flex-col items-center justify-center text-center">
-                      <p className="text-sm uppercase font-bold tracking-widest text-amber-400/60 mb-2">Peak Fitness</p>
+                      <p className="text-sm font-bold tracking-widest text-amber-400/60 mb-2">Peak Fitness</p>
                       <div className="text-4xl font-black text-amber-400 tabular-nums">
                         {simProgress.fitness}
                       </div>
@@ -294,7 +308,7 @@ export const AutomatonHelpModal = ({ onClose }: AutomatonHelpModalProps) => {
                       <div className="bg-stone-800/50 px-4 py-2 border-b border-stone-800 flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <Code size={14} className="text-stone-500" />
-                          <span className="text-sm font-mono text-stone-400">optimized_config.ts</span>
+                          <span className="text-sm font-mono text-stone-400">mco_config.txt</span>
                         </div>
                         {lastResults && (
                           <button 
@@ -331,11 +345,12 @@ export const AutomatonHelpModal = ({ onClose }: AutomatonHelpModalProps) => {
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <GameButton 
-                  onClick={handleDownload}
+                  onClick={handleDownloadConfig}
                   variant="secondary"
+                  disabled={!lastResults}
                   className="flex-1 flex items-center justify-center gap-2"
                 >
-                  <Download size={18} /> Download Technical .md
+                  <Download size={18} /> Download mco_config.txt
                 </GameButton>
                 <GameButton 
                   onClick={onClose}

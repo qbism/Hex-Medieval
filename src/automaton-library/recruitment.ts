@@ -76,13 +76,12 @@ export function getRecruitmentAction(
   let currentGold = currentPlayer.gold;
 
   // Fraction-based planning (Task 1): Put aside 1/3 of income if saving for a mine
-  if (isSavingForMine && !isUnderThreat) {
+  if (isSavingForMine && !isUnderThreat && !isBarbarian) {
     const savingsCut = Math.floor(income * 0.33);
     currentGold = Math.max(0, currentGold - savingsCut);
   }
   
   // Barbarians spend roughly 1/3 on expansion and 2/3 on infantry
-  // We implement this by making them "save" 1/3 of their gold during recruitment
   if (isBarbarian) {
     const expansionBudget = Math.floor(currentPlayer.gold * BARBARIAN_EXPANSION_BUDGET_RATIO);
     currentGold = currentPlayer.gold - expansionBudget;
@@ -120,6 +119,17 @@ export function getRecruitmentAction(
 
   // Adjust savings threshold if we are capped by ratio - force saving the full amount
   const effectiveSavingsRatio = isCappedByRatio ? 1.0 : SAVINGS_THRESHOLD_RATIO;
+
+  // USER: High-level Economic Reserve logic (25% or 50% based on unit/settlement ratio)
+  // This keeps funds aside for growth (villages and mines).
+  const unitToSettlementRatio = myUnitsCount / Math.max(1, mySettlementsCount);
+  const reserveRatio = unitToSettlementRatio > 1.0 ? config.ECONOMIC_RESERVE_RATIO_HIGH : config.ECONOMIC_RESERVE_RATIO_NORMAL;
+  const economicReserve = Math.floor(currentPlayer.gold * reserveRatio);
+
+  // Apply reserve if NOT under immediate duress
+  if (!hasEminentThreat && !isDesperateDefense && !isBarbarian) {
+    currentGold = Math.max(0, currentGold - economicReserve);
+  }
 
   // Gold Shield: If NOT under threat, keep a small reserve for emergency defense
   // This prevents the AI from being "bankrupt" right before an enemy surprise attack
@@ -191,12 +201,12 @@ export function getRecruitmentAction(
 
       if (unitType === UnitType.ARCHER && enemyUnitsAtRange2.length > 0) {
         // Archers are perfect for hitting units at range 2
-        localCounterBonus += BASE_REWARD * 6.0 * enemyUnitsAtRange2.length;
+        localCounterBonus += config.BASE_REWARD * 6.0 * enemyUnitsAtRange2.length;
       }
       
       if (unitType === UnitType.CATAPULT && enemyUnitsAtRange3.length > 0) {
         // Catapults are perfect for hitting units at range 3
-        localCounterBonus += BASE_REWARD * 8.0 * enemyUnitsAtRange3.length;
+        localCounterBonus += config.BASE_REWARD * 8.0 * enemyUnitsAtRange3.length;
       }
       
       if (unitType === UnitType.KNIGHT && (enemyUnitsAtRange2.length > 0 || enemyUnitsAtRange3.length > 0)) {
@@ -205,7 +215,7 @@ export function getRecruitmentAction(
           (trg.unitType === UnitType.ARCHER || trg.unitType === UnitType.CATAPULT) && 
           getDistance(t.coord, trg.coord, state.board) <= stats.moves + 1
         );
-        if (hasRangedEnemies) localCounterBonus += BASE_REWARD * 4.0;
+        if (hasRangedEnemies) localCounterBonus += config.BASE_REWARD * 4.0;
       }
 
       // CRITICAL: If we are already unit-capped, local defense must be EXTREMELY high value to justify another unit

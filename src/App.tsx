@@ -507,6 +507,19 @@ export default function App() {
 
   useAutomatonTurn({ gameState, setupMode, actions, setAutomatonStatus });
 
+  // UI BUG FIX: Trigger a "fake" resize event when the game starts.
+  // This ensures that the Sidebar and 3D stage correctly re-evaluate their layout 
+  // based on the container size rather than just the window size, which fix the
+  // "hidden sidebar on widescreen" issue.
+  useEffect(() => {
+    if (!setupMode) {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [setupMode]);
+
   const currentPlayer = gameState ? gameState.players[gameState.currentPlayerIndex] : null;
 
   const handleStartGame = (configs: any) => {
@@ -517,7 +530,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-gradient-to-b from-[#43e3ff] via-[#0e5984] to-[#1f0606] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
-      <div className="h-full w-full flex flex-col landscape:flex-row">
+      <div className="h-full w-full flex flex-col md:flex-row">
         {/* Main Game Area - Always visible */}
         <div className="flex-1 relative bg-transparent" ref={stageContainerRef}>
           <Game3D 
@@ -536,7 +549,7 @@ export default function App() {
         <AnimatePresence>
           {!setupMode && (
             <Sidebar 
-              key="sidebar"
+              key={`sidebar-${setupMode}`}
               gameState={gameState}
               currentPlayer={currentPlayer!}
               isMuted={isMuted}

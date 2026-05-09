@@ -26,7 +26,7 @@ export const HelpModal = ({ onClose }: HelpModalProps) => {
       >
           <div className="relative mb-8 overflow-hidden neo-brutalist-section py-6 flex flex-col items-center justify-center gap-1">
               <div className="grayscale opacity-40 pointer-events-none select-none">
-                <span className="text-[60px]">🏰</span>
+                <span className="text-[3.75em]">🏰</span>
               </div>
               <div className="relative flex justify-between items-center px-4 w-full">
                 <div className="w-10" /> {/* Spacer for centering */}

@@ -50,8 +50,8 @@ export async function runSimulation(configs: AIConfig[], maxTurns: number = 200)
       state = processTurnTransition(state);
     }
 
-    // Yield every 10 actions to prevent UI freezing without slowing down too much
-    if (actionCount % 10 === 0) {
+    // Yield every 50 actions to strike a better balance between speed and UI responsiveness
+    if (actionCount % 50 === 0) {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
   }

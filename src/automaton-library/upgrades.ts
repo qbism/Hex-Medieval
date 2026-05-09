@@ -45,6 +45,8 @@ import {
 } from './constants';
 import { LoopSafety } from '../utils';
 
+import { AIConfig, DEFAULT_AI_CONFIG } from './AIConfig';
+
 export function getUpgradeAction(
   state: GameState, 
   currentPlayer: Player, 
@@ -55,7 +57,8 @@ export function getUpgradeAction(
   isCriticallyLaggingLargeEconomy: boolean,
   threatMatrix: Map<string, ThreatInfo>,
   isBarbarian: boolean = false,
-  isLaggingStrength: boolean = false
+  isLaggingStrength: boolean = false,
+  config: AIConfig = DEFAULT_AI_CONFIG
 ) {
   // Barbarians only build villages if they have enough gold
   // The 1/3 expansion budget is managed in getRecruitmentAction
@@ -92,25 +95,25 @@ export function getUpgradeAction(
 
     if (tile.terrain === TerrainType.MOUNTAIN && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
-      baseScore = BASE_REWARD * (UPGRADE_GOLD_MINE_BONUS - econPenalty + densityBonus); // Priority 1: Maximize income (penalized if weak)
-      if (isLaggingIncome) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
-      if (isCriticallyLaggingLargeEconomy) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 3; // Extreme priority for large economy gaps
+      baseScore = config.BASE_REWARD * (config.UPGRADE_GOLD_MINE_BONUS - econPenalty + densityBonus); // Priority 1: Maximize income (penalized if weak)
+      if (isLaggingIncome) baseScore += config.BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
+      if (isCriticallyLaggingLargeEconomy) baseScore += config.BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 3; // Extreme priority for large economy gaps
        } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
-      baseScore = BASE_REWARD * (UPGRADE_VILLAGE_BONUS - econPenalty + densityBonus); // Same priority for barbarians
-      if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
-      if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 2;
+      baseScore = config.BASE_REWARD * (config.UPGRADE_VILLAGE_BONUS - econPenalty + densityBonus); // Same priority for barbarians
+      if (isLaggingIncome && !isBarbarian) baseScore += config.BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
+      if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += config.BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 2;
       
       // Wealthy Expansionism: If we are rich, we have a biological imperative to expand
       if (currentPlayer.gold > 1000 && !isBarbarian) {
-        baseScore += BASE_REWARD * 2.0;
+        baseScore += config.BASE_REWARD * 2.0;
       }
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
-      baseScore = BASE_REWARD * UPGRADE_FORTRESS_BONUS; // Priority 1: Defendable settlements
+      baseScore = config.BASE_REWARD * config.UPGRADE_FORTRESS_BONUS; // Priority 1: Defendable settlements
     } else if (tile.terrain === TerrainType.FORTRESS && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.CASTLE];
-      baseScore = BASE_REWARD * UPGRADE_CASTLE_BONUS; // Priority 1: Defendable settlements
+      baseScore = config.BASE_REWARD * config.UPGRADE_CASTLE_BONUS; // Priority 1: Defendable settlements
     }
 
     if (cost > 0 && currentPlayer.gold >= cost) {

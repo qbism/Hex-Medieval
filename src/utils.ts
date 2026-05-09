@@ -63,10 +63,10 @@ export const calculateStrength = (playerId: number, units: Unit[]) => {
   return units
     .filter(u => u.ownerId === playerId)
     .reduce((acc, u) => {
-      if (u.type === UnitType.INFANTRY) return acc + 1.3;
-      if (u.type === UnitType.ARCHER) return acc + 2.6;
-      if (u.type === UnitType.KNIGHT) return acc + 5.2;
-      if (u.type === UnitType.CATAPULT) return acc + 7.8;
+      if (u.type === UnitType.INFANTRY) return acc + 1;
+      if (u.type === UnitType.ARCHER) return acc + 2;
+      if (u.type === UnitType.KNIGHT) return acc + 4;
+      if (u.type === UnitType.CATAPULT) return acc + 6;
       return acc;
     }, 0);
 };

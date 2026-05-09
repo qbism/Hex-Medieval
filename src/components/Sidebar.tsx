@@ -66,19 +66,19 @@ export const Sidebar = ({
       exit={{ opacity: 0, x: 20 }}
       className={cn(
         "z-[60] bg-parchment border-black flex transition-all duration-300",
-        // Portrait: Floating at top
-        "portrait:fixed portrait:top-0 portrait:left-0 portrait:right-0 portrait:h-32 portrait:flex portrait:flex-row portrait:items-stretch portrait:border-b-4 portrait:overflow-x-auto portrait:overflow-y-hidden portrait:shadow-xl portrait:px-2",
-        // Landscape: Side panel
-        "landscape:relative landscape:top-0 landscape:right-0 landscape:h-full landscape:w-64 landscape:flex-col landscape:border-b-0 landscape:border-l-4 landscape:overflow-hidden landscape:shadow-none landscape:px-0 landscape:mt-0"
+        // Default (Mobile/Vertical): Floating at top
+        "fixed top-0 left-0 right-0 h-32 flex flex-row items-stretch border-b-4 overflow-x-auto overflow-y-hidden shadow-xl px-2",
+        // Desktop/Wide (md breakpoint): Side panel
+        "md:relative md:top-auto md:right-auto md:left-auto md:h-full md:w-80 md:flex-col md:border-b-0 md:border-l-4 md:overflow-hidden md:shadow-none md:px-0 md:mt-0 md:flex-shrink-0"
       )}
       style={{
         clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px)'
       }}
     >
       {/* HUD Section */}
-      <div className="p-2 flex flex-row landscape:flex-col items-center landscape:items-stretch border-r landscape:border-r-0 landscape:border-b-2 border-black/10 bg-parchment/50 gap-3 landscape:gap-4 w-fit landscape:w-full flex-shrink-0">
-        <div className="flex flex-col landscape:w-full">
-          <div className="grid grid-cols-[auto_1fr_auto] gap-x-1.5 gap-y-1.5 landscape:gap-x-2 landscape:gap-y-2 items-center">
+      <div className="p-2 flex flex-row md:flex-col items-center md:items-stretch border-r md:border-r-0 md:border-b-2 border-black/10 bg-parchment/50 gap-3 md:gap-4 w-fit md:w-full flex-shrink-0">
+        <div className="flex flex-col md:w-full">
+          <div className="grid grid-cols-[auto_1fr_auto] gap-x-1.5 gap-y-1.5 md:gap-x-2 md:gap-y-2 items-center">
             {/* Row 1: Identity, Treasury, Mute */}
             <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-black shadow-sm bg-white" title="Your Color">
               <div className="w-6 h-6 rounded-full border border-black/20" style={{ backgroundColor: currentPlayer.color }} />
@@ -139,7 +139,7 @@ export const Sidebar = ({
       </div>
 
       {/* Intel Section */}
-      <div className="flex-1 overflow-y-auto bg-parchment/30 min-w-[300px] lg:min-w-0 relative border-x lg:border-x-0 border-black/5">
+      <div className="flex-1 overflow-y-auto bg-parchment/30 min-w-[300px] md:min-w-0 relative border-x md:border-x-0 border-black/5">
         {gameState.selectedHex ? (
           <div className="p-1">
             <motion.div
@@ -246,7 +246,7 @@ export const Sidebar = ({
                       <div className="space-y-0.5">
                         <div className="relative overflow-hidden border-b border-black/20 bg-stone-50 px-2 py-0.5 flex flex-col items-center">
                           <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                            <span className="text-[20px]">🏰</span>
+                            <span className="text-[1.25em]">🏰</span>
                           </div>
                           <p className="relative text-sm font-black tracking-[0.2em] opacity-60 z-10">Recruit forces</p>
                         </div>
@@ -350,7 +350,7 @@ export const Sidebar = ({
             <div>
               <div className="relative overflow-hidden neo-brutalist-card-sm bg-stone-100 px-2 py-1 mb-1.5 flex flex-col items-center">
                 <div className="grayscale opacity-20 pointer-events-none select-none absolute inset-0 flex items-center justify-center">
-                  <span className="text-[24px]">🏰</span>
+                  <span className="text-[1.5em]">🏰</span>
                 </div>
                 <p className="relative text-base font-black tracking-normal z-10 font-serif" style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>Imperial command</p>
               </div>
@@ -362,14 +362,14 @@ export const Sidebar = ({
 
       {/* Footer Actions */}
       {!gameState.isPlaybackMode && (
-        <div className="p-1 px-2 border-l lg:border-l-0 lg:border-t-2 border-black/10 bg-parchment/50 flex flex-row lg:flex-col landscape:flex-col items-center gap-1 lg:space-y-1 landscape:space-y-1 w-fit lg:w-full landscape:w-full flex-shrink-0">
+        <div className="p-1 px-2 border-l md:border-l-0 md:border-t-2 border-black/10 bg-parchment/50 flex flex-row md:flex-col items-center gap-1 md:space-y-1 w-fit md:w-full flex-shrink-0">
           {!currentPlayer.isAutomaton && gameState.history && gameState.history.length > 0 && (
             <GameButton 
               onClick={undoMove}
               variant="parchment"
               size="sm"
               fullWidth
-              className="h-full lg:h-auto landscape:h-auto py-1 px-3 lg:py-2 landscape:py-2 text-sm border-2 border-black font-black"
+              className="h-full md:h-auto py-1 px-3 md:py-2 text-sm border-2 border-black font-black"
               icon={<RotateCcw size={14} />}
             >
               Undo
@@ -382,7 +382,7 @@ export const Sidebar = ({
               variant="primary"
               size="md"
               fullWidth
-              className="h-full lg:h-auto landscape:h-auto py-1 px-5 lg:py-3 landscape:py-3 text-sm lg:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] lg:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] landscape:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              className="h-full md:h-auto py-1 px-5 md:py-3 text-sm md:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
             >
               <span className="whitespace-nowrap">
                 {currentPlayer.isAutomaton ? automatonStatus : "End Turn"}
@@ -396,7 +396,7 @@ export const Sidebar = ({
               variant="primary"
               size="md"
               fullWidth
-              className="h-full lg:h-auto landscape:h-auto py-1 px-5 lg:py-3 landscape:py-3 text-sm lg:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] lg:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] landscape:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              className="h-full md:h-auto py-1 px-5 md:py-3 text-sm md:text-base font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] md:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
             >
               <span className="whitespace-nowrap">{automatonStatus}</span>
             </GameButton>

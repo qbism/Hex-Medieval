@@ -164,7 +164,7 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
 
   if (expansionIsPriority) {
     // 1. Try to upgrade settlements/build villages
-    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength) : null;
+    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength, config) : null;
     if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
   }
 
@@ -193,7 +193,7 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
 
   if (!expansionIsPriority) {
     // 3. Try to upgrade as secondary priority if we are under threat but couldn't recruit
-    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength) : null;
+    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength, config) : null;
     if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
   }
 

@@ -189,7 +189,7 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
       });
       
       if (potentialAttackers.length > 0) {
-        priority += config.BASE_REWARD * FOCUS_FIRE_BONUS * potentialAttackers.length;
+        priority += config.BASE_REWARD * config.FOCUS_FIRE_BONUS * potentialAttackers.length;
       }
 
       if (potentialAttackers.length >= 1) {
@@ -250,13 +250,13 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
         }
       }
       
-      if (unitToAct.type === UnitType.INFANTRY && isOnSettlement) priority += BASE_REWARD * INFANTRY_VANGUARD_SETTLEMENT_BONUS;
+      if (unitToAct.type === UnitType.INFANTRY && isOnSettlement) priority += config.BASE_REWARD * config.INFANTRY_VANGUARD_SETTLEMENT_BONUS;
 
       const isThreateningBase = context.eminentThreatBases.some(b => getDistance(a, b.coord, state.board) <= 3);
-      if (isThreateningBase) priority += BASE_REWARD * PREEMPTIVE_DEFENSE_BONUS;
+      if (isThreateningBase) priority += config.BASE_REWARD * config.PREEMPTIVE_DEFENSE_BONUS;
 
       const isNearOurSettlement = context.mySettlements.some(s => getDistance(a, s.coord, state.board) <= 2);
-      if (isNearOurSettlement) priority += BASE_REWARD * DRIVE_OUT_BONUS;
+      if (isNearOurSettlement) priority += config.BASE_REWARD * config.DRIVE_OUT_BONUS;
 
       const isOccupyingMySettlement = targetTile && targetTile.ownerId === currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
       if (isOccupyingMySettlement) priority += BASE_REWARD * 2.0;
@@ -301,7 +301,7 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
       }
       
       const enemyUnitsNearThisSettlement = state.units.filter(u => u.ownerId === targetTile.ownerId && getDistance(u.coord, targetTile.coord, state.board) <= UNIT_STATS[u.type].moves);
-      if (enemyUnitsNearThisSettlement.length > 0) priority += BASE_REWARD * SETTLEMENT_DEGRADATION_PRIORITY_BONUS;
+      if (enemyUnitsNearThisSettlement.length > 0) priority += config.BASE_REWARD * config.SETTLEMENT_DEGRADATION_PRIORITY_BONUS;
 
       const canBuddiesClaim = otherFriendlyUnits.some(f => {
           if (f.hasActed) return false;
@@ -455,7 +455,7 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     }
 
     if (isStayPut) {
-      score += BASE_REWARD * STAY_PUT_BIAS;
+      score += config.BASE_REWARD * config.STAY_PUT_BIAS;
 
       // --- BASE CLEARANCE LOGIC ---
       // If we are on a recruitment tile, check if we should move to make room for a better unit.
@@ -654,11 +654,11 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
         }
 
         if (target.ownerId !== null && target.ownerId !== currentPlayer.id) {
-          if (unitToAct.type === UnitType.INFANTRY && dist === 1) targetScore += BASE_REWARD * INFANTRY_FRONT_LINE_BONUS;
-          else if (unitToAct.type === UnitType.ARCHER && dist === 2) targetScore += BASE_REWARD * ARCHER_PLACEMENT_BONUS * 1.5;
-          else if (unitToAct.type === UnitType.CATAPULT && dist === 3) targetScore += BASE_REWARD * CATAPULT_PLACEMENT_BONUS * 1.5;
-          else if (unitToAct.type === UnitType.KNIGHT && dist === 1) targetScore += BASE_REWARD * 5.0; // Knights want to strike!
-          else if (unitToAct.type === UnitType.KNIGHT && dist <= 4 && dist >= 2) targetScore += BASE_REWARD * KNIGHT_FLANK_BONUS;
+          if (unitToAct.type === UnitType.INFANTRY && dist === 1) targetScore += config.BASE_REWARD * config.INFANTRY_FRONT_LINE_BONUS;
+          else if (unitToAct.type === UnitType.ARCHER && dist === 2) targetScore += config.BASE_REWARD * config.ARCHER_PLACEMENT_BONUS * 1.5;
+          else if (unitToAct.type === UnitType.CATAPULT && dist === 3) targetScore += config.BASE_REWARD * config.CATAPULT_PLACEMENT_BONUS * 1.5;
+          else if (unitToAct.type === UnitType.KNIGHT && dist === 1) targetScore += config.BASE_REWARD * 5.0; // Knights want to strike!
+          else if (unitToAct.type === UnitType.KNIGHT && dist <= 4 && dist >= 2) targetScore += config.BASE_REWARD * config.KNIGHT_FLANK_BONUS;
         }
 
         if (targetScore > maxTargetScore) {
@@ -713,12 +713,12 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     if (isDefendingBase) {
       const nearestEnemy = state.units.find(u => u.ownerId !== currentPlayer.id && getDistance(m, u.coord, state.board) <= 3);
       if (nearestEnemy) {
-        score += BASE_REWARD * DRIVE_OUT_BONUS;
-        if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * DRIVE_OUT_BONUS * 2;
+        score += config.BASE_REWARD * config.DRIVE_OUT_BONUS;
+        if (isCriticallyLaggingLargeEconomy) score += config.BASE_REWARD * config.DRIVE_OUT_BONUS * 2;
       } else {
-        score += BASE_REWARD * DEFENSE_SCORING_BONUS;
+        score += config.BASE_REWARD * config.DEFENSE_SCORING_BONUS;
       }
-      if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * DEFENSE_SCORING_BONUS * 4;
+      if (isCriticallyLaggingLargeEconomy) score += config.BASE_REWARD * config.DEFENSE_SCORING_BONUS * 4;
     }
 
     const threatenedVillages = eminentThreatBases.filter(v => {
@@ -750,10 +750,10 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
       if (target.unitType !== undefined && getDistance(m, target.coord, state.board) <= potentialRange) {
         const isAlreadyInPeril = otherFriendlyUnits.some(u => getDistance(u.coord, target.coord, state.board) <= getUnitRange(u, state.board));
         if (isAlreadyInPeril) {
-          let bonus = COORDINATION_BONUS;
+          let bonus = config.COORDINATION_BONUS;
           const isTargetThreateningMyBase = threatenedVillages.some(v => getDistance(target.coord, v.coord, state.board) <= getUnitRange({ type: target.unitType, coord: target.coord } as any, state.board));
           if (isTargetThreateningMyBase) bonus *= 2.0;
-          score += BASE_REWARD * bonus; 
+          score += config.BASE_REWARD * bonus; 
         }
       }
     }
@@ -786,17 +786,22 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
     }
     
     const nearFriendCount = otherFriendlyUnits.filter(u => getDistance(m, u.coord, state.board) === 1).length;
-    if (nearFriendCount > 0) score += BASE_REWARD * MUTUAL_SUPPORT_BONUS * nearFriendCount;
+    if (nearFriendCount > 0) score += config.BASE_REWARD * config.MUTUAL_SUPPORT_BONUS * nearFriendCount;
 
     const catAnchors = myCatapults.filter(u => u.id !== unitToAct.id);
     for (const cat of catAnchors) {
       const distToCat = getDistance(m, cat.coord, state.board);
-      if (distToCat === 1) score += BASE_REWARD * FORMATION_ANCHOR_BONUS;
-      else if (distToCat === 2) score += BASE_REWARD * FORMATION_ANCHOR_BONUS * 0.5;
+      if (distToCat === 1) score += config.BASE_REWARD * config.FORMATION_ANCHOR_BONUS;
+      else if (distToCat === 2) score += config.BASE_REWARD * config.FORMATION_ANCHOR_BONUS * 0.5;
     }
 
     const clusterSize = otherFriendlyUnits.filter(u => getDistance(m, u.coord, state.board) <= 2).length;
-    score += clusterSize * SQUAD_INTEGRITY_BONUS * 10; 
+    score += clusterSize * config.SQUAD_INTEGRITY_BONUS * 10; 
+
+    // FOREST PENALTY
+    if (tile.terrain === TerrainType.FOREST && isMoveInPeril) {
+      score -= config.BASE_REWARD * config.FOREST_DANGER_PENALTY;
+    } 
 
     if (moveThreatLevel > 1 && nearFriendCount > 0) score += RALLY_POINT_ADJACENCY_BONUS;
     if (influence < -100 && !isBarbarian) score -= myValue * INFLUENCE_PENALTY_HIGH_RATIO; 

@@ -1,17 +1,22 @@
-import { GameState, HexCoord, TerrainType, HexTile, getNeighbors, getDistance } from '../types';
+import { GameState, HexCoord, TerrainType, HexTile, getNeighbors, getDistance, UnitType } from '../types';
 
 export function calculateKingdomStrength(player: any, state: GameState): number {
   const playerId = player.id;
   let strength = 0;
   if (state.units) {
     state.units.forEach(u => {
-      if (u.ownerId === playerId) strength += 13; // Increased to favor fewer units as "enough"
+      if (u.ownerId === playerId) {
+        if (u.type === UnitType.INFANTRY) strength += 1;
+        else if (u.type === UnitType.ARCHER) strength += 2;
+        else if (u.type === UnitType.KNIGHT) strength += 4;
+        else if (u.type === UnitType.CATAPULT) strength += 6;
+      }
     });
   }
   if (state.board) {
     state.board.forEach(t => {
       if (t.ownerId === playerId && (t.terrain === TerrainType.VILLAGE || t.terrain === TerrainType.FORTRESS || t.terrain === TerrainType.CASTLE)) {
-        strength += 20;
+        strength += 5; // Balanced with units
       }
     });
   }
