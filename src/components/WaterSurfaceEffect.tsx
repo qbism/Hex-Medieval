@@ -100,6 +100,7 @@ export const WaterBasesInstanced = ({
       ref={meshRef} 
       args={[GEOMETRIES.water, sharedWaterMaterial, waterTiles.length]}
       onPointerEnter={(e) => {
+        if (e.pointerType !== 'mouse') return;
         const id = e.instanceId;
         if (id !== undefined) {
           onPointerEnter(waterTiles[id].coord);
@@ -108,7 +109,8 @@ export const WaterBasesInstanced = ({
       onPointerLeave={() => {
         onPointerLeave();
       }}
-      onClick={(e) => {
+      onPointerUp={(e) => {
+        e.stopPropagation();
         const id = e.instanceId;
         if (id !== undefined) {
           onClick(waterTiles[id].coord.q, waterTiles[id].coord.r);

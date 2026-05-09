@@ -422,7 +422,8 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
     <instancedMesh 
       ref={meshRef} 
       args={[unitHexGeo, instancedMat, nonWaterTiles.length]}
-      onClick={(e) => {
+      onPointerUp={(e) => {
+        e.stopPropagation();
         const instanceId = e.instanceId;
         if (instanceId !== undefined && nonWaterTiles[instanceId]) {
           const tile = nonWaterTiles[instanceId];
@@ -430,6 +431,7 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
         }
       }}
       onPointerMove={(e) => {
+        if (e.pointerType !== 'mouse') return;
         const instanceId = e.instanceId;
         if (instanceId !== undefined && nonWaterTiles[instanceId]) {
           onPointerEnter?.(nonWaterTiles[instanceId].coord);
@@ -1186,7 +1188,7 @@ const RecruitHint = React.memo(({ q, r, boardMap, unitsMap, currentPlayerId }: {
 
 const RecruitmentLayer = React.memo(({ recruitmentCoords, boardMap, unitsMap, currentPlayerId }: { recruitmentCoords: HexCoord[], boardMap: Map<string, any>, unitsMap: Map<string, any>, currentPlayerId: number }) => {
   return (
-    <group>
+    <group raycast={() => null}>
       {recruitmentCoords.map((coord) => (
         <RecruitHint 
           key={`recruit-${coord.q}-${coord.r}`}
@@ -1262,7 +1264,7 @@ const OverlaysLayer = React.memo(({
   }, [board, hoveredHex, possibleAttacksSet, selectedUnit, showStrategicView, gameState.strategicAnalysis, hasAdjacentSettlementMap]);
 
   return (
-    <group>
+    <group raycast={() => null}>
       {overlays.map((tile) => {
         const coordKey = `${tile.coord.q},${tile.coord.r}`;
         const isHovered = hoveredHex?.q === tile.coord.q && hoveredHex?.r === tile.coord.r;
@@ -1444,7 +1446,7 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
   }, [gameState.board, boardMap]);
 
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full relative" style={{ touchAction: 'none' }}>
       <Canvas>
         <PerspectiveCamera 
           makeDefault 
