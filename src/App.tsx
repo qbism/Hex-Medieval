@@ -32,20 +32,20 @@ import { Play, Pause, FastForward, Rewind, X } from 'lucide-react';
 export default function App() {
   const [hoveredHex, setHoveredHex] = useState<HexCoord | null>(null);
   const [playerConfigs, setPlayerConfigs] = useState([
-    { name: COLOR_NAMES[COLORS[0]], isAutomaton: false },
-    { name: COLOR_NAMES[COLORS[1]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[2]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[3]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[4]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[5]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[0]] || 'Red', isAutomaton: false },
+    { name: COLOR_NAMES[COLORS[1]] || 'Blue', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[2]] || 'Yellow', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[3]] || 'Orange', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[4]] || 'Purple', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[5]] || 'Cyan', isAutomaton: true },
   ]);
   const [gameState, setGameState] = useState<GameState>(() => createInitialState([
-    { name: COLOR_NAMES[COLORS[0]], isAutomaton: false },
-    { name: COLOR_NAMES[COLORS[1]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[2]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[3]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[4]], isAutomaton: true },
-    { name: COLOR_NAMES[COLORS[5]], isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[0]] || 'Red', isAutomaton: false },
+    { name: COLOR_NAMES[COLORS[1]] || 'Blue', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[2]] || 'Yellow', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[3]] || 'Orange', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[4]] || 'Purple', isAutomaton: true },
+    { name: COLOR_NAMES[COLORS[5]] || 'Cyan', isAutomaton: true },
   ]));
   const [setupMode, setSetupMode] = useState(true);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -529,8 +529,9 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-b from-[#43e3ff] via-[#0e5984] to-[#1f0606] overflow-hidden relative font-sans text-sm selection:bg-amber-200">
-      <div className="h-full w-full flex flex-col md:flex-row">
+    <div className="h-screen w-screen bg-black overflow-hidden relative font-sans text-sm selection:bg-amber-200">
+      {/* Main Layout Container */}
+      <div className="relative h-full w-full flex flex-col md:flex-row z-10">
         {/* Main Game Area - Always visible */}
         <div className="flex-1 relative bg-transparent" ref={stageContainerRef}>
           <Game3D 
@@ -542,92 +543,137 @@ export default function App() {
             finalizeAttack={finalizeAttack}
             clearAnimation={clearAnimation}
             showStrategicView={showStrategicView}
+            setupMode={setupMode}
           />
         </div>
 
-        {/* Sidebar / Top Bar space */}
-        <AnimatePresence>
-          {!setupMode && (
-            <Sidebar 
-              key={`sidebar-${setupMode}`}
+        {/* Sidebar Space */}
+        <Sidebar 
+          gameState={gameState}
+          currentPlayer={currentPlayer || gameState.players[0]}
+          isMuted={isMuted}
+          setIsMuted={setIsMuted}
+          setShowInstructions={setShowInstructions}
+          setShowMenu={setShowMenu}
+          recruitUnit={recruitUnit}
+          upgradeSettlement={upgradeSettlement}
+          undoMove={undoMove}
+          endTurn={endTurn}
+          showStrategicView={showStrategicView}
+          setShowStrategicView={setShowStrategicView}
+          automatonStatus={automatonStatus}
+          className={setupMode ? "opacity-30 pointer-events-none grayscale-[50%]" : ""}
+        />
+      </div>
+
+      {/* Overlay Layers (Z-Index Managed) */}
+      <div className="fixed inset-0 pointer-events-none z-[50]">
+        {!setupMode && (
+          <div className="pointer-events-auto">
+            <GameOverOverlay 
               gameState={gameState}
-              currentPlayer={currentPlayer!}
-              isMuted={isMuted}
-              setIsMuted={setIsMuted}
-              setShowInstructions={setShowInstructions}
-              setShowMenu={setShowMenu}
-              recruitUnit={recruitUnit}
-              upgradeSettlement={upgradeSettlement}
-              undoMove={undoMove}
-              endTurn={endTurn}
-              showStrategicView={showStrategicView}
-              setShowStrategicView={setShowStrategicView}
-              automatonStatus={automatonStatus}
+              onExit={() => {
+                setSetupMode(true);
+                setGameState(createInitialState(playerConfigs));
+              }}
+              setGameState={setGameState}
+              triggerBarbarianInvasion={triggerBarbarianInvasion}
             />
+          </div>
+        )}
+      </div>
+
+      <div className="fixed inset-0 pointer-events-none z-[10000]">
+        <AnimatePresence>
+          {setupMode && (
+            <div key="setup-layer" className="pointer-events-auto contents">
+              <SetupScreen 
+                playerConfigs={playerConfigs}
+                setPlayerConfigs={setPlayerConfigs}
+                startGame={handleStartGame}
+                handleLoadWithConfirmation={handleLoadWithConfirmation}
+                setShowInstructions={setShowInstructions}
+                COLORS={COLORS}
+              />
+            </div>
+          )}
+          
+          {showMenu && !setupMode && (
+            <div key="menu-layer" className="pointer-events-auto contents">
+              <GameMenu 
+                onClose={() => setShowMenu(false)} 
+                onExitCurrent={handleExitCurrent}
+                onExitAll={handleExitAll}
+                onSave={handleSave}
+                onLoad={handleLoadWithConfirmation}
+                onSaveDemo={handleSaveDemo}
+                onLoadDemo={handleLoadDemoWithConfirmation}
+                onShowHelp={() => {
+                  setShowInstructions(true);
+                  setShowMenu(false);
+                }}
+                musicVolume={musicVolume}
+                setMusicVolume={setMusicVolume}
+                effectsVolume={effectsVolume}
+                setEffectsVolume={setEffectsVolume}
+              />
+            </div>
+          )}
+
+          {showInstructions && (
+            <div key="help-layer" className="pointer-events-auto contents">
+              <HelpModal onClose={() => setShowInstructions(false)} />
+            </div>
+          )}
+
+          {confirmation.isOpen && (
+            <div key="confirm-layer" className="pointer-events-auto contents">
+              <ConfirmationDialog
+                onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmation.onConfirm}
+                title={confirmation.title}
+                message={confirmation.message}
+              />
+            </div>
+          )}
+
+          {error && (
+            <motion.div 
+              key="error-layer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="menu-overlay pointer-events-auto"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="menu-card max-w-md"
+              >
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="p-3 bg-red-100 border-2 border-black">
+                    <AlertTriangle className="text-red-600" size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">Error</h3>
+                    <p className="text-stone-600 font-medium">{error}</p>
+                  </div>
+                </div>
+                <GameButton 
+                  onClick={() => setError(null)}
+                  variant="primary"
+                  fullWidth
+                  className="border-2 border-black"
+                >
+                  Dismiss
+                </GameButton>
+              </motion.div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Global Overlays */}
-      {!setupMode && (
-        <GameOverOverlay 
-          gameState={gameState}
-          onExit={() => {
-            setSetupMode(true);
-            setGameState(createInitialState(playerConfigs));
-          }}
-          setGameState={setGameState}
-          triggerBarbarianInvasion={triggerBarbarianInvasion}
-        />
-      )}
-      <AnimatePresence>
-        {setupMode && (
-          <SetupScreen 
-            key="setup"
-            playerConfigs={playerConfigs}
-            setPlayerConfigs={setPlayerConfigs}
-            startGame={handleStartGame}
-            handleLoadWithConfirmation={handleLoadWithConfirmation}
-            setShowInstructions={setShowInstructions}
-            COLORS={COLORS}
-          />
-        )}
-        
-        {showMenu && !setupMode && (
-          <GameMenu 
-            key="game-menu"
-            onClose={() => setShowMenu(false)} 
-            onExitCurrent={handleExitCurrent}
-            onExitAll={handleExitAll}
-            onSave={handleSave}
-            onLoad={handleLoadWithConfirmation}
-            onSaveDemo={handleSaveDemo}
-            onLoadDemo={handleLoadDemoWithConfirmation}
-            onShowHelp={() => {
-              setShowInstructions(true);
-              setShowMenu(false);
-            }}
-            musicVolume={musicVolume}
-            setMusicVolume={setMusicVolume}
-            effectsVolume={effectsVolume}
-            setEffectsVolume={setEffectsVolume}
-          />
-        )}
-
-        {showInstructions && (
-          <HelpModal key="help-modal" onClose={() => setShowInstructions(false)} />
-        )}
-
-        {confirmation.isOpen && (
-          <ConfirmationDialog
-            key="conf-dialog"
-            onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
-            onConfirm={confirmation.onConfirm}
-            title={confirmation.title}
-            message={confirmation.message}
-          />
-        )}
-      </AnimatePresence>
+      {/* Persistent UI Elements */}
       {gameState?.isPlaybackMode && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-parchment border-4 border-black p-4 flex items-center gap-4 z-[100] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
           <div className="text-sm font-black tracking-widest mr-4">
@@ -651,42 +697,6 @@ export default function App() {
           </GameButton>
         </div>
       )}
-
-      {/* Error Dialog */}
-      <AnimatePresence>
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="menu-overlay"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="menu-card max-w-md"
-            >
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-red-100 border-2 border-black">
-                  <AlertTriangle className="text-red-600" size={32} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black tracking-tight">Error</h3>
-                  <p className="text-stone-600 font-medium">{error}</p>
-                </div>
-              </div>
-              <GameButton 
-                onClick={() => setError(null)}
-                variant="primary"
-                fullWidth
-                className="border-2 border-black"
-              >
-                Dismiss
-              </GameButton>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <input 
         type="file" 

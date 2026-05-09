@@ -61,7 +61,7 @@ export const SetupScreen = ({
                   textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' 
                 }}
               >
-                {COLOR_NAMES[COLORS[i]].split(' ')[0]}
+                {(COLOR_NAMES[COLORS[i]] || 'Unknown').split(' ')[0]}
               </span>
               <button 
                 onClick={() => {

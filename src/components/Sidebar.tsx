@@ -56,20 +56,21 @@ export const Sidebar = ({
   endTurn,
   showStrategicView,
   setShowStrategicView,
+  className,
   automatonStatus
-}: SidebarProps) => {
+}: SidebarProps & { className?: string }) => {
   if (!currentPlayer) return null;
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
       className={cn(
         "z-[60] bg-parchment border-black flex transition-all duration-300",
         // Default (Mobile/Vertical): Floating at top
         "fixed top-0 left-0 right-0 h-32 flex flex-row items-stretch border-b-4 overflow-x-auto overflow-y-hidden shadow-xl px-2",
         // Desktop/Wide (md breakpoint): Side panel
-        "md:relative md:top-auto md:right-auto md:left-auto md:h-full md:w-80 md:flex-col md:border-b-0 md:border-l-4 md:overflow-hidden md:shadow-none md:px-0 md:mt-0 md:flex-shrink-0"
+        "md:relative md:top-auto md:right-auto md:left-auto md:h-full md:w-80 md:flex-col md:border-b-0 md:border-l-4 md:overflow-hidden md:shadow-none md:px-0 md:mt-0 md:flex-shrink-0",
+        className
       )}
       style={{
         clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px)'

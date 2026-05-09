@@ -144,8 +144,8 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
   const isEarlyGame = state.turnNumber <= 15;
   const numSettlements = mySettlements.length;
 
-  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength);
-  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength);
+  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength, config);
+  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength, config);
 
   // --- REBALANCED PRIORITY ---
   // USER REQUIREMENT: Economy lagging > Military lagging.

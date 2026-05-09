@@ -75,10 +75,16 @@ export function getRecruitmentAction(
   const savingsTarget = isSavingForMine ? UPGRADE_COSTS[TerrainType.GOLD_MINE] : (isSavingForVillage ? UPGRADE_COSTS[TerrainType.VILLAGE] : 0);
   let currentGold = currentPlayer.gold;
 
-  // Fraction-based planning (Task 1): Put aside 1/3 of income if saving for a mine
-  if (isSavingForMine && !isUnderThreat && !isBarbarian) {
-    const savingsCut = Math.floor(income * 0.33);
-    currentGold = Math.max(0, currentGold - savingsCut);
+  // Disciplined Cumulative Savings (Task 1): 
+  // If we are saving, we "lock" a portion of our wealth to ensure growth happens.
+  if (savingsTarget > 0 && !isUnderThreat && !isBarbarian) {
+    // We want to save 'dedication_ratio' of our current wealth towards this goal.
+    // As we get closer (higher progress), we lock a higher % of our gold to cross the finish line.
+    const progress = currentPlayer.gold / savingsTarget;
+    // We lock at least SAVINGS_DEDICATION_RATIO, but as we near the goal, we lock more.
+    const lockRatio = Math.max(config.SAVINGS_DEDICATION_RATIO, progress); 
+    const savingsReserve = Math.floor(currentPlayer.gold * lockRatio);
+    currentGold = Math.max(0, currentGold - savingsReserve);
   }
   
   // Barbarians spend roughly 1/3 on expansion and 2/3 on infantry

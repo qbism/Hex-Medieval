@@ -281,6 +281,18 @@ export const OPTIMIZED_AI_CONFIG = ${lastResults};`;
                           <span>Lethality</span>
                           <span className="text-amber-400">{currentConfig.LETHALITY_WEIGHT_BONUS.toFixed(2)}</span>
                         </div>
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Savings Lock</span>
+                          <span className="text-amber-400">{(currentConfig.SAVINGS_DEDICATION_RATIO * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Mine Unit Min</span>
+                          <span className="text-amber-400">{currentConfig.MINE_UNIT_RATIO_MIN.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-stone-300">
+                          <span>Saving Turns</span>
+                          <span className="text-amber-400">{currentConfig.MINE_SAVING_PRIORITY_TURNS.toFixed(0)}</span>
+                        </div>
                       </div>
                     </div>
 

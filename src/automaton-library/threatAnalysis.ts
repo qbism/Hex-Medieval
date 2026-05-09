@@ -36,6 +36,7 @@ import {
 } from './constants';
 import { calculateIncome } from '../gameEngine';
 import { LoopSafety, getBoardMap } from '../utils';
+import { AIConfig, DEFAULT_AI_CONFIG } from './AIConfig';
 
 /**
  * Influence Map: A mathematical representation of board control.
@@ -380,27 +381,26 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
   return hvt;
 }
 
-export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean, isLaggingStrength: boolean = false): boolean {
+export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean, isLaggingStrength: boolean = false, config: AIConfig = DEFAULT_AI_CONFIG): boolean {
   // If military is weak, we MUST NOT save for a mine - survival first!
   // BUT: if we have a healthy unit count-to-settlement ratio, we can afford to save for growth.
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
   const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
   const ratio = myUnits.length / Math.max(1, mySettlements.length);
   
-  if (isLaggingStrength && ratio < 0.5 && currentPlayer.gold < 300) return false;
+  // Use config-driven unit ratio threshold
+  if (isLaggingStrength && ratio < config.MINE_UNIT_RATIO_MIN && currentPlayer.gold < 300) return false;
   
   const cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
   if (currentPlayer.gold >= cost) return false;
   
   // Only "save" if we can afford it within a reasonable timeframe
-  // NEW: Up to 1/3 of income over a max of 3 turns planning
   const income = calculateIncome(currentPlayer, state.board);
-  const turnsToAffordFull = (cost - currentPlayer.gold) / income;
   
-  // If we can reach the goal in 3 turns by saving 1/3 income, or we are generally lagging income
-  const canAffordSoonWithSaving = (currentPlayer.gold + (income * 0.33 * 3)) >= cost;
+  // Use config-driven saving priority turns and dedication ratio
+  const canAffordSoonWithSaving = (currentPlayer.gold + (income * config.SAVINGS_DEDICATION_RATIO * config.MINE_SAVING_PRIORITY_TURNS)) >= cost;
   
-  if (!canAffordSoonWithSaving && !isLaggingIncome && turnsToAffordFull > 10) return false;
+  if (!canAffordSoonWithSaving && !isLaggingIncome) return false;
 
   const boardMap = getBoardMap(state.board);
   
@@ -418,24 +418,23 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
   });
 }
 
-export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean, isLaggingStrength: boolean = false): boolean {
+export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean, isLaggingStrength: boolean = false, config: AIConfig = DEFAULT_AI_CONFIG): boolean {
   // If military is weak, we MUST NOT save for a village - survival first!
-  // BUT: if we have a healthy unit count-to-settlement ratio, we can afford to save for growth.
   const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
   const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
   const ratio = myUnits.length / Math.max(1, mySettlements.length);
   
-  if (isLaggingStrength && ratio < 0.5 && currentPlayer.gold < 200) return false;
+  if (isLaggingStrength && ratio < 0.6 && currentPlayer.gold < 200) return false;
 
   const cost = UPGRADE_COSTS[TerrainType.VILLAGE];
   if (currentPlayer.gold >= cost) return false;
 
-  // Only "save" if we can afford it soon (e.g. 8 turns - income priority!)
+  // Only "save" if we can afford it soon
   const income = currentPlayer.incomeHistory?.[currentPlayer.incomeHistory.length - 1] || 10;
   const turnsToAfford = (cost - currentPlayer.gold) / income;
   
-  let turnsThreshold = 8;
-  if (isCriticallyLaggingLargeEconomy) turnsThreshold = 15; // Be more patient to grow large economies
+  let turnsThreshold = config.VILLAGE_SAVING_PRIORITY_TURNS;
+  if (isCriticallyLaggingLargeEconomy) turnsThreshold = config.VILLAGE_SAVING_PRIORITY_TURNS * 2; 
 
   if (turnsToAfford > turnsThreshold) return false;
 

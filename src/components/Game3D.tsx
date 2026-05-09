@@ -2,7 +2,18 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
-import { GameState, TerrainType, UnitType, HexCoord, hexToPixel, UNIT_ICONS, getNeighbors, getDistance, UNIT_STATS } from '../types';
+import { 
+  GameState, 
+  TerrainType, 
+  UnitType, 
+  HexCoord, 
+  hexToPixel, 
+  UNIT_ICONS, 
+  getNeighbors, 
+  getDistance, 
+  UNIT_STATS,
+  cn
+} from '../types';
 import { TERRAIN_COLORS } from '../constants/colors';
 import { Sparks3D, SmokeEffect3D, Projectile3D, MissEffect3D } from './Effects3D';
 import { WaterBasesInstanced, updateWaterTime } from './WaterSurfaceEffect';
@@ -25,6 +36,7 @@ interface Game3DProps {
   finalizeAttack: (unitId: string, target: HexCoord) => void;
   clearAnimation: (animId: string) => void;
   showStrategicView: boolean;
+  setupMode?: boolean;
 }
 
 // 3D Hex Tile
@@ -1032,13 +1044,21 @@ const CameraRotationTicker = ({ controls, rotationActive }: { controls: any, rot
   return null;
 };
 
-const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: React.MutableRefObject<any> }) => {
+const CameraControlsOverlay = React.memo(({ 
+  rotationActive, 
+  className 
+}: { 
+  rotationActive: React.MutableRefObject<any>,
+  className?: string 
+}) => {
   const [activeActions, setActiveActions] = useState({ left: false, right: false, up: false, down: false });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't capture keys if an input is focused
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      // Don't capture keys if disabled
+      if (className?.includes('pointer-events-none')) return;
 
       switch (e.key) {
         case 'ArrowUp':
@@ -1094,7 +1114,7 @@ const CameraControlsOverlay = React.memo(({ rotationActive }: { rotationActive: 
   }, [rotationActive]);
 
   return (
-    <div className="absolute bottom-6 right-6 flex flex-col items-center gap-2 pointer-events-none z-10 scale-90 sm:scale-100 origin-bottom-right">
+    <div className={cn("absolute bottom-6 right-6 flex flex-col items-center gap-2 pointer-events-none z-10 scale-90 sm:scale-100 origin-bottom-right transition-all duration-300", className)}>
       <button 
         onPointerDown={() => { 
           rotationActive.current.up = true; 
@@ -1416,7 +1436,17 @@ const EnvironmentalManager = React.memo(({ birdUniforms, batWingUniforms }: any)
   return null;
 });
 
-export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHoveredHex, handleHexClick, finalizeMove, finalizeAttack, clearAnimation, showStrategicView }) => {
+export const Game3D: React.FC<Game3DProps> = ({ 
+  gameState, 
+  hoveredHex, 
+  setHoveredHex, 
+  handleHexClick, 
+  finalizeMove, 
+  finalizeAttack, 
+  clearAnimation, 
+  showStrategicView,
+  setupMode = false
+}) => {
   const [controls, setControls] = useState<any>(null);
   const rotationActive = useRef({ left: false, right: false, up: false, down: false });
   
@@ -1660,7 +1690,10 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
       </Canvas>
 
       {/* Floating Camera Controls Overlay (refactored to separate component) */}
-      <CameraControlsOverlay rotationActive={rotationActive} />
+      <CameraControlsOverlay 
+        rotationActive={rotationActive} 
+        className={setupMode ? "opacity-30 pointer-events-none grayscale-[50%]" : ""} 
+      />
     </div>
   );
 };
