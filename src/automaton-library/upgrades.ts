@@ -68,8 +68,12 @@ export function getUpgradeAction(
   
   // If we have fewer than 0.75 units per settlement, we should focus on units first
   const densityPenalty = unitToSettlementRatio < 0.75 ? (0.75 - unitToSettlementRatio) * 5.0 : 0;
+  // If we have MORE than 0.75 units per settlement, we have a "density bonus" for expansion
+  const densityBonus = unitToSettlementRatio > 0.75 ? (unitToSettlementRatio - 0.75) * 6.0 : 0;
   
-  const econPenalty = (isUnderThreat ? 1.5 : 0) + (isLaggingStrength ? 2.0 : 0) + densityPenalty;
+  // Reduced effect of threat/lag if we have surplus units to protect the new assets
+  const econPenaltyMult = unitToSettlementRatio > 1.0 ? 0.3 : (unitToSettlementRatio > 0.7 ? 0.6 : 1.0);
+  const econPenalty = ((isUnderThreat ? 1.0 : 0) + (isLaggingStrength ? 1.0 : 0)) * econPenaltyMult + densityPenalty;
 
   const upgradeableTiles = state.board.filter(t => {
     if (t.ownerId === currentPlayer.id) return true;
@@ -88,18 +92,18 @@ export function getUpgradeAction(
 
     if (tile.terrain === TerrainType.MOUNTAIN && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
-      baseScore = BASE_REWARD * (UPGRADE_GOLD_MINE_BONUS - econPenalty); // Priority 1: Maximize income (penalized if weak)
+      baseScore = BASE_REWARD * (UPGRADE_GOLD_MINE_BONUS - econPenalty + densityBonus); // Priority 1: Maximize income (penalized if weak)
       if (isLaggingIncome) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
-      if (isCriticallyLaggingLargeEconomy) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 6; // Extreme priority for large economy gaps
+      if (isCriticallyLaggingLargeEconomy) baseScore += BASE_REWARD * UPGRADE_LAGGING_INCOME_BONUS * 3; // Extreme priority for large economy gaps
        } else if (tile.terrain === TerrainType.PLAINS && state.units.some(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r)) {
       cost = UPGRADE_COSTS[TerrainType.VILLAGE];
-      baseScore = BASE_REWARD * (UPGRADE_VILLAGE_BONUS - econPenalty); // Same priority for barbarians
+      baseScore = BASE_REWARD * (UPGRADE_VILLAGE_BONUS - econPenalty + densityBonus); // Same priority for barbarians
       if (isLaggingIncome && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS; // Extra priority if lagging income
-      if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 4;
+      if (isCriticallyLaggingLargeEconomy && !isBarbarian) baseScore += BASE_REWARD * UPGRADE_VILLAGE_LAGGING_INCOME_BONUS * 2;
       
       // Wealthy Expansionism: If we are rich, we have a biological imperative to expand
       if (currentPlayer.gold > 1000 && !isBarbarian) {
-        baseScore += BASE_REWARD * 5.0;
+        baseScore += BASE_REWARD * 2.0;
       }
     } else if (tile.terrain === TerrainType.VILLAGE && tile.ownerId === currentPlayer.id) {
       cost = UPGRADE_COSTS[TerrainType.FORTRESS];
@@ -157,7 +161,7 @@ export function getUpgradeAction(
            
            // Expansion Bonus Scaling: If we haven't reached our 15% growth target yet,
            // give a massive boost to the best village candidate.
-           score += BASE_REWARD * 15.0; 
+           score += BASE_REWARD * 5.0; 
 
            // Expansion bonus: Reward spreading settlements thin, penalize clustering
            const nearbyFriendlySettlements = state.board.filter(t => 
@@ -178,7 +182,7 @@ export function getUpgradeAction(
            // We find the unit on this tile to check its specific movespeed
            const unitOnTile = state.units.find(u => u.ownerId === currentPlayer.id && u.coord.q === tile.coord.q && u.coord.r === tile.coord.r);
            if (unitOnTile && nearestSettlementDist >= UNIT_STATS[unitOnTile.type].moves) {
-             score += BASE_REWARD * 15.0; // Huge bonus to leapfrog
+             score += BASE_REWARD * 5.0; // Huge bonus to leapfrog
            }
 
            if (nearbyFriendlySettlements === 0) {

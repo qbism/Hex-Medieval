@@ -170,6 +170,7 @@ const StrategicIndicatorsInstanced = React.memo(({ analysis, board }: { analysis
 
 const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hoveredHex, onClick, onPointerEnter }: { board: any[], playerColors: string[], selectedHex: HexCoord | null, hoveredHex: HexCoord | null, onClick: (q: number, r: number) => void, onPointerEnter?: (coord: HexCoord | null) => void }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+  const interactiveMeshRef = useRef<THREE.InstancedMesh>(null);
   const selectionAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   const hoverAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
   const mountainAttrRef = useRef<THREE.InstancedBufferAttribute>(null);
@@ -197,6 +198,16 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
     const geo = new THREE.CylinderGeometry(0.92, 0.92, 1, 6);
     geo.setDrawRange(0, 54); // No bottom cap
     return geo;
+  }, []);
+
+  const interactiveCapGeo = useMemo(() => {
+    // Very thin cylinder for precise top detection
+    const geo = new THREE.CylinderGeometry(0.92, 0.92, 0.05, 6);
+    return geo;
+  }, []);
+
+  const interactiveMat = useMemo(() => {
+    return new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
   }, []);
 
   const instancedMat = useMemo(() => {
@@ -321,16 +332,29 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
       
       // Random rotation in 60 degree increments
       const rotationIndex = Math.floor(Math.abs(Math.sin(tile.coord.q * 123 + tile.coord.r * 456) * 100)) % 6;
-      dummy.rotation.y = rotationIndex * (Math.PI / 3);
+      const rotationY = rotationIndex * (Math.PI / 3);
+      dummy.rotation.y = rotationY;
       
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
+
+      // Setup interactive cap matrix
+      dummy.scale.set(1, 1, 1);
+      dummy.position.set(x, height - 0.025, z); // Center of 0.05 cap at height-0.025 puts top at height
+      dummy.rotation.y = rotationY;
+      dummy.updateMatrix();
+      interactiveMeshRef.current?.setMatrixAt(i, dummy.matrix);
 
       color.set(baseColor);
       meshRef.current!.setColorAt(i, color);
     });
 
     meshRef.current.instanceMatrix.needsUpdate = true;
+    if (interactiveMeshRef.current) {
+      interactiveMeshRef.current.instanceMatrix.needsUpdate = true;
+      interactiveMeshRef.current.computeBoundingBox();
+      interactiveMeshRef.current.computeBoundingSphere();
+    }
   }, [nonWaterTiles]);
 
   // Separate effect for colors which can change when settlements are claimed/upgraded
@@ -419,54 +443,64 @@ const MapBasesInstanced = React.memo(({ board, playerColors, selectedHex, hovere
   });
 
   return (
-    <instancedMesh 
-      ref={meshRef} 
-      args={[unitHexGeo, instancedMat, nonWaterTiles.length]}
-      onPointerUp={(e) => {
-        e.stopPropagation();
-        const instanceId = e.instanceId;
-        if (instanceId !== undefined && nonWaterTiles[instanceId]) {
-          const tile = nonWaterTiles[instanceId];
-          onClick(tile.coord.q, tile.coord.r);
-        }
-      }}
-      onPointerMove={(e) => {
-        if (e.pointerType !== 'mouse') return;
-        const instanceId = e.instanceId;
-        if (instanceId !== undefined && nonWaterTiles[instanceId]) {
-          onPointerEnter?.(nonWaterTiles[instanceId].coord);
-        }
-      }}
-      onPointerOut={() => {
-         onPointerEnter?.(null);
-      }}
-    >
-      <instancedBufferAttribute 
-        ref={selectionAttrRef}
-        attach="geometry-attributes-selection"
-        args={[selectionStates.current, 1]}
+    <group>
+      {/* Visual Mesh - Deep trunks, not selectable */}
+      <instancedMesh 
+        ref={meshRef} 
+        args={[unitHexGeo, instancedMat, nonWaterTiles.length]}
+        raycast={() => null}
+      >
+        <instancedBufferAttribute 
+          ref={selectionAttrRef}
+          attach="geometry-attributes-selection"
+          args={[selectionStates.current, 1]}
+        />
+        <instancedBufferAttribute 
+          ref={hoverAttrRef}
+          attach="geometry-attributes-hover"
+          args={[hoverStates.current, 1]}
+        />
+        <instancedBufferAttribute 
+          ref={mountainAttrRef}
+          attach="geometry-attributes-isMountain"
+          args={[mountainStates, 1]}
+        />
+        <instancedBufferAttribute 
+          ref={settlementAttrRef}
+          attach="geometry-attributes-isSettlement"
+          args={[settlementStates, 1]}
+        />
+      </instancedMesh>
+
+      {/* Interaction Mesh - Thin caps at the top, selectable */}
+      <instancedMesh
+        ref={interactiveMeshRef}
+        args={[interactiveCapGeo, interactiveMat, nonWaterTiles.length]}
+        onClick={(e) => {
+          e.stopPropagation();
+          const instanceId = e.instanceId;
+          if (instanceId !== undefined && nonWaterTiles[instanceId]) {
+            const tile = nonWaterTiles[instanceId];
+            onClick(tile.coord.q, tile.coord.r);
+          }
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType !== 'mouse') return;
+          const instanceId = e.instanceId;
+          if (instanceId !== undefined && nonWaterTiles[instanceId]) {
+            onPointerEnter?.(nonWaterTiles[instanceId].coord);
+          }
+        }}
+        onPointerOut={() => {
+           onPointerEnter?.(null);
+        }}
       />
-      <instancedBufferAttribute 
-        ref={hoverAttrRef}
-        attach="geometry-attributes-hover"
-        args={[hoverStates.current, 1]}
-      />
-      <instancedBufferAttribute 
-        ref={mountainAttrRef}
-        attach="geometry-attributes-isMountain"
-        args={[mountainStates, 1]}
-      />
-      <instancedBufferAttribute 
-        ref={settlementAttrRef}
-        attach="geometry-attributes-isSettlement"
-        args={[settlementStates, 1]}
-      />
-    </instancedMesh>
+    </group>
   );
 });
 
 // 3D Unit
-const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnimationEnd, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget }: any) => {
+const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnimationEnd, isOnWater, tileHeight, canMove, isPossibleAttackTarget, isProhibitedTarget, onClick, onPointerEnter }: any) => {
   const { x, y: z } = hexToPixel(unit.coord.q, unit.coord.r);
   const baseHeight = tileHeight + 0.1;
 
@@ -541,41 +575,51 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
     <group
       ref={groupRef}
       position={[x, baseHeight, z]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(unit.coord.q, unit.coord.r);
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onPointerEnter(unit.coord);
+      }}
+      onPointerOut={() => {
+        onPointerEnter(null);
+      }}
     >
       {/* Unit Support Cone */}
       <mesh 
         position={[0, 0.3, 0]} 
         geometry={GEOMETRIES.unitCone} 
         material={MATERIALS.getPlayer(playerColor)} 
-        raycast={() => null}
       />
 
       {/* Unit Body */}
-      <Billboard position={[0, 0.6, 0]} raycast={() => null}>
+      <Billboard position={[0, 0.6, 0]}>
         {unit.type === UnitType.INFANTRY && (
-          <mesh position={[0, 0.4, 0]} geometry={GEOMETRIES.infantry} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
+          <mesh position={[0, 0.4, 0]} geometry={GEOMETRIES.infantry} material={MATERIALS.getPlayer(playerColor)} />
         )}
         {unit.type === UnitType.ARCHER && (
-          <mesh position={[0, 0.5, 0]} geometry={GEOMETRIES.archer} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
+          <mesh position={[0, 0.5, 0]} geometry={GEOMETRIES.archer} material={MATERIALS.getPlayer(playerColor)} />
         )}
         {unit.type === UnitType.KNIGHT && (
           <group position={[0, 0.4, 0]}>
-            <mesh rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.knightBody} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
-            <mesh position={[0, 0.4, 0.3]} geometry={GEOMETRIES.knightHead} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
+            <mesh rotation={[Math.PI/2, 0, 0]} geometry={GEOMETRIES.knightBody} material={MATERIALS.getPlayer(playerColor)} />
+            <mesh position={[0, 0.4, 0.3]} geometry={GEOMETRIES.knightHead} material={MATERIALS.getPlayer(playerColor)} />
           </group>
         )}
         {unit.type === UnitType.CATAPULT && (
           <group position={[0, 0.3, 0]}>
-            <mesh position={[0, 0, 0]} geometry={GEOMETRIES.catapultBase} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
-            <mesh position={[0, 0.4, 0.2]} rotation={[Math.PI/4, 0, 0]} geometry={GEOMETRIES.catapultArm} material={MATERIALS.getPlayer(playerColor)} raycast={() => null} />
+            <mesh position={[0, 0, 0]} geometry={GEOMETRIES.catapultBase} material={MATERIALS.getPlayer(playerColor)} />
+            <mesh position={[0, 0.4, 0.2]} rotation={[Math.PI/4, 0, 0]} geometry={GEOMETRIES.catapultArm} material={MATERIALS.getPlayer(playerColor)} />
           </group>
         )}
       </Billboard>
 
       {/* Icon */}
-      <Billboard position={[0, 1.8, 0]} raycast={() => null}>
+      <Billboard position={[0, 1.8, 0]}>
         {isOnWater && (
-          <Text position={[-0.5, 0, 0]} fontSize={0.6} color="black" raycast={() => null}>
+          <Text position={[-0.5, 0, 0]} fontSize={0.6} color="black">
             🛶
           </Text>
         )}
@@ -585,7 +629,6 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
           color={isOnWater ? "black" : "white"} 
           outlineWidth={0.05} 
           outlineColor={isOnWater ? "white" : "black"}
-          raycast={() => null}
         >
           {UNIT_ICONS[unit.type as UnitType]}
         </Text>
@@ -593,7 +636,7 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
 
       {/* Action Dot */}
       {canMove && !isSelected && (
-        <mesh position={[0, 2.3, 0]} geometry={GEOMETRIES.actionDot} material={MATERIALS.actionDot} raycast={() => null} />
+        <mesh position={[0, 2.3, 0]} geometry={GEOMETRIES.actionDot} material={MATERIALS.actionDot} />
       )}
 
       {/* Attack Target Indicator */}
@@ -602,14 +645,13 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
           position={[0, 0.5, 0]} 
           geometry={GEOMETRIES.attackTarget}
           material={MATERIALS.attackTarget}
-          raycast={() => null}
         />
       )}
 
       {/* Prohibited Target Indicator (Catapult vs Forest) */}
       {isProhibitedTarget && (
         <Billboard position={[0, 2.3, 0]}>
-          <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black" raycast={() => null}>
+          <Text fontSize={0.8} color="#ef4444" outlineWidth={0.05} outlineColor="black">
             🚫
           </Text>
         </Billboard>
@@ -1312,10 +1354,12 @@ const UnitsLayer = React.memo(({
   attackRangeSet,
   isSelectedCatapult,
   onFinalizeMove,
-  onFinalizeAttack
+  onFinalizeAttack,
+  onClick,
+  onPointerEnter
 }: any) => {
   return (
-    <group raycast={() => null}>
+    <group>
       {units.map((unit: any) => {
         const anim = animationsMap.get(unit.id);
         const displayCoord = anim?.type === 'move' && anim.to ? anim.to : unit.coord;
@@ -1339,6 +1383,8 @@ const UnitsLayer = React.memo(({
               tileHeight={tileHeight}
               isPossibleAttackTarget={possibleAttacksSet.has(`${unit.coord.q},${unit.coord.r}`)}
               isProhibitedTarget={isProhibitedTarget}
+              onClick={onClick}
+              onPointerEnter={onPointerEnter}
               onAnimationEnd={() => {
                 if (anim?.type === 'move') onFinalizeMove(unit.id, anim.to!);
                 if (anim?.type === 'attack') onFinalizeAttack(unit.id, anim.to!);
@@ -1578,6 +1624,8 @@ export const Game3D: React.FC<Game3DProps> = ({ gameState, hoveredHex, setHovere
           isSelectedCatapult={isSelectedCatapult}
           onFinalizeMove={finalizeMove}
           onFinalizeAttack={finalizeAttack}
+          onClick={handleHexClick}
+          onPointerEnter={setHoveredHex}
         />
 
           {/* Damage Popups and Sparks */}

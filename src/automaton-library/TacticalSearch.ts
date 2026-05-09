@@ -1,7 +1,8 @@
 import { 
   GameState, 
   UNIT_STATS,
-  ThreatInfo
+  ThreatInfo,
+  TerrainType
 } from '../types';
 import { getThreatAtCoord } from './threatAnalysis';
 import { calculateKingdomStrength } from './utils';
@@ -126,17 +127,28 @@ export function evaluateActionSafety(
     const tR = action.payload?.target?.r;
     const killedUnitKey = (action.type === 'attack' && tQ !== undefined && tR !== undefined) ? `${tQ},${tR}` : null;
     const killedUnit = killedUnitKey ? state.units.find(u => `${u.coord?.q},${u.coord?.r}` === killedUnitKey) : null;
-    const killedUnitValue = killedUnit ? UNIT_STATS[killedUnit.type].cost : 0;
+    
+    let killedTargetValue = 0;
+    if (killedUnit) {
+      killedTargetValue = UNIT_STATS[killedUnit.type].cost;
+    } else if (killedUnitKey) {
+      // Check if we are attacking/neutralizing a settlement
+      const tile = state.board.find(t => t.coord.q === tQ && t.coord.r === tR);
+      if (tile && tile.ownerId !== null && tile.ownerId !== playerId && 
+          (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+        killedTargetValue = 400; // High intrinsic value for settlements to encourage "unsafe" but strategic pushes
+      }
+    }
 
     // High-value units (Knight/Catapult) should never trade down
     if (UNIT_STATS[activeUnit.type].cost >= 150) {
-      if (bestResponseValue > killedUnitValue * 0.9) {
+      if (bestResponseValue > killedTargetValue * 0.9) {
         if (threatAtNewPos.minTurns === 1) isSafe = false;
         else riskValue += 100; // Extra penalty for walking into potential knight range
       }
     } else {
       // Low value units suicide awareness
-      if (killedUnitValue < 50 && bestResponseValue > 100 && threatAtNewPos.minTurns === 1) {
+      if (killedTargetValue < 50 && bestResponseValue > 100 && threatAtNewPos.minTurns === 1) {
         isSafe = false;
       }
     }

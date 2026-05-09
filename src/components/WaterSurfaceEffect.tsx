@@ -50,6 +50,8 @@ export const WaterBasesInstanced = ({
     });
 
     meshRef.current.instanceMatrix.needsUpdate = true;
+    meshRef.current.computeBoundingBox();
+    meshRef.current.computeBoundingSphere();
   }, [waterTiles]);
 
   const lastSelectedHex = useRef<{q: number, r: number} | null>(null);
@@ -99,7 +101,7 @@ export const WaterBasesInstanced = ({
     <instancedMesh 
       ref={meshRef} 
       args={[GEOMETRIES.water, sharedWaterMaterial, waterTiles.length]}
-      onPointerEnter={(e) => {
+      onPointerMove={(e) => {
         if (e.pointerType !== 'mouse') return;
         const id = e.instanceId;
         if (id !== undefined) {
@@ -109,7 +111,7 @@ export const WaterBasesInstanced = ({
       onPointerLeave={() => {
         onPointerLeave();
       }}
-      onPointerUp={(e) => {
+      onClick={(e) => {
         e.stopPropagation();
         const id = e.instanceId;
         if (id !== undefined) {

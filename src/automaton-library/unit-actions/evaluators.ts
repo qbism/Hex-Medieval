@@ -179,7 +179,8 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
       
       // HIGH PRIORITY: Attack score should usually trump move score if an immediate strike is possible.
       // We boost this significantly to ensure units actually Pull the Trigger.
-      priority = (targetValue * 2.0 + config.BASE_REWARD * 40.0 + killBonus) * meatShieldBonus;
+      // USER BUG: Archers skipping attacks - Boosted to 100x to ensure it wins over complicated move heuristics.
+      priority = (targetValue * 2.0 + config.BASE_REWARD * 100.0 + killBonus) * meatShieldBonus;
       
       const potentialAttackers = otherFriendlyUnits.filter(u => {
         if (u.hasActed) return false;
@@ -263,12 +264,15 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
       // --- NEW: Target Rarity and Coordination ---
       // "coordinate attacks to hit the most number of enemy units as possible per turn"
       const othersWhoCanHitThis = friendlyFollowUpPotential.filter(f => f.id !== unitToAct.id && f.attacks.some((at: any) => at.q === a.q && at.r === a.r));
+      const targetIsSettlement = targetTile && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE);
+
       if (othersWhoCanHitThis.length === 0) {
         // I am the ONLY unit that can hit this target. Definitely prioritize it!
         priority += config.BASE_REWARD * 20.0;
-      } else {
+      } else if (!targetIsSettlement) {
         // Others can hit it too. Check if they have other options.
         // If all others who can hit this have NO other targets, I should probably leave it for them if I have other targets.
+        // NOTE: Never yield settlements! We want them captured ASAP by whoever is ready.
         const myOtherTargets = attacks.length - 1;
         const othersTargetsCounts = othersWhoCanHitThis.map(f => f.attacks.length);
         const othersAreRestricted = othersTargetsCounts.every(count => count === 1);
@@ -286,7 +290,15 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
 
     } else if (targetTile && targetTile.ownerId !== null && targetTile.ownerId !== currentPlayer.id && (targetTile.terrain === TerrainType.VILLAGE || targetTile.terrain === TerrainType.FORTRESS || targetTile.terrain === TerrainType.CASTLE || targetTile.terrain === TerrainType.GOLD_MINE)) {
       const settlementValue = SETTLEMENT_INCOME[targetTile.terrain as TerrainType] * HORIZON;
-      priority = settlementValue * 2.0 + config.BASE_REWARD * 35.0; // Boosted strike priority
+      // USER: AI avoids undefended settlements. 
+      // Boosted priority from 35 to 80 to ensure it competes with units, especially if it's the only strike available.
+      priority = settlementValue * 3.0 + config.BASE_REWARD * 80.0; 
+      
+      const enemyUnitsOnTarget = state.units.filter(u => u.coord.q === targetTile.coord.q && u.coord.r === targetTile.coord.r).length;
+      if (enemyUnitsOnTarget === 0) {
+        // UNDEFENDED BONUS: Huge boost if the settlement is literally wide open
+        priority += config.BASE_REWARD * 50.0;
+      }
       
       const enemyUnitsNearThisSettlement = state.units.filter(u => u.ownerId === targetTile.ownerId && getDistance(u.coord, targetTile.coord, state.board) <= UNIT_STATS[u.type].moves);
       if (enemyUnitsNearThisSettlement.length > 0) priority += BASE_REWARD * SETTLEMENT_DEGRADATION_PRIORITY_BONUS;
@@ -444,19 +456,51 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
 
     if (isStayPut) {
       score += BASE_REWARD * STAY_PUT_BIAS;
+
+      // --- BASE CLEARANCE LOGIC ---
+      // If we are on a recruitment tile, check if we should move to make room for a better unit.
+      const isOnRecruitmentTile = tile.ownerId === currentPlayer.id && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE);
       
-      // If we are already in range to attack something good, we should usually just ATTACK.
-      // We give a VERY large bonus to stay put so we don't wander off when a strike is possible.
+      if (isOnRecruitmentTile) {
+        const enemyUnitsAtRange2 = enemyUnitTargets.filter(trg => getDistance(m, trg.coord, state.board) === 2);
+        const enemyUnitsAtRange3 = enemyUnitTargets.filter(trg => getDistance(m, trg.coord, state.board) === 3);
+
+        const needsArcher = enemyUnitsAtRange2.length > 0 && unitToAct.type !== UnitType.ARCHER;
+        const needsCatapult = enemyUnitsAtRange3.length > 0 && unitToAct.type !== UnitType.CATAPULT;
+        
+        // If we need a specific counter and have the gold, penalize staying put
+        if ((needsArcher && currentPlayer.gold >= UNIT_STATS[UnitType.ARCHER].cost) || 
+            (needsCatapult && currentPlayer.gold >= UNIT_STATS[UnitType.CATAPULT].cost)) {
+          
+          // Only move if there is a safe nearby tile to move to
+          const hasSafeMove = moves.some(move => {
+            if (move.q === m.q && move.r === m.r) return false;
+            const t = threatMatrix.get(`${move.q},${move.r}`);
+            return !t || t.minTurns > 1;
+          });
+
+          if (hasSafeMove) {
+            score -= BASE_REWARD * 4.0; // Encourage clearing the base
+          }
+        }
+ 
+        // Also if we are a "cheap" unit and can afford a "better" one for this specific spot
+        if (unitToAct.type === UnitType.INFANTRY && currentPlayer.gold > 300) {
+           score -= BASE_REWARD * 2.0; 
+        }
+      }
+      
+      // AI BUG FIX: Do NOT give a massive bonus to "Stay Put" just because an attack is available.
+      // This was making "Move to current tile" score higher than the actual "Attack" action.
+      // evaluateAttacks will naturally return a higher score if it's the best thing to do.
       const canAttackFromHere = currentAttacks.length > 0;
-      if (canAttackFromHere && isRanged) {
-        score += BASE_REWARD * 50.0; // Massive bonus to stay put if we can already shoot
-      } else if (canAttackFromHere) {
-        score += BASE_REWARD * 10.0; // Solid bonus to stay put for melee too
+      if (canAttackFromHere) {
+        score -= BASE_REWARD * 100.0; // CRITICAL: Heavy penalty for moving to "same tile" move action if we can attack.
       }
 
       const minDistToMySettlement = mySettlements.length > 0 ? Math.min(...mySettlements.map(s => getDistance(m, s.coord, state.board))) : 0;
       if (minDistToMySettlement >= stats.moves && tile.terrain === TerrainType.PLAINS && tile.ownerId === null) {
-        score += BASE_REWARD * 10.0;
+        score += BASE_REWARD * 3.0;
       }
       const targetSettlementBeingNetted = moveTargets.some(t => 
         t.isSettlement && t.ownerId !== null && t.ownerId !== currentPlayer.id &&
@@ -575,6 +619,12 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
             // We found at least one target we can hit if we stay put
             // We've already accounted for this with a small STAY_PUT bonus above
           }
+
+          // ARCHER BUG: If we can attack an enemy unit from where we are, moving is almost ALWAYS a waste.
+          // In this engine, movement ends the turn (hasActed = true).
+          if (!isStayPut && alreadyInRange && !isUnitInPeril) {
+            targetScore -= BASE_REWARD * 50.0; // Penalty for moving when we could just shoot
+          }
         }
 
         if (target.isSettlement && target.ownerId !== null && target.ownerId !== currentPlayer.id) {
@@ -682,8 +732,13 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
         if (target.unitType !== undefined && getDistance(m, target.coord, state.board) <= potentialRange) {
           const isEnemyThreateningVillage = threatenedVillages.some(v => getDistance(target.coord, v.coord, state.board) <= getUnitRange({ type: target.unitType, coord: target.coord } as any, state.board));
           if (isEnemyThreateningVillage) {
-            score += BASE_REWARD * SACRIFICE_BONUS; 
-            if (isCriticallyLaggingLargeEconomy) score += BASE_REWARD * SACRIFICE_BONUS * 3;
+            let sBonus = BASE_REWARD * SACRIFICE_BONUS; 
+            if (isCriticallyLaggingLargeEconomy) sBonus += BASE_REWARD * SACRIFICE_BONUS * 3;
+            
+            // AI BUG: Don't sacrifice archers if we can avoid it.
+            if (unitToAct.type === UnitType.ARCHER) sBonus -= BASE_REWARD * 100.0; // Increased significantly
+            
+            score += sBonus;
           }
         }
       }

@@ -93,7 +93,34 @@ export function getRecruitmentAction(
   // If many bases are threatened, we completely ignore savings to spam defenders
   const isDesperateDefense = threatenedBasesCount >= 2;
   const hasEminentThreat = eminentThreatBases.length > 0;
+
+  // --- UNIT RATIO CAP LOGIC (MOVED UP) ---
+  const myUnitsCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
+  const mySettlementsCount = state.board.filter(b => 
+    b.ownerId === currentPlayer.id && 
+    [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(b.terrain)
+  ).length;
+
+  let activeRatioCap = config.UNIT_TO_SETTLEMENT_RATIO;
   
+  if (state.turnNumber <= 2) {
+    // Early turns: force quick units
+    activeRatioCap = 2.0; 
+  } else if (isDesperateDefense) {
+    activeRatioCap = 2.0;
+  } else if (isUnderThreat) {
+    activeRatioCap = Math.max(activeRatioCap, 1.2);
+  } else if (isLaggingStrength) {
+    activeRatioCap = Math.max(activeRatioCap, 1.0);
+  }
+
+  const maxUnitsAllowed = Math.ceil(mySettlementsCount * activeRatioCap);
+  const isCappedByRatio = myUnitsCount >= maxUnitsAllowed;
+  // --- END RATIO CAP LOGIC ---
+
+  // Adjust savings threshold if we are capped by ratio - force saving the full amount
+  const effectiveSavingsRatio = isCappedByRatio ? 1.0 : SAVINGS_THRESHOLD_RATIO;
+
   // Gold Shield: If NOT under threat, keep a small reserve for emergency defense
   // This prevents the AI from being "bankrupt" right before an enemy surprise attack
   const isHealthyEconomy = income > 100;
@@ -146,7 +173,7 @@ export function getRecruitmentAction(
       // Check if buying this unit puts us too far from our savings target
       // Normal AI: If heat is low, prioritize savings for high-tier structures
       if (!isBarbarian && !isUnderThreat && effectiveSavingsTarget > 0 && heat < HEAT_MAP_SAVINGS_THRESHOLD) {
-        if ((currentGold - stats.cost) < effectiveSavingsTarget * SAVINGS_THRESHOLD_RATIO) {
+        if ((currentGold - stats.cost) < effectiveSavingsTarget * effectiveSavingsRatio) {
           if (stats.cost > CHEAP_UNIT_THRESHOLD) continue;
         }
       }
@@ -156,6 +183,36 @@ export function getRecruitmentAction(
       
       // Evaluate this unit type against all targets from this tile
       const targetSafety = new LoopSafety('getRecruitmentAction-targets', 3000);
+      
+      // PRE-CALC: Check for immediate local counters
+      let localCounterBonus = 0;
+      const enemyUnitsAtRange2 = targets.filter(trg => trg.unitType !== undefined && getDistance(t.coord, trg.coord, state.board) === 2);
+      const enemyUnitsAtRange3 = targets.filter(trg => trg.unitType !== undefined && getDistance(t.coord, trg.coord, state.board) === 3);
+
+      if (unitType === UnitType.ARCHER && enemyUnitsAtRange2.length > 0) {
+        // Archers are perfect for hitting units at range 2
+        localCounterBonus += BASE_REWARD * 6.0 * enemyUnitsAtRange2.length;
+      }
+      
+      if (unitType === UnitType.CATAPULT && enemyUnitsAtRange3.length > 0) {
+        // Catapults are perfect for hitting units at range 3
+        localCounterBonus += BASE_REWARD * 8.0 * enemyUnitsAtRange3.length;
+      }
+      
+      if (unitType === UnitType.KNIGHT && (enemyUnitsAtRange2.length > 0 || enemyUnitsAtRange3.length > 0)) {
+        // Knights are good for closing distance on ranged units
+        const hasRangedEnemies = targets.some(trg => 
+          (trg.unitType === UnitType.ARCHER || trg.unitType === UnitType.CATAPULT) && 
+          getDistance(t.coord, trg.coord, state.board) <= stats.moves + 1
+        );
+        if (hasRangedEnemies) localCounterBonus += BASE_REWARD * 4.0;
+      }
+
+      // CRITICAL: If we are already unit-capped, local defense must be EXTREMELY high value to justify another unit
+      if (isCappedByRatio && !isDesperateDefense) {
+        localCounterBonus *= 0.1;
+      }
+
       for (const target of targets) {
         if (targetSafety.tick()) break;
         const dist = getDistance(t.coord, target.coord, state.board);
@@ -227,10 +284,10 @@ export function getRecruitmentAction(
                return d >= 2 && d <= 4;
             }).length;
 
-            actionValue += otherTargetsInRange * BASE_REWARD * 1.5;
-
+            actionValue += otherTargetsInRange * BASE_REWARD * 1.0;
+ 
             if (target.isSettlement) {
-                actionValue += BASE_REWARD * 10.0; // Huge bonus for targeted sieges
+                actionValue += BASE_REWARD * 4.0; // Huge bonus for targeted sieges
             }
           }
           
@@ -273,15 +330,21 @@ export function getRecruitmentAction(
         const isNearThreatenedFront = eminentThreatBases.some(b => getDistance(t.coord, b.coord, state.board) <= 3);
         if (isNearThreatenedFront) {
           // Scaling bonus by the severity of the front situation
-          frontPriorityBonus += BASE_REWARD * 10.0 * Math.max(1, threatenedBasesCount);
+          frontPriorityBonus += BASE_REWARD * 4.0 * Math.max(1, threatenedBasesCount);
+          
+          // CRITICAL: If we are already over our unit ratio, scale DOWN this front bonus 
+          // to prevent endless unit spamming that stalls the economy.
+          if (isCappedByRatio) {
+            frontPriorityBonus *= 0.2;
+          }
         }
 
-        if (score + influenceBonus + heatBonus + frontPriorityBonus > bestUnitScore) {
-          let finalScore = score + influenceBonus + heatBonus + frontPriorityBonus;
+        if (score + influenceBonus + heatBonus + frontPriorityBonus + localCounterBonus > bestUnitScore) {
+          let finalScore = score + influenceBonus + heatBonus + frontPriorityBonus + localCounterBonus;
           
           // Primary Aggressor Priority: Target units/settlements of the primary attacker
           if (primaryAggressorId !== -1 && target.ownerId === primaryAggressorId) {
-            finalScore += BASE_REWARD * 5.0;
+            finalScore += BASE_REWARD * 2.0;
           }
           const sameTypeCount = state.units.filter(u => u.ownerId === currentPlayer.id && u.type === unitType).length;
           const totalCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
@@ -307,11 +370,19 @@ export function getRecruitmentAction(
       
       if (isTileInEminentPeril) {
         // Massive bonus for recruiting ANY unit at a tile in eminent peril to act as a blocker/defender
-        bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS * 2.0;
+        // Scale this down if we are already over the ratio but NOT in a total collapse (desperate defense)
+        const survivalPenalty = (isCappedByRatio && !isDesperateDefense) ? 0.15 : 1.0;
+        bestUnitScore += BASE_REWARD * EMINENT_PERIL_BONUS * 2.0 * survivalPenalty;
         
-        // Favor cheaper units for "sacrificial" defense to buy time
-        if (stats.cost <= 100) {
-          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS * 2.0;
+        // AI IMPROVE: Favor CHEAPER INFANTRY for "sacrificial" defense to buy time.
+        // Don't waste Archers as blockers in eminent peril tiles unless no infantry available.
+        if (unitType === UnitType.INFANTRY) {
+          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS * 2.0 * survivalPenalty;
+        } else if (unitType === UnitType.ARCHER) {
+          // Penalize archers specifically on the peril tile - they should be behind the lines
+          bestUnitScore -= BASE_REWARD * 4.0 * survivalPenalty;
+        } else if (stats.cost <= 100) {
+          bestUnitScore += BASE_REWARD * SACRIFICIAL_DEFENSE_BONUS * 1.0 * survivalPenalty;
         }
       }
 
@@ -342,22 +413,15 @@ export function getRecruitmentAction(
     minThreshold -= 100; 
   }
   
-  const myUnitsCount = state.units.filter(u => u.ownerId === currentPlayer.id).length;
-  const mySettlementsCount = state.board.filter(b => 
-    b.ownerId === currentPlayer.id && 
-    [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(b.terrain)
-  ).length;
-
-  // Reduced ideal unit/village ratio (Target: 0.8 units per settlement)
-  const unitToSettlementRatio = mySettlementsCount > 0 ? myUnitsCount / mySettlementsCount : 0;
-  const isCappedByRatio = unitToSettlementRatio > 0.8 && !isUnderThreat && !isLaggingStrength;
+  // Tiered ideal unit/village ratio (Logic moved to top)
 
   if (myUnitsCount === 0) {
     minThreshold = -Infinity;
-  } else if (isCappedByRatio) {
-    // If we have enough units (0.8 ratio), we prioritize gold for upgrades/mines.
-    // We only recruit if there is an EXTRAORDINARILY high score (desperate defense)
-    minThreshold += 3000; 
+  } else if (isCappedByRatio && myUnitsCount > 0) {
+    // If we have enough units (ratio exceeded), we prioritize gold for upgrades/mines.
+    // We only recruit if there is an EXTRAORDINARILY high score
+    // Increased penalty to ensure expansion happens
+    minThreshold += 10000; 
   } else if (bestAction && !isBarbarian) {
     // Heat Map Logic: If heat is low, we need a higher score to justify recruitment (unless barbarian)
     const tileKey = `${bestAction.coord?.q},${bestAction.coord?.r}`;

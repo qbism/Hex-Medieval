@@ -274,7 +274,9 @@ export function assessThreats(state: GameState, currentPlayer: Player) {
   const maxCompetitorStrength = competitors.length > 0 ? Math.max(...competitors.map(c => c.strength)) : 0;
   const maxCompetitorIncome = competitors.length > 0 ? Math.max(...competitors.map(c => c.income)) : 0;
 
-  const isLaggingStrength = myStats.strength < maxCompetitorStrength * LAGGING_THRESHOLD;
+  // Be more lenient early on about strength lag to prioritize initial growth
+  const dynamicLagThreshold = state.turnNumber < 20 ? 0.65 : LAGGING_THRESHOLD;
+  const isLaggingStrength = myStats.strength < maxCompetitorStrength * dynamicLagThreshold;
   const isLaggingIncome = myStats.income < maxCompetitorIncome * LAGGING_THRESHOLD;
   const isLagging = isLaggingStrength || isLaggingIncome;
 
@@ -380,7 +382,12 @@ export function getHVT(state: GameState, currentPlayerId: number, empireCenter: 
 
 export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggingIncome: boolean, isLaggingStrength: boolean = false): boolean {
   // If military is weak, we MUST NOT save for a mine - survival first!
-  if (isLaggingStrength && currentPlayer.gold < 300) return false;
+  // BUT: if we have a healthy unit count-to-settlement ratio, we can afford to save for growth.
+  const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
+  const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
+  const ratio = myUnits.length / Math.max(1, mySettlements.length);
+  
+  if (isLaggingStrength && ratio < 0.5 && currentPlayer.gold < 300) return false;
   
   const cost = UPGRADE_COSTS[TerrainType.GOLD_MINE];
   if (currentPlayer.gold >= cost) return false;
@@ -413,7 +420,12 @@ export function isSavingForMine(state: GameState, currentPlayer: Player, isLaggi
 
 export function isSavingForVillage(state: GameState, currentPlayer: Player, isCriticallyLaggingLargeEconomy: boolean, isLaggingStrength: boolean = false): boolean {
   // If military is weak, we MUST NOT save for a village - survival first!
-  if (isLaggingStrength && currentPlayer.gold < 200) return false;
+  // BUT: if we have a healthy unit count-to-settlement ratio, we can afford to save for growth.
+  const myUnits = state.units.filter(u => u.ownerId === currentPlayer.id);
+  const mySettlements = state.board.filter(t => t.ownerId === currentPlayer.id && [TerrainType.VILLAGE, TerrainType.FORTRESS, TerrainType.CASTLE, TerrainType.GOLD_MINE].includes(t.terrain));
+  const ratio = myUnits.length / Math.max(1, mySettlements.length);
+  
+  if (isLaggingStrength && ratio < 0.5 && currentPlayer.gold < 200) return false;
 
   const cost = UPGRADE_COSTS[TerrainType.VILLAGE];
   if (currentPlayer.gold >= cost) return false;
