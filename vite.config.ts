@@ -21,7 +21,7 @@ export default defineConfig(({mode}) => {
       },
     },
     worker: {
-      format: 'es',
+      format: 'iife',
       plugins: () => [react()], // Use same plugins for worker
     },
     server: {

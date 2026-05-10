@@ -1,8 +1,8 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { GameState } from '../types';
 import { GameActions } from './useGameActions';
 // @ts-expect-error - Vite specific worker import
-import AIWorker from '../automaton-library/worker?worker&inline';
+import AIWorker from '../automaton-library/aiProcess?worker';
 import { getAutomatonBestAction } from '../automaton-library/Core';
 
 interface UseAutomatonTurnProps {
@@ -24,7 +24,7 @@ export function useAutomatonTurn({
   const actionsTakenRef = useRef(0);
   const lastPlayerKeyRef = useRef("");
   const workerRef = useRef<Worker | null>(null);
-  const workerIsBrokenRef = useRef(false);
+  const [workerIsBroken, setWorkerIsBroken] = useState(false);
 
   const handleAction = (action: any, meaningfulState: any) => {
     try {
@@ -115,11 +115,11 @@ export function useAutomatonTurn({
 
       workerRef.current.onerror = (e: any) => {
         console.error('CRITICAL: Worker initialization/runtime error:', e);
-        workerIsBrokenRef.current = true;
+        setWorkerIsBroken(true);
       };
     } catch (err) {
       console.error('Failed to create AIWorker instance:', err);
-      workerIsBrokenRef.current = true;
+      setWorkerIsBroken(true);
     }
     
     return () => {
@@ -156,7 +156,7 @@ export function useAutomatonTurn({
     if (meaningfulState.winnerId !== null) return;
     if (gameState?.isPlaybackMode) return;
     
-    if (!workerRef.current || workerIsBrokenRef.current) {
+    if (!workerRef.current || workerIsBroken) {
       if (!workerRef.current) {
         console.warn('AI turn started but worker is not initialized!');
       } else {
@@ -241,7 +241,7 @@ export function useAutomatonTurn({
       console.error('Worker failed during execution:', error);
       
       // Mark as broken and fallback
-      workerIsBrokenRef.current = true;
+      setWorkerIsBroken(true);
       executeSyncFallback(meaningfulState);
     };
 
