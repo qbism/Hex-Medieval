@@ -111,14 +111,20 @@ export function useAutomatonTurn({
     // Initialize worker once
     try {
       workerRef.current = new AIWorker();
-      console.log('AI worker initialized successfully via Vite plugin');
+      console.log('AI worker initialization attempted');
 
       workerRef.current.onerror = (e: any) => {
-        console.error('CRITICAL: Worker initialization/runtime error:', e);
+        // Many browser/environment combinations in iframes have issues with workers.
+        // We log it as a warning and use the synchronous fallback.
+        console.warn('AI worker failed (Initialization or Runtime). AI will run in synchronous fallback mode.', e);
         setWorkerIsBroken(true);
       };
+      
+      // Heartbeat to confirm worker is actually responsive
+      const testState = { turnNumber: -1, players: [], currentPlayerIndex: 0, board: [], units: [] };
+      workerRef.current.postMessage({ state: testState });
     } catch (err) {
-      console.error('Failed to create AIWorker instance:', err);
+      console.warn('Failed to create AIWorker instance. Using synchronous fallback.', err);
       setWorkerIsBroken(true);
     }
     
