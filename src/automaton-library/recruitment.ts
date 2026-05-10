@@ -47,7 +47,7 @@ export function getRecruitmentAction(
   influenceMap: Map<string, number>,
   eminentThreatBases: HexTile[],
   possibleThreatBases: HexTile[],
-  isUnderThreat: boolean,
+  underThreatFlag: boolean,
   isEarlyGame: boolean,
   isSavingForMine: boolean,
   isSavingForVillage: boolean,
@@ -77,7 +77,7 @@ export function getRecruitmentAction(
 
   // Disciplined Cumulative Savings (Task 1): 
   // If we are saving, we "lock" a portion of our wealth to ensure growth happens.
-  if (savingsTarget > 0 && !isUnderThreat && !isBarbarian) {
+  if (savingsTarget > 0 && !underThreatFlag && !isBarbarian) {
     // We want to save 'dedication_ratio' of our current wealth towards this goal.
     // As we get closer (higher progress), we lock a higher % of our gold to cross the finish line.
     const progress = currentPlayer.gold / savingsTarget;
@@ -113,7 +113,7 @@ export function getRecruitmentAction(
     activeRatioCap = 2.0; 
   } else if (isDesperateDefense) {
     activeRatioCap = 2.0;
-  } else if (isUnderThreat) {
+  } else if (underThreatFlag) {
     activeRatioCap = Math.max(activeRatioCap, 1.2);
   } else if (isLaggingStrength) {
     activeRatioCap = Math.max(activeRatioCap, 1.0);
@@ -140,7 +140,7 @@ export function getRecruitmentAction(
   // Gold Shield: If NOT under threat, keep a small reserve for emergency defense
   // This prevents the AI from being "bankrupt" right before an enemy surprise attack
   const isHealthyEconomy = income > 100;
-  const goldShieldAmount = (isHealthyEconomy && !isUnderThreat && !isDesperateDefense) ? config.GOLD_RESERVE_TARGET : 0;
+  const goldShieldAmount = (isHealthyEconomy && !underThreatFlag && !isDesperateDefense) ? config.GOLD_RESERVE_TARGET : 0;
   
   const effectiveSavingsTarget = (hasEminentThreat || isDesperateDefense) ? 0 : Math.max(savingsTarget, goldShieldAmount);
   
@@ -188,7 +188,7 @@ export function getRecruitmentAction(
 
       // Check if buying this unit puts us too far from our savings target
       // Normal AI: If heat is low, prioritize savings for high-tier structures
-      if (!isBarbarian && !isUnderThreat && effectiveSavingsTarget > 0 && heat < HEAT_MAP_SAVINGS_THRESHOLD) {
+      if (!isBarbarian && !underThreatFlag && effectiveSavingsTarget > 0 && heat < HEAT_MAP_SAVINGS_THRESHOLD) {
         if ((currentGold - stats.cost) < effectiveSavingsTarget * effectiveSavingsRatio) {
           if (stats.cost > CHEAP_UNIT_THRESHOLD) continue;
         }
@@ -267,7 +267,7 @@ export function getRecruitmentAction(
         } 
         else if (unitType === UnitType.ARCHER) {
           // Archers: Should spawn near edges/frontlines or for defense
-          if (isEdgeSpawn || isUnderThreat) {
+          if (isEdgeSpawn || underThreatFlag) {
             isValidImmediateNeed = true;
           }
         } 
@@ -277,7 +277,7 @@ export function getRecruitmentAction(
           // Or explicitly threatening if it's right on the front edge
           const isFrontlineSnipe = isEdgeSpawn && !target.isSettlement && (target.unitType === UnitType.ARCHER || target.unitType === UnitType.CATAPULT) && dist <= range;
           
-          if (isFarNeutralClaim || isFrontlineSnipe || (isUnderThreat && isRich)) {
+          if (isFarNeutralClaim || isFrontlineSnipe || (underThreatFlag && isRich)) {
             isValidImmediateNeed = true;
             if (isFarNeutralClaim) actionValue += target.value * 2.0;
           }
@@ -308,7 +308,7 @@ export function getRecruitmentAction(
           }
           
           // Siege Defense Rule: If we are being sieged (units at dist 1-3), catapults are the BEST counter.
-          const isDefensiveNeed = (isUnderThreat || isEdgeSpawn) && isEnemyTarget && dist <= 4 && !isTileInEminentPeril;
+          const isDefensiveNeed = (underThreatFlag || isEdgeSpawn) && isEnemyTarget && dist <= 4 && !isTileInEminentPeril;
           
           if (isDefensiveNeed) {
             isValidImmediateNeed = true;
@@ -422,7 +422,7 @@ export function getRecruitmentAction(
   }
 
   // Minimum score threshold to actually recruit
-  let minThreshold = (isUnderThreat || isLaggingStrength) ? MIN_RECRUIT_THRESHOLD_THREAT : MIN_RECRUIT_THRESHOLD_NORMAL;
+  let minThreshold = (underThreatFlag || isLaggingStrength) ? MIN_RECRUIT_THRESHOLD_THREAT : MIN_RECRUIT_THRESHOLD_NORMAL;
   
   // Extra low threshold if critically lagging strength
   if (isLaggingStrength && currentPlayer.gold > 200) {

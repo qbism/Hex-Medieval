@@ -25,7 +25,19 @@ export function useAutomatonTurn({
   useEffect(() => {
     // Initialize worker once
     if (typeof Worker !== 'undefined') {
-      workerRef.current = new Worker(new URL('../automaton-library/worker.ts', import.meta.url), { type: 'module' });
+      try {
+        const workerUrl = new URL('../automaton-library/worker.ts', import.meta.url);
+        console.log('Initializing AI worker from:', workerUrl.href);
+        workerRef.current = new Worker(workerUrl, { type: 'module' });
+        
+        workerRef.current.onerror = (e) => {
+          console.error('CRITICAL: Worker initialization failed:', e.message);
+        };
+      } catch (err) {
+        console.error('Failed to create worker instance:', err);
+      }
+    } else {
+      console.error('Web Workers are not supported in this environment');
     }
     
     return () => {
@@ -57,8 +69,14 @@ export function useAutomatonTurn({
   ]);
 
   useEffect(() => {
-    if (!meaningfulState || setupMode || meaningfulState.winnerId !== null || gameState?.isPlaybackMode || !workerRef.current) {
-      isProcessingRef.current = false;
+    if (!meaningfulState) return;
+    if (setupMode) return;
+    if (meaningfulState.winnerId !== null) return;
+    if (gameState?.isPlaybackMode) return;
+    
+    if (!workerRef.current) {
+      console.warn('AI turn started but worker is not initialized!');
+      // Only log once per turn transition to avoid spam
       return;
     }
 
@@ -100,6 +118,7 @@ export function useAutomatonTurn({
 
     isProcessingRef.current = true;
     const worker = workerRef.current;
+    console.log(`AI Turn beginning for player ${meaningfulState.currentPlayerIndex} (Action #${actionsTakenRef.current})`);
     let active = true;
 
     const handleMessage = (e: MessageEvent) => {

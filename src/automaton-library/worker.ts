@@ -4,6 +4,7 @@ import { AIConfig } from './AIConfig';
 
 self.onmessage = (e: MessageEvent<{ state: GameState; config: AIConfig }>) => {
   const { state, config } = e.data;
+  console.log('AI Worker received task:', state.turnNumber, 'Player:', state.currentPlayerIndex);
   try {
     const action = getAutomatonBestAction(state, config);
     self.postMessage({ action });

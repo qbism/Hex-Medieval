@@ -139,13 +139,13 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
   }
 
   // Identify threatened settlements early to inform savings logic
-  const { eminentThreatBases, possibleThreatBases, isUnderThreat, primaryAggressorId, threatenedBasesCount } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
+  const { eminentThreatBases, possibleThreatBases, underThreatFlag, primaryAggressorId, threatenedBasesCount } = identifyThreatenedSettlements(state, currentPlayer.id, threatMatrix);
 
   const isEarlyGame = state.turnNumber <= 15;
   const numSettlements = mySettlements.length;
 
-  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength, isUnderThreat, config);
-  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength, isUnderThreat, config);
+  const savingForMine = isSavingForMine(state, currentPlayer, isLaggingIncome, isLaggingStrength, underThreatFlag, config);
+  const savingForVillage = isSavingForVillage(state, currentPlayer, isCriticallyLaggingLargeEconomy, isLaggingStrength, underThreatFlag, config);
 
   // --- REBALANCED PRIORITY ---
   // USER REQUIREMENT: Economy lagging > Military lagging.
@@ -155,16 +155,16 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
   const unitToSettlementRatio = myUnitsCount / Math.max(1, numSettlements);
   const isBelowDensityFloor = unitToSettlementRatio < UNIT_TO_SETTLEMENT_RATIO_MIN;
 
-  // Expansion is priority if:
+  // expansion is priority if:
   // 1. We are NOT under direct threat
   // 2. We are ABOVE the 0.5 density floor
   // 3. We are lagging income (highest priority) OR we have plenty of gold
   
-  const expansionIsPriority = !isUnderThreat && !isBelowDensityFloor && (isLaggingIncome || currentPlayer.gold > 600);
+  const expansionIsPriority = !underThreatFlag && !isBelowDensityFloor && (isLaggingIncome || currentPlayer.gold > 600);
 
   if (expansionIsPriority) {
     // 1. Try to upgrade settlements/build villages
-    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength, config) : null;
+    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, underThreatFlag, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength, config) : null;
     if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
   }
 
@@ -176,7 +176,7 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
     influenceMap,
     eminentThreatBases, 
     possibleThreatBases, 
-    isUnderThreat, 
+    underThreatFlag, 
     isEarlyGame, 
     savingForMine, 
     savingForVillage,
@@ -193,7 +193,7 @@ export function getAutomatonBestAction(state: GameState, config: AIConfig = DEFA
 
   if (!expansionIsPriority) {
     // 3. Try to upgrade as secondary priority if we are under threat but couldn't recruit
-    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, isUnderThreat, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength, config) : null;
+    const upgradeAction = !isBarbarian ? getUpgradeAction(state, currentPlayer, underThreatFlag, isEarlyGame, numSettlements, isLaggingIncome, isCriticallyLaggingLargeEconomy, threatMatrix, false, isLaggingStrength, config) : null;
     if (upgradeAction) return { ...upgradeAction, matrix: opportunityPerilMatrix };
   }
 

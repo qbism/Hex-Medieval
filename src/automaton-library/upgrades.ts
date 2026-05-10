@@ -50,7 +50,7 @@ import { AIConfig, DEFAULT_AI_CONFIG } from './AIConfig';
 export function getUpgradeAction(
   state: GameState, 
   currentPlayer: Player, 
-  isUnderThreat: boolean, 
+  underThreatFlag: boolean, 
   isEarlyGame: boolean, 
   numSettlements: number,
   isLaggingIncome: boolean,
@@ -76,7 +76,7 @@ export function getUpgradeAction(
   
   // Reduced effect of threat/lag if we have surplus units to protect the new assets
   const econPenaltyMult = unitToSettlementRatio > 1.0 ? 0.3 : (unitToSettlementRatio > 0.7 ? 0.6 : 1.0);
-  const econPenalty = ((isUnderThreat ? 1.0 : 0) + (isLaggingStrength ? 1.0 : 0)) * econPenaltyMult + densityPenalty;
+  const econPenalty = ((underThreatFlag ? 1.0 : 0) + (isLaggingStrength ? 1.0 : 0)) * econPenaltyMult + densityPenalty;
 
   const upgradeableTiles = state.board.filter(t => {
     if (t.ownerId === currentPlayer.id) return true;
@@ -133,7 +133,7 @@ export function getUpgradeAction(
         
         // Priority 2: In balance with expansion. Keep a buffer of 50 gold for units/villages only if very close to enemy
         // If we are critically lagging in income despite a large economy, bypass the buffer to prioritize growth.
-        const buffer = (isUnderThreat && distToEnemy <= 4 && !isCriticallyLaggingLargeEconomy) ? GOLD_MINE_BUFFER : 0;
+        const buffer = (underThreatFlag && distToEnemy <= 4 && !isCriticallyLaggingLargeEconomy) ? GOLD_MINE_BUFFER : 0;
         if (currentPlayer.gold < cost + buffer) {
            score = -Infinity; // Can't afford the buffer
         }
