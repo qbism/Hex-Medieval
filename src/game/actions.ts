@@ -14,7 +14,7 @@ export function applyMove(state: GameState, unitId: string, target: HexCoord): G
 
   const newBoard = state.board.map(tile => {
     if (tile.coord.q === target.q && tile.coord.r === target.r) {
-      if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
+      if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
         return { ...tile, ownerId: state.players[state.currentPlayerIndex].id };
       }
     }
@@ -58,11 +58,11 @@ export function applyAttack(state: GameState, attackerId: string, targetCoord: H
 
   const newBoard = state.board.map(tile => {
     if (tile.coord.q === targetCoord.q && tile.coord.r === targetCoord.r && tile.ownerId !== currentAttacker.ownerId) {
-      const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORTRESS || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
+      const isSettlement = tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE;
       if (isSettlement && !currentDefender) {
         if (tile.terrain === TerrainType.CASTLE) {
-          return { ...tile, terrain: TerrainType.FORTRESS };
-        } else if (tile.terrain === TerrainType.FORTRESS) {
+          return { ...tile, terrain: TerrainType.FORT };
+        } else if (tile.terrain === TerrainType.FORT) {
           return { ...tile, terrain: TerrainType.VILLAGE };
         } else {
           return { ...tile, ownerId: null };
