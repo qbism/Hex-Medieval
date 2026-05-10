@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { GameState } from '../types';
 import { GameActions } from './useGameActions';
 // @ts-expect-error - Vite specific worker import
@@ -24,7 +24,7 @@ export function useAutomatonTurn({
   const actionsTakenRef = useRef(0);
   const lastPlayerKeyRef = useRef("");
   const workerRef = useRef<Worker | null>(null);
-  const [workerIsBroken, setWorkerIsBroken] = useState(false);
+  const workerIsBrokenRef = useRef(false);
 
   const handleAction = (action: any, meaningfulState: any) => {
     try {
@@ -83,28 +83,31 @@ export function useAutomatonTurn({
 
   const executeSyncFallback = (meaningfulState: any) => {
     console.warn('AI turn: Running synchronous execution fallback.');
-    try {
-      const prunedBoard = meaningfulState.board.map((t: any) => ({
-        coord: t.coord,
-        terrain: t.terrain,
-        ownerId: t.ownerId
-      }));
-      
-      const workerState = {
-        ...meaningfulState,
-        board: prunedBoard
-      };
+    // Use setTimeout to break the React update depth limit chain
+    setTimeout(() => {
+      try {
+        const prunedBoard = meaningfulState.board.map((t: any) => ({
+          coord: t.coord,
+          terrain: t.terrain,
+          ownerId: t.ownerId
+        }));
+        
+        const workerState = {
+          ...meaningfulState,
+          board: prunedBoard
+        };
 
-      const config = (gameState as any).config || undefined;
-      const action = getAutomatonBestAction(workerState as any, config);
-      
-      // Execute action
-      handleAction(action, meaningfulState);
-    } catch (err) {
-      console.error("AI Sync Fallback failed:", err);
-      actions.endTurn();
-      isProcessingRef.current = false;
-    }
+        const config = (gameState as any).config || undefined;
+        const action = getAutomatonBestAction(workerState as any, config);
+        
+        // Execute action
+        handleAction(action, meaningfulState);
+      } catch (err) {
+        console.error("AI Sync Fallback failed:", err);
+        actions.endTurn();
+        isProcessingRef.current = false;
+      }
+    }, 50); // Small delay to let React breathe
   };
 
   useEffect(() => {
@@ -117,7 +120,7 @@ export function useAutomatonTurn({
         // Many browser/environment combinations in iframes have issues with workers.
         // We log it as a warning and use the synchronous fallback.
         console.warn('AI worker failed (Initialization or Runtime). AI will run in synchronous fallback mode.', e);
-        setWorkerIsBroken(true);
+        workerIsBrokenRef.current = true;
       };
       
       // Heartbeat to confirm worker is actually responsive
@@ -125,14 +128,16 @@ export function useAutomatonTurn({
       workerRef.current.postMessage({ state: testState });
     } catch (err) {
       console.warn('Failed to create AIWorker instance. Using synchronous fallback.', err);
-      setWorkerIsBroken(true);
+      workerIsBrokenRef.current = true;
     }
     
     return () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
     };
-  }, []);
+  }, []); // Only run once on mount
 
   // Memoize the parts of the state that actually matter for AI decisions
   const meaningfulState = useMemo(() => {
@@ -162,11 +167,11 @@ export function useAutomatonTurn({
     if (meaningfulState.winnerId !== null) return;
     if (gameState?.isPlaybackMode) return;
     
-    if (!workerRef.current || workerIsBroken) {
+    if (!workerRef.current || workerIsBrokenRef.current) {
       if (!workerRef.current) {
         console.warn('AI turn started but worker is not initialized!');
-      } else {
-        console.warn('AI turn started but worker is marked as broken!');
+      } else if (workerIsBrokenRef.current) {
+        // AI running in fallback mode
       }
       executeSyncFallback(meaningfulState);
       return;
@@ -247,7 +252,7 @@ export function useAutomatonTurn({
       console.error('Worker failed during execution:', error);
       
       // Mark as broken and fallback
-      setWorkerIsBroken(true);
+      workerIsBrokenRef.current = true;
       executeSyncFallback(meaningfulState);
     };
 

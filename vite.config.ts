@@ -21,7 +21,7 @@ export default defineConfig(({mode}) => {
       },
     },
     worker: {
-      format: 'es',
+      format: 'iife',
     },
     server: {
       // HMR is disabled via DISABLE_HMR env var.
