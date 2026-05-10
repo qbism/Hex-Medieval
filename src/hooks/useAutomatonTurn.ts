@@ -1,6 +1,9 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { GameState } from '../types';
 import { GameActions } from './useGameActions';
+// @ts-expect-error - Vite specific worker import
+import AIWorker from '../automaton-library/worker?worker&inline';
+import { getAutomatonBestAction } from '../automaton-library/Core';
 
 interface UseAutomatonTurnProps {
   gameState: GameState | null;
@@ -21,23 +24,102 @@ export function useAutomatonTurn({
   const actionsTakenRef = useRef(0);
   const lastPlayerKeyRef = useRef("");
   const workerRef = useRef<Worker | null>(null);
+  const workerIsBrokenRef = useRef(false);
+
+  const handleAction = (action: any, meaningfulState: any) => {
+    try {
+      // Update the shared opportunity/peril matrix if provided
+      if (action.matrix) {
+        actions.updateAIMatrix(action.matrix);
+      }
+
+      // Mark this state as processed to avoid loops
+      lastStateRef.current = meaningfulState;
+      actionsTakenRef.current++;
+
+      switch (action.type) {
+        case 'endTurn':
+          setAutomatonStatus("Ending turn...");
+          actions.endTurn();
+          break;
+        case 'skipUnit':
+          setAutomatonStatus("Unit holding position...");
+          actions.skipUnit(action.payload.unitId);
+          break;
+        case 'move':
+          setAutomatonStatus("Moving unit...");
+          actions.moveUnit(action.payload.unitId, action.payload.target);
+          break;
+        case 'attack':
+          setAutomatonStatus("Attacking!");
+          actions.attackUnit(action.payload.unitId, action.payload.target);
+          break;
+        case 'recruit':
+          setAutomatonStatus(`Recruiting ${action.payload.type}...`);
+          actions.recruitUnit(action.payload.type, action.payload.coord);
+          break;
+        case 'upgrade':
+          setAutomatonStatus("Upgrading settlement...");
+          actions.upgradeSettlement(action.payload.coord);
+          break;
+        case 'goRogue': {
+          const isBarbarian = (gameState as any).players[(gameState as any).currentPlayerIndex].name === 'Barbarians';
+          setAutomatonStatus(isBarbarian ? "Barbarian forces surrendering!" : "Empire collapsing! Going rogue...");
+          actions.concedeGame();
+          break;
+        }
+        case 'barbarianSurrender':
+          setAutomatonStatus("Barbarian forces surrendering!");
+          actions.barbarianSurrender();
+          break;
+      }
+    } catch (error) {
+      console.error('Automaton error handling action:', error);
+      actions.endTurn();
+    }
+    
+    isProcessingRef.current = false;
+  };
+
+  const executeSyncFallback = (meaningfulState: any) => {
+    console.warn('AI turn: Running synchronous execution fallback.');
+    try {
+      const prunedBoard = meaningfulState.board.map((t: any) => ({
+        coord: t.coord,
+        terrain: t.terrain,
+        ownerId: t.ownerId
+      }));
+      
+      const workerState = {
+        ...meaningfulState,
+        board: prunedBoard
+      };
+
+      const config = (gameState as any).config || undefined;
+      const action = getAutomatonBestAction(workerState as any, config);
+      
+      // Execute action
+      handleAction(action, meaningfulState);
+    } catch (err) {
+      console.error("AI Sync Fallback failed:", err);
+      actions.endTurn();
+      isProcessingRef.current = false;
+    }
+  };
 
   useEffect(() => {
     // Initialize worker once
-    if (typeof Worker !== 'undefined') {
-      try {
-        const workerUrl = new URL('../automaton-library/worker.ts', import.meta.url);
-        console.log('Initializing AI worker from:', workerUrl.href);
-        workerRef.current = new Worker(workerUrl, { type: 'module' });
-        
-        workerRef.current.onerror = (e) => {
-          console.error('CRITICAL: Worker initialization failed:', e.message);
-        };
-      } catch (err) {
-        console.error('Failed to create worker instance:', err);
-      }
-    } else {
-      console.error('Web Workers are not supported in this environment');
+    try {
+      workerRef.current = new AIWorker();
+      console.log('AI worker initialized successfully via Vite plugin');
+
+      workerRef.current.onerror = (e: any) => {
+        console.error('CRITICAL: Worker initialization/runtime error:', e);
+        workerIsBrokenRef.current = true;
+      };
+    } catch (err) {
+      console.error('Failed to create AIWorker instance:', err);
+      workerIsBrokenRef.current = true;
     }
     
     return () => {
@@ -74,9 +156,13 @@ export function useAutomatonTurn({
     if (meaningfulState.winnerId !== null) return;
     if (gameState?.isPlaybackMode) return;
     
-    if (!workerRef.current) {
-      console.warn('AI turn started but worker is not initialized!');
-      // Only log once per turn transition to avoid spam
+    if (!workerRef.current || workerIsBrokenRef.current) {
+      if (!workerRef.current) {
+        console.warn('AI turn started but worker is not initialized!');
+      } else {
+        console.warn('AI turn started but worker is marked as broken!');
+      }
+      executeSyncFallback(meaningfulState);
       return;
     }
 
@@ -142,60 +228,7 @@ export function useAutomatonTurn({
         return;
       }
 
-      const action = e.data.action;
-      
-      try {
-        // Update the shared opportunity/peril matrix if provided
-        if (action.matrix) {
-          actions.updateAIMatrix(action.matrix);
-        }
-
-        // Mark this state as processed to avoid loops
-        lastStateRef.current = meaningfulState;
-        actionsTakenRef.current++;
-
-        switch (action.type) {
-          case 'endTurn':
-            setAutomatonStatus("Ending turn...");
-            actions.endTurn();
-            break;
-          case 'skipUnit':
-            setAutomatonStatus("Unit holding position...");
-            actions.skipUnit(action.payload.unitId);
-            break;
-          case 'move':
-            setAutomatonStatus("Moving unit...");
-            actions.moveUnit(action.payload.unitId, action.payload.target);
-            break;
-          case 'attack':
-            setAutomatonStatus("Attacking!");
-            actions.attackUnit(action.payload.unitId, action.payload.target);
-            break;
-          case 'recruit':
-            setAutomatonStatus(`Recruiting ${action.payload.type}...`);
-            actions.recruitUnit(action.payload.type, action.payload.coord);
-            break;
-          case 'upgrade':
-            setAutomatonStatus("Upgrading settlement...");
-            actions.upgradeSettlement(action.payload.coord);
-            break;
-          case 'goRogue': {
-            const isBarbarian = gameState.players[gameState.currentPlayerIndex].name === 'Barbarians';
-            setAutomatonStatus(isBarbarian ? "Barbarian forces surrendering!" : "Empire collapsing! Going rogue...");
-            actions.concedeGame();
-            break;
-          }
-          case 'barbarianSurrender':
-            setAutomatonStatus("Barbarian forces surrendering!");
-            actions.barbarianSurrender();
-            break;
-        }
-      } catch (error) {
-        console.error('Automaton error post-worker:', error);
-        actions.endTurn();
-      }
-      
-      isProcessingRef.current = false;
+      handleAction(e.data.action, meaningfulState);
     };
 
     const handleError = (error: ErrorEvent) => {
@@ -205,9 +238,11 @@ export function useAutomatonTurn({
       }
       worker.removeEventListener('message', handleMessage);
       worker.removeEventListener('error', handleError);
-      console.error('Worker failed to initialize or execute:', error);
-      actions.endTurn();
-      isProcessingRef.current = false;
+      console.error('Worker failed during execution:', error);
+      
+      // Mark as broken and fallback
+      workerIsBrokenRef.current = true;
+      executeSyncFallback(meaningfulState);
     };
 
     worker.addEventListener('message', handleMessage);
