@@ -1,8 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { GameState } from '../types';
 import { GameActions } from './useGameActions';
-// @ts-expect-error - Vite specific worker import
-import AIWorker from '../automaton-library/aiProcess?worker';
 import { getAutomatonBestAction } from '../automaton-library/Core';
 
 interface UseAutomatonTurnProps {
@@ -23,8 +21,6 @@ export function useAutomatonTurn({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const actionsTakenRef = useRef(0);
   const lastPlayerKeyRef = useRef("");
-  const workerRef = useRef<Worker | null>(null);
-  const workerIsBrokenRef = useRef(false);
 
   const handleAction = (action: any, meaningfulState: any) => {
     try {
@@ -81,10 +77,9 @@ export function useAutomatonTurn({
     isProcessingRef.current = false;
   };
 
-  const executeSyncFallback = (meaningfulState: any) => {
-    console.warn('AI turn: Running synchronous execution fallback.');
-    // Use setTimeout to break the React update depth limit chain
-    setTimeout(() => {
+  const executeSyncAI = (meaningfulState: any) => {
+    // Small timeout to break the React update depth limit chain and allow UI updates
+    timerRef.current = setTimeout(() => {
       try {
         const prunedBoard = meaningfulState.board.map((t: any) => ({
           coord: t.coord,
@@ -92,52 +87,23 @@ export function useAutomatonTurn({
           ownerId: t.ownerId
         }));
         
-        const workerState = {
+        const aiState = {
           ...meaningfulState,
           board: prunedBoard
         };
 
         const config = (gameState as any).config || undefined;
-        const action = getAutomatonBestAction(workerState as any, config);
+        const action = getAutomatonBestAction(aiState as any, config);
         
         // Execute action
         handleAction(action, meaningfulState);
       } catch (err) {
-        console.error("AI Sync Fallback failed:", err);
+        console.error("AI execution failed:", err);
         actions.endTurn();
         isProcessingRef.current = false;
       }
-    }, 50); // Small delay to let React breathe
+    }, 150);
   };
-
-  useEffect(() => {
-    // Initialize worker once
-    try {
-      workerRef.current = new AIWorker();
-      console.log('AI worker initialization attempted');
-
-      workerRef.current.onerror = (e: any) => {
-        // Many browser/environment combinations in iframes have issues with workers.
-        // We log it as a warning and use the synchronous fallback.
-        console.warn('AI worker failed (Initialization or Runtime). AI will run in synchronous fallback mode.', e);
-        workerIsBrokenRef.current = true;
-      };
-      
-      // Heartbeat to confirm worker is actually responsive
-      const testState = { turnNumber: -1, players: [], currentPlayerIndex: 0, board: [], units: [] };
-      workerRef.current.postMessage({ state: testState });
-    } catch (err) {
-      console.warn('Failed to create AIWorker instance. Using synchronous fallback.', err);
-      workerIsBrokenRef.current = true;
-    }
-    
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
-      }
-    };
-  }, []); // Only run once on mount
 
   // Memoize the parts of the state that actually matter for AI decisions
   const meaningfulState = useMemo(() => {
@@ -167,140 +133,45 @@ export function useAutomatonTurn({
     if (meaningfulState.winnerId !== null) return;
     if (gameState?.isPlaybackMode) return;
     
-    if (!workerRef.current || workerIsBrokenRef.current) {
-      if (!workerRef.current) {
-        console.warn('AI turn started but worker is not initialized!');
-      } else if (workerIsBrokenRef.current) {
-        // AI running in fallback mode
-      }
-      executeSyncFallback(meaningfulState);
-      return;
-    }
-
     const currentPlayer = meaningfulState.players[meaningfulState.currentPlayerIndex];
-    if (currentPlayer.isAutomaton) {
-      // Prevent redundant processing if state hasn't changed since last action
-      if (meaningfulState === lastStateRef.current) {
-        // If we've already tried to take an action and the state didn't change, 
-        // we might be in a no-op loop or stuck.
-        if (actionsTakenRef.current > 0 && !isProcessingRef.current) {
-          console.warn('AI stuck on state, forcing end turn');
-          actions.endTurn();
-        }
-        return;
-      }
-    } else {
+    if (!currentPlayer || currentPlayer.isEliminated || !currentPlayer.isAutomaton) {
       isProcessingRef.current = false;
       return;
     }
 
-    if (isProcessingRef.current) return;
-    
     // Reset action counter if player or turn changed
-  const playerKey = `${meaningfulState.turnNumber}-${meaningfulState.currentPlayerIndex}`;
+    const playerKey = `${meaningfulState.turnNumber}-${meaningfulState.currentPlayerIndex}`;
     if (playerKey !== lastPlayerKeyRef.current) {
       actionsTakenRef.current = 0;
       lastPlayerKeyRef.current = playerKey;
     }
 
-    if (actionsTakenRef.current > 500) {
+    if (actionsTakenRef.current > 100) {
       console.warn('Automaton exceeded action limit, ending turn.');
       setAutomatonStatus("Ending turn (limit reached)...");
       actions.endTurn();
       return;
     }
 
+    // Prevent redundant processing if state hasn't changed since last action
+    if (meaningfulState === lastStateRef.current) return;
+
+    if (isProcessingRef.current) return;
+    
     // Only process if no animations are running
     if (meaningfulState.animations && meaningfulState.animations.length > 0) return;
 
     isProcessingRef.current = true;
-    const worker = workerRef.current;
-    console.log(`AI Turn beginning for player ${meaningfulState.currentPlayerIndex} (Action #${actionsTakenRef.current})`);
-    let active = true;
-
-    const handleMessage = (e: MessageEvent) => {
-      if (!active) {
-        isProcessingRef.current = false;
-        return;
-      }
-      
-      worker.removeEventListener('message', handleMessage);
-      worker.removeEventListener('error', handleError);
-
-      if (!gameState) {
-        isProcessingRef.current = false;
-        return;
-      }
-
-      if (e.data.error) {
-        console.error('Automaton worker error:', e.data.error);
-        actions.endTurn();
-        isProcessingRef.current = false;
-        return;
-      }
-
-      handleAction(e.data.action, meaningfulState);
-    };
-
-    const handleError = (error: ErrorEvent) => {
-      if (!active) {
-        isProcessingRef.current = false;
-        return;
-      }
-      worker.removeEventListener('message', handleMessage);
-      worker.removeEventListener('error', handleError);
-      console.error('Worker failed during execution:', error);
-      
-      // Mark as broken and fallback
-      workerIsBrokenRef.current = true;
-      executeSyncFallback(meaningfulState);
-    };
-
-    worker.addEventListener('message', handleMessage);
-    worker.addEventListener('error', handleError);
-
-    // Post message to worker with a timeout delay to allow the status to render
-    timerRef.current = setTimeout(() => {
-      if (!active) return;
-      try {
-        // Only clone the necessary data, avoid structuredClone if the object is too deep/complex
-        // or if we can just take a snapshot of the raw data.
-        // We also prune the board to minimize transfer size.
-        const prunedBoard = meaningfulState.board.map(t => ({
-          coord: t.coord,
-          terrain: t.terrain,
-          ownerId: t.ownerId
-        }));
-        
-        const workerState = {
-          ...meaningfulState,
-          board: prunedBoard
-        };
-        
-        worker.postMessage({ state: workerState, config: (gameState as any).config || undefined });
-      } catch {
-        // Last resort fallback
-        try {
-          const workerState = JSON.parse(JSON.stringify(meaningfulState));
-          worker.postMessage({ state: workerState, config: (gameState as any).config || undefined });
-        } catch (innerE) {
-          console.error("Failed to post to worker:", innerE);
-          isProcessingRef.current = false;
-        }
-      }
-    }, 150);
+    console.log(`AI Turn: Player ${meaningfulState.currentPlayerIndex}, Action #${actionsTakenRef.current + 1}`);
+    
+    executeSyncAI(meaningfulState);
 
     return () => {
-      active = false;
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      worker.removeEventListener('message', handleMessage);
-      worker.removeEventListener('error', handleError);
-      // Reset processing flag so next effect run can start
       isProcessingRef.current = false;
     };
-
   }, [meaningfulState, setupMode, actions, setAutomatonStatus, gameState]);
 }
