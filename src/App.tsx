@@ -11,6 +11,7 @@ const COLORS = Object.keys(COLOR_NAMES);
 import { getValidMoves, getValidAttacks, getAttackRange, triggerBarbarianInvasion, createInitialState } from './gameEngine';
 import { useAutomatonTurn } from './hooks/useAutomatonTurn';
 import { useGameActions } from './hooks/useGameActions';
+import { AIConfig } from './automaton-library/AIConfig';
 import { GameButton } from './components/GameButton';
 import { Sidebar } from './components/Sidebar';
 import { SetupScreen } from './components/SetupScreen';
@@ -195,6 +196,35 @@ export default function App() {
     }
   };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
+  const [automatonConfig, setAutomatonConfig] = useState<AIConfig | undefined>(undefined);
+
+  // Load optimized AI config if it exists in /config/mco_config.txt
+  useEffect(() => {
+    const loadAIConfig = async () => {
+      try {
+        const response = await fetch('/config/mco_config.txt');
+        if (!response.ok) return;
+        const text = await response.text();
+        
+        // Extract JSON part from the JS module-like text
+        // Match everything between the first '{' and the last '}'
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const config = JSON.parse(jsonMatch[0]);
+            console.log('Successfully loaded optimized AI configuration from mco_config.txt');
+            setAutomatonConfig(config);
+          } catch (e) {
+            console.warn('Found mco_config.txt but failed to parse JSON content:', e);
+          }
+        }
+      } catch (err) {
+        // Silent failure for config loading is expected if file doesn't exist
+      }
+    };
+    
+    loadAIConfig();
+  }, []);
 
   // Reactive Strategic Analysis to keep the UI snappy
   useEffect(() => {
@@ -506,7 +536,13 @@ export default function App() {
     }
   }, [gameState, moveUnit, attackUnit, setGameState]);
 
-  useAutomatonTurn({ gameState, setupMode, actions, setAutomatonStatus });
+  useAutomatonTurn({ 
+    gameState, 
+    setupMode, 
+    actions, 
+    setAutomatonStatus,
+    aiConfig: automatonConfig 
+  });
 
   // UI BUG FIX: Trigger a "fake" resize event when the game starts.
   // This ensures that the Sidebar and 3D stage correctly re-evaluate their layout 

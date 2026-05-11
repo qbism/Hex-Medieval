@@ -2,19 +2,22 @@ import { useEffect, useRef, useMemo } from 'react';
 import { GameState } from '../types';
 import { GameActions } from './useGameActions';
 import { getAutomatonBestAction } from '../automaton-library/Core';
+import { AIConfig } from '../automaton-library/AIConfig';
 
 interface UseAutomatonTurnProps {
   gameState: GameState | null;
   setupMode: boolean;
   actions: GameActions;
   setAutomatonStatus: (status: string) => void;
+  aiConfig?: AIConfig;
 }
 
 export function useAutomatonTurn({
   gameState,
   setupMode,
   actions,
-  setAutomatonStatus
+  setAutomatonStatus,
+  aiConfig
 }: UseAutomatonTurnProps) {
   const isProcessingRef = useRef(false);
   const lastStateRef = useRef<any>(null);
@@ -92,7 +95,7 @@ export function useAutomatonTurn({
           board: prunedBoard
         };
 
-        const config = (gameState as any).config || undefined;
+        const config = aiConfig || (gameState as any).config || undefined;
         const action = getAutomatonBestAction(aiState as any, config);
         
         // Execute action
