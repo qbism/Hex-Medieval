@@ -406,6 +406,7 @@ export const MATERIALS = {
           colorTop: { value: new THREE.Color('#94E2FF') }, // Brighter Sky Blue (+10%)
           colorBottom: { value: new THREE.Color('#7A4F44') }, // Terra Cotta (+25% saturation, adjusted brightness)
           uTime: { value: 0.0 },
+          uCloudsEnabled: { value: 1.0 },
         },
         vertexShader: `
           varying vec3 vWorldPosition;
@@ -419,6 +420,7 @@ export const MATERIALS = {
           uniform vec3 colorTop;
           uniform vec3 colorBottom;
           uniform float uTime;
+          uniform float uCloudsEnabled;
           varying vec3 vWorldPosition;
           
           vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
@@ -505,7 +507,7 @@ export const MATERIALS = {
             
             float cloudMask = smoothstep(-0.58, -0.2, direction.y);
             
-            if (cloudMask > 0.0) {
+            if (uCloudsEnabled > 0.5 && cloudMask > 0.0) {
                 // Spherical projection for overhead clouds, shifted down
                 float overheadY = max(direction.y + 0.6, 0.01);
                 vec3 skyPos = direction * (1.0 / overheadY); 

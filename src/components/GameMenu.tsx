@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Save, Upload, RotateCcw, ChevronRight, Play, Volume2, Music, X, HelpCircle } from 'lucide-react';
 import { GameButton } from './GameButton';
+import { cn } from '../types';
 
 interface GameMenuProps {
   onClose: () => void;
@@ -16,6 +17,8 @@ interface GameMenuProps {
   setMusicVolume: (vol: number) => void;
   effectsVolume: number;
   setEffectsVolume: (vol: number) => void;
+  cloudsEnabled: boolean;
+  setCloudsEnabled: (val: boolean) => void;
 }
 
 export const GameMenu = ({ 
@@ -30,7 +33,9 @@ export const GameMenu = ({
   musicVolume,
   setMusicVolume,
   effectsVolume,
-  setEffectsVolume
+  setEffectsVolume,
+  cloudsEnabled,
+  setCloudsEnabled
 }: GameMenuProps) => {
   React.useEffect(() => {
     // Esc key handling
@@ -107,6 +112,24 @@ export const GameMenu = ({
                 onChange={(e) => setEffectsVolume(parseFloat(e.target.value))}
                 className="w-full h-2 bg-stone-300 rounded-full appearance-none cursor-pointer accent-black"
               />
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-black/5 mt-2">
+              <span className="text-sm font-black opacity-60">Clouds Shader</span>
+              <button 
+                onClick={() => setCloudsEnabled(!cloudsEnabled)}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none border-2 border-black",
+                  cloudsEnabled ? "bg-amber-500" : "bg-stone-300"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform border border-black/20",
+                    cloudsEnabled ? "translate-x-6" : "translate-x-1"
+                  )}
+                />
+              </button>
             </div>
           </div>
 

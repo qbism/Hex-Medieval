@@ -197,6 +197,7 @@ export default function App() {
   };
   const [automatonStatus, setAutomatonStatus] = useState("Analyzing battlefield...");
   const [automatonConfig, setAutomatonConfig] = useState<AIConfig | undefined>(undefined);
+  const [cloudsEnabled, setCloudsEnabled] = useState(true);
 
   // Load optimized AI config if it exists in /config/mco_config.txt
   useEffect(() => {
@@ -581,6 +582,7 @@ export default function App() {
             clearAnimation={clearAnimation}
             showStrategicView={showStrategicView}
             setupMode={setupMode}
+            cloudsEnabled={cloudsEnabled}
           />
         </div>
 
@@ -653,6 +655,8 @@ export default function App() {
                 setMusicVolume={setMusicVolume}
                 effectsVolume={effectsVolume}
                 setEffectsVolume={setEffectsVolume}
+                cloudsEnabled={cloudsEnabled}
+                setCloudsEnabled={setCloudsEnabled}
               />
             </div>
           )}

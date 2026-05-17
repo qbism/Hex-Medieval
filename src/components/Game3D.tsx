@@ -37,6 +37,7 @@ interface Game3DProps {
   clearAnimation: (animId: string) => void;
   showStrategicView: boolean;
   setupMode?: boolean;
+  cloudsEnabled?: boolean;
 }
 
 // 3D Hex Tile
@@ -554,8 +555,13 @@ const AnimatedUnit3D = React.memo(({ unit, playerColor, isSelected, anim, onAnim
         groupRef.current.position.z = THREE.MathUtils.lerp(z, targetZ, ease);
         groupRef.current.position.y = baseHeight + Math.sin(progress * Math.PI) * 1.0;
       } else if (anim.type === 'attack') {
+        // BUG FIX: Archer animation occasionally flying to target
+        // Explicitly ensuring Ranged units (Archer/Catapult) ONLY hop and don't slide/fly to target position
         if (unit.type === UnitType.CATAPULT || unit.type === UnitType.ARCHER) {
           groupRef.current.position.y = baseHeight + Math.sin(progress * Math.PI) * 0.5;
+          // Re-force position to stay exactly at unit's current hex
+          groupRef.current.position.x = x;
+          groupRef.current.position.z = z;
         } else {
           const bumpProgress = progress < 0.5 ? progress * 2 : (1 - progress) * 2;
           const bumpEase = bumpProgress < 0.5 ? 2 * bumpProgress * bumpProgress : 1 - Math.pow(-2 * bumpProgress + 2, 2) / 2;
@@ -751,10 +757,13 @@ const FeaturesInstanced = React.memo(({ board }: { board: any[] }) => {
   );
 });
 
-const SkySphere = React.memo(() => {
+const SkySphere = React.memo(({ enabled = true }: { enabled?: boolean }) => {
   useFrame(({ clock }) => {
     if (MATERIALS.sky.uniforms.uTime) {
       MATERIALS.sky.uniforms.uTime.value = clock.getElapsedTime();
+    }
+    if (MATERIALS.sky.uniforms.uCloudsEnabled) {
+      MATERIALS.sky.uniforms.uCloudsEnabled.value = enabled ? 1.0 : 0.0;
     }
   });
   return <mesh geometry={GEOMETRIES.skySphere} material={MATERIALS.sky} raycast={() => null} />;
@@ -1445,7 +1454,8 @@ export const Game3D: React.FC<Game3DProps> = ({
   finalizeAttack, 
   clearAnimation, 
   showStrategicView,
-  setupMode = false
+  setupMode = false,
+  cloudsEnabled = true
 }) => {
   const [controls, setControls] = useState<any>(null);
   const rotationActive = useRef({ left: false, right: false, up: false, down: false });
@@ -1573,6 +1583,8 @@ export const Game3D: React.FC<Game3DProps> = ({
         
         <ambientLight intensity={0.4} />
         <SunLight />
+        
+        <SkySphere enabled={cloudsEnabled} />
 
         <group position={[0, 0, 0]}>
         {/* Render Board Bases (Instanced) */}

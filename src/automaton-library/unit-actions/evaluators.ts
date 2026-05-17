@@ -299,6 +299,20 @@ export function evaluateAttacks(unitToAct: Unit, context: UnitActionContext): { 
         // UNDEFENDED BONUS: Huge boost if the settlement is literally wide open
         priority += config.BASE_REWARD * 50.0;
       }
+
+      // FIX: Subtract peril from village capture bonus (AI getting "suckered")
+      const destThreat = threatMatrix.get(`${a.q},${a.r}`);
+      if (destThreat && destThreat.minTurns === 1 && !isBarbarian) {
+        const eminentCount = destThreat.eminentAttackerCount;
+        if (eminentCount >= 2) {
+          // The "Sucker" penalty: If we capture but will be immediately killed by 2+ units
+          // This prevents suicide-capping undefended settlements that can't be held.
+          priority -= (UNIT_STATS[unitToAct.type].cost + settlementValue) * 1.5;
+        } else {
+          // Moderate penalty for single attackers if we are capturing
+          priority -= (UNIT_STATS[unitToAct.type].cost) * 0.5;
+        }
+      }
       
       const enemyUnitsNearThisSettlement = state.units.filter(u => u.ownerId === targetTile.ownerId && getDistance(u.coord, targetTile.coord, state.board) <= UNIT_STATS[u.type].moves);
       if (enemyUnitsNearThisSettlement.length > 0) priority += config.BASE_REWARD * config.SETTLEMENT_DEGRADATION_PRIORITY_BONUS;
@@ -524,6 +538,12 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
 
     if (tile.ownerId === null && (tile.terrain === TerrainType.VILLAGE || tile.terrain === TerrainType.FORT || tile.terrain === TerrainType.CASTLE || tile.terrain === TerrainType.GOLD_MINE)) {
       score += (SETTLEMENT_INCOME[tile.terrain as TerrainType] * HORIZON) + BASE_REWARD * IMMEDIATE_CAPTURE_BONUS; 
+      
+      // FIX: "Sucker" penalty for taking vacant villages that are in massive peril
+      if (isMoveInPeril && moveThreat && moveThreat.eminentAttackerCount >= 2 && !isBarbarian) {
+        const unitCost = UNIT_STATS[unitToAct.type].cost;
+        score -= (unitCost + (SETTLEMENT_INCOME[tile.terrain as TerrainType] * HORIZON)) * 1.8;
+      }
     }
 
     const potentialRange = getUnitRange({ ...unitToAct, coord: m }, state.board);
@@ -891,7 +911,9 @@ export function evaluateMoves(unitToAct: Unit, context: UnitActionContext): { ac
         let penalty = ((myValue * THREAT_PENALTY_L1_MULT) + (eminentValue * 4.0) + (eminentCount * 100));
         if (globalAggression > 1.0) penalty /= globalAggression;
 
-        if (myValue >= 200 && !isBarbarian && !hasImmediateGain) {
+        // If it's a "sucker" move (capturing but doomed), we don't waive the HVT penalty
+        const isSuckerMove = hasImmediateGain && eminentCount >= 2;
+        if (myValue >= 200 && !isBarbarian && (!hasImmediateGain || isSuckerMove)) {
            const hvtPenaltyMult = globalUnitRatio >= 2.0 && isRich ? 2.5 : (globalUnitRatio >= 1.5 ? 5.0 : 10.0);
            penalty *= hvtPenaltyMult; 
         }

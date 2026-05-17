@@ -321,6 +321,11 @@ export function useGameActions(
       if (!prev || !prev.history || prev.history.length === 0) return prev;
       const lastState = prev.history[prev.history.length - 1];
       
+      // Prevent undoing across turns (don't undo into previous player's action)
+      if (lastState.currentPlayerIndex !== prev.currentPlayerIndex) {
+        return prev;
+      }
+
       const newState: GameState = {
         ...lastState,
         history: prev.history.slice(0, -1),
